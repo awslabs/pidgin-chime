@@ -67,7 +67,7 @@ static JsonNode *chime_device_register_req(PurpleAccount *account)
 void chime_queue_http_request(PurpleConnection *conn, JsonNode *node,
 			      SoupURI *uri, SoupSessionCallback callback)
 {
-	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
+	SoupMessage *msg = soup_message_new_from_uri(node?"POST":"GET", uri);
 	struct chime_private *priv = purple_connection_get_protocol_data(conn);
 
 	if (priv->session_token) {
@@ -123,7 +123,7 @@ static JsonNode *process_soup_response(SoupMessage *msg, GError **error)
 	JsonParser *parser;
 	JsonNode *node;
 
-	if (msg->status_code != 200) {
+	if (msg->status_code != 200 && msg->status_code != 201) {
 		g_set_error(error, CHIME_ERROR,
 			    CHIME_ERROR_REQUEST_FAILED,
 			    _("Request failed(%d): %s"),

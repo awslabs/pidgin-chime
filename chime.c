@@ -18,78 +18,25 @@
 G_DEFINE_QUARK(PidginChimeError, pidgin_chime_error);
 
 #define CONNECT_STEPS 3
-static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
+
+SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...)
 {
-	printf("Chime plugin load\n");
-	purple_notify_message(plugin, PURPLE_NOTIFY_MSG_INFO, "Foo",
-			      "Chime plugin starting...", NULL, NULL, NULL);
-	return TRUE;
+	SoupURI *uri;
+	va_list args;
+	gchar *constructed;
+	gchar *append;
+
+	va_start(args, format);
+	append = g_strdup_vprintf(format, args);
+	va_end(args);
+	constructed = g_strdup_printf("%s%s%s", base,
+				      g_str_has_suffix(base, "/") ? "" : "/",
+				      append[0] == '/' ? append + 1 : append);
+	uri = soup_uri_new(constructed);
+	g_free(constructed);
+	g_free(append);
+	return uri;
 }
-
-static gboolean chime_purple_plugin_unload(PurplePlugin *plugin)
-{
-	return TRUE;
-}
-
-void chime_purple_plugin_destroy(PurplePlugin *plugin)
-{
-}
-const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
-{
-        return "chime";
-}
-
-static JsonNode *chime_device_register_req(PurpleAccount *account)
-{
-	JsonBuilder *jb;
-	JsonNode *jn;
-
-	jb = json_builder_new();
-	jb = json_builder_begin_object(jb);
-	jb = json_builder_set_member_name(jb, "Device");
-	jb = json_builder_begin_object(jb);
-	jb = json_builder_set_member_name(jb, "Platform");
-	jb = json_builder_add_string_value(jb, "android");
-	jb = json_builder_set_member_name(jb, "DeviceToken");
-	jb = json_builder_add_string_value(jb, "not-a-real-device-not-even-android");
-	jb = json_builder_set_member_name(jb, "UaChannelToken");
-	jb = json_builder_add_string_value(jb, "blah42");
-	jb = json_builder_set_member_name(jb, "Capabilities");
-	jb = json_builder_add_int_value(jb, 1234);
-	jb = json_builder_end_object(jb);
-	jb = json_builder_end_object(jb);
-	jn = json_builder_get_root(jb);
-	g_object_unref(jb);
-
-	return jn;
-}
-
-void chime_queue_http_request(PurpleConnection *conn, JsonNode *node,
-			      SoupURI *uri, SoupSessionCallback callback)
-{
-	SoupMessage *msg = soup_message_new_from_uri(node?"POST":"GET", uri);
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
-
-	if (priv->session_token) {
-		gchar *cookie = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
-		soup_message_headers_append(msg->request_headers, "Cookie", cookie);
-		g_free(cookie);
-	}
-	if (node) {
-		gchar *body;
-		gsize body_size;
-		JsonGenerator *gen = json_generator_new();
-		json_generator_set_root(gen, node);
-		body = json_generator_to_data(gen, &body_size);
-		soup_message_set_request(msg, "application/json",
-					 SOUP_MEMORY_TAKE,
-					 body, body_size);
-		g_object_unref(gen);
-		json_node_unref(node);
-	}
-	soup_session_queue_message(priv->sess, msg, callback, conn);
-}
-
 /* Helper function to get a string from a JSON child node */
 static gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
 {
@@ -151,6 +98,156 @@ static JsonNode *process_soup_response(SoupMessage *msg, GError **error)
 	return node;
 }
 
+static void renew_cb(SoupSession *sess, SoupMessage *msg,
+			gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	GError *error = NULL;
+	GList *l;
+	const gchar *sess_tok;
+	JsonNode *tok_node;
+
+
+	tok_node = process_soup_response(msg, &error);
+	if (!tok_node) {
+		gchar *reason = g_strdup_printf(_("Token renewal: %s"),
+						error->message);
+		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, reason);
+		g_free(reason);
+		return;
+	}
+
+	if (!parse_string(tok_node, "SessionToken", &sess_tok)) {
+		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+					       _("Failed to renew session token"));
+		return;
+	}
+	purple_account_set_string(conn->account, "token", sess_tok);
+	g_free(priv->session_token);
+	priv->session_token = g_strdup(sess_tok);
+
+	while ( (l = g_list_first(priv->msg_queue)) ) {
+		struct chime_msg_queue *cmsg = l->data;
+
+		soup_session_queue_message(priv->sess, cmsg->msg, cmsg->cb, conn);
+		priv->msg_queue = g_list_remove(priv->msg_queue, cmsg);
+	}
+}
+
+void chime_queue_http_request(PurpleConnection *conn, JsonNode *node,
+			      SoupURI *uri, SoupSessionCallback callback)
+{
+	SoupMessage *msg = soup_message_new_from_uri(node?"POST":"GET", uri);
+	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+
+	if (priv->session_token) {
+		gchar *cookie = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
+		soup_message_headers_append(msg->request_headers, "Cookie", cookie);
+		g_free(cookie);
+	}
+	if (node) {
+		gchar *body;
+		gsize body_size;
+		JsonGenerator *gen = json_generator_new();
+		json_generator_set_root(gen, node);
+		body = json_generator_to_data(gen, &body_size);
+		soup_message_set_request(msg, "application/json",
+					 SOUP_MEMORY_TAKE,
+					 body, body_size);
+		g_object_unref(gen);
+		json_node_unref(node);
+	}
+	soup_session_queue_message(priv->sess, msg, callback, conn);
+}
+
+
+static void chime_renew_token(PurpleConnection *conn)
+{
+	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	SoupURI *uri;
+	JsonBuilder *builder;
+	JsonNode *node;
+
+	builder = json_builder_new();
+	builder = json_builder_begin_object(builder);
+	builder = json_builder_set_member_name(builder, "Token");
+	builder = json_builder_add_string_value(builder, priv->session_token);
+	builder = json_builder_end_object(builder);
+	node = json_builder_get_root(builder);
+	g_object_unref(builder);
+
+	uri = soup_uri_new_printf(priv->profile_url, "/tokens");
+	soup_uri_set_query_from_fields(uri, "Token", priv->session_token, NULL);
+	chime_queue_http_request(conn, node, uri, renew_cb);
+}
+
+
+static void resubmit_msg_for_auth(PurpleConnection *conn, SoupMessage *msg, SoupSessionCallback cb)
+{
+	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	struct chime_msg_queue *cmsg = g_new0(struct chime_msg_queue, 1);
+
+	cmsg->msg = g_object_ref(msg);
+	cmsg->cb = cb;
+
+	if (priv->msg_queue) {
+		/* Already renewing; just add to the list */
+		priv->msg_queue = g_list_append(priv->msg_queue, cmsg);
+		return;
+	}
+
+	priv->msg_queue = g_list_append(priv->msg_queue, cmsg);
+	chime_renew_token(conn);
+}
+
+static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
+{
+	printf("Chime plugin load\n");
+	purple_notify_message(plugin, PURPLE_NOTIFY_MSG_INFO, "Foo",
+			      "Chime plugin starting...", NULL, NULL, NULL);
+	return TRUE;
+}
+
+static gboolean chime_purple_plugin_unload(PurplePlugin *plugin)
+{
+	return TRUE;
+}
+
+void chime_purple_plugin_destroy(PurplePlugin *plugin)
+{
+}
+const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
+{
+        return "chime";
+}
+
+static JsonNode *chime_device_register_req(PurpleAccount *account)
+{
+	JsonBuilder *jb;
+	JsonNode *jn;
+
+	jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "Device");
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "Platform");
+	jb = json_builder_add_string_value(jb, "android");
+	jb = json_builder_set_member_name(jb, "DeviceToken");
+	jb = json_builder_add_string_value(jb, "not-a-real-device-not-even-android");
+	jb = json_builder_set_member_name(jb, "UaChannelToken");
+	jb = json_builder_add_string_value(jb, "blah42");
+	jb = json_builder_set_member_name(jb, "Capabilities");
+	jb = json_builder_add_int_value(jb, 1234);
+	jb = json_builder_end_object(jb);
+	jb = json_builder_end_object(jb);
+	jn = json_builder_get_root(jb);
+	g_object_unref(jb);
+
+	return jn;
+}
+
+
 static void on_websocket_closed(SoupWebsocketConnection *ws,
 				gpointer _conn)
 {
@@ -160,6 +257,7 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 	printf("websocket closedd: %d %s!\n", soup_websocket_connection_get_close_code(ws),
 	       soup_websocket_connection_get_close_data(ws));
 }
+
 static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _conn)
 {
 	PurpleConnection *conn = _conn;
@@ -182,6 +280,7 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _conn)
 			 G_CALLBACK(on_websocket_closed), conn);
 	purple_connection_set_state(_conn, PURPLE_CONNECTED);
 }
+
 static void ws_cb(SoupSession *sess, SoupMessage *msg, gpointer _conn)
 {
 	PurpleConnection *conn = _conn;
@@ -192,6 +291,10 @@ static void ws_cb(SoupSession *sess, SoupMessage *msg, gpointer _conn)
 	gchar *url;
 	SoupURI *uri;
 
+	if (msg->status_code == 401) {
+		resubmit_msg_for_auth(conn, msg, ws_cb);
+		return;
+	}
 	if (msg->status_code != 200) {
 		gchar *reason = g_strdup_printf(_("Websocket connection error (%d): %s"),
 						msg->status_code, msg->reason_phrase);
@@ -226,60 +329,6 @@ static void ws_cb(SoupSession *sess, SoupMessage *msg, gpointer _conn)
 	/* There's more to it than this but this will do for now... */
 
 }
-static void renew_cb(SoupSession *sess, SoupMessage *msg,
-			gpointer _conn)
-{
-	PurpleConnection *conn = _conn;
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
-	GError *error = NULL;
-	JsonNode *tok_node = process_soup_response(msg, &error);
-	if (!tok_node) {
-		gchar *reason = g_strdup_printf(_("Token renewal: %s"),
-						error->message);
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, reason);
-		g_free(reason);
-		return;
-	}
-
-	if (!parse_string(tok_node, "SessionToken", &priv->session_token)) {
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
-					       _("Failed to renew session token"));
-		return;
-	}
-	purple_account_set_string(conn->account, "token", priv->session_token);
-
-	gchar *url = g_strdup_printf("%s/1", priv->websocket_url);
-	SoupURI *uri = soup_uri_new(url);
-	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
-	g_free(url);
-
-	purple_connection_update_progress(conn, _("Obtaining WebSocket params..."),
-					  3, CONNECT_STEPS);
-	chime_queue_http_request(conn, NULL, uri, ws_cb);
-}
-
-static void chime_renew_token(PurpleConnection *conn)
-{
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
-	SoupURI *uri;
-	JsonBuilder *builder;
-	JsonNode *node;
-
-	builder = json_builder_new();
-	builder = json_builder_begin_object(builder);
-	builder = json_builder_set_member_name(builder, "Token");
-	builder = json_builder_add_string_value(builder, priv->session_token);
-	builder = json_builder_end_object(builder);
-	node = json_builder_get_root(builder);
-	g_object_unref(builder);
-
-
-	uri = soup_uri_new(priv->profile_url);
-	soup_uri_set_path(uri, "/tokens");
-	soup_uri_set_query_from_fields(uri, "Token", priv->session_token, NULL);
-	chime_queue_http_request(conn, node, uri, renew_cb);
-}
-
 
 
 static gboolean parse_regnode(PurpleConnection *conn, JsonNode *regnode)
@@ -287,13 +336,14 @@ static gboolean parse_regnode(PurpleConnection *conn, JsonNode *regnode)
 	struct chime_private *priv = purple_connection_get_protocol_data(conn);
 	JsonObject *obj = json_node_get_object(priv->reg_node);
 	JsonNode *node, *sess_node = json_object_get_member(obj, "Session");
-	const gchar *str;
+	const gchar *str, *sess_tok;
 
 	if (!sess_node)
 		return FALSE;
-	if (!parse_string(sess_node, "SessionToken", &priv->session_token))
+	if (!parse_string(sess_node, "SessionToken", &sess_tok))
 		return FALSE;
-	purple_account_set_string(conn->account, "token", priv->session_token);
+	purple_account_set_string(conn->account, "token", sess_tok);
+	priv->session_token = g_strdup(sess_tok);
 
 	obj = json_node_get_object(sess_node);
 
@@ -366,9 +416,12 @@ static void register_cb(SoupSession *sess, SoupMessage *msg,
 		return;
 	}
 
-	purple_connection_update_progress(conn, _("Refreshing authentication token..."),
+	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1");
+	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
+
+	purple_connection_update_progress(conn, _("Obtaining WebSocket params..."),
 					  2, CONNECT_STEPS);
-	chime_renew_token(conn);
+	chime_queue_http_request(conn, NULL, uri, ws_cb);
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
@@ -398,9 +451,8 @@ void chime_purple_login(PurpleAccount *account)
 		g_object_set(priv->sess, "ssl-strict", FALSE, NULL);
 	}
 	node = chime_device_register_req(account);
-	uri = soup_uri_new(purple_account_get_string(account, "server",
-						     SIGNIN_DEFAULT));
-	soup_uri_set_path(uri, "/sessions");
+	uri = soup_uri_new_printf(purple_account_get_string(account, "server", SIGNIN_DEFAULT),
+				  "/sessions");
 	soup_uri_set_query_from_fields(uri, "Token", token, NULL);
 
 	purple_connection_update_progress(conn, _("Connecting..."), 1, CONNECT_STEPS);
@@ -424,6 +476,10 @@ void chime_purple_close(PurpleConnection *conn)
 		if (priv->ws_conn) {
 			g_object_unref(priv->ws_conn);
 			priv->ws_conn = NULL;
+		}
+		if (priv->msg_queue) {
+			g_list_free_full(priv->msg_queue, g_object_unref);
+			priv->msg_queue = NULL;
 		}
 		g_free(priv);
 		purple_connection_set_protocol_data(conn, NULL);

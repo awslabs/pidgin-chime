@@ -5,13 +5,22 @@
 #include <libsoup/soup.h>
 #include <json-glib/json-glib.h>
 
+struct chime_msg_queue {
+	SoupMessage *msg;
+	SoupSessionCallback cb;
+};
+
 struct chime_private {
 	SoupSession *sess;
 	SoupWebsocketConnection *ws_conn;
 
+	gchar *session_token;
+
+	/* Messages queued for resubmission */
+	GList *msg_queue;
+
 	JsonNode *reg_node;
 	const gchar *session_id;
-	const gchar *session_token;
 	const gchar *profile_id;
 	const gchar *profile_channel;
 	const gchar *presence_channel;

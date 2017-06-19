@@ -151,6 +151,81 @@ static JsonNode *process_soup_response(SoupMessage *msg, GError **error)
 	return node;
 }
 
+static void on_websocket_closed(SoupWebsocketConnection *ws,
+				gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+
+	printf("websocket closedd: %d %s!\n", soup_websocket_connection_get_close_code(ws),
+	       soup_websocket_connection_get_close_data(ws));
+}
+static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	GError *error = NULL;
+
+
+	priv->ws_conn = soup_session_websocket_connect_finish(SOUP_SESSION(obj),
+							      res, &error);
+	if (!priv->ws_conn) {
+		gchar *reason = g_strdup_printf(_("Websocket connection error %s"),
+						error->message);
+		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+					       reason);
+		g_free(reason);
+		return;
+	}
+	printf("Got ws conn %p\n", priv->ws_conn);
+	g_signal_connect(G_OBJECT(priv->ws_conn), "closed",
+			 G_CALLBACK(on_websocket_closed), conn);
+	purple_connection_set_state(_conn, PURPLE_CONNECTED);
+}
+static void ws_cb(SoupSession *sess, SoupMessage *msg, gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	GError *error = NULL;
+	gchar **ws_opts = NULL;
+	gchar **protos = NULL;
+	gchar *url;
+	SoupURI *uri;
+
+	if (msg->status_code != 200) {
+		gchar *reason = g_strdup_printf(_("Websocket connection error (%d): %s"),
+						msg->status_code, msg->reason_phrase);
+		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+					       reason);
+		g_free(reason);
+		return;
+	}
+	if (msg->response_body->data)
+		ws_opts = g_strsplit(msg->response_body->data, ":", 4);
+
+	if (!ws_opts || !ws_opts[1] || !ws_opts[2] || !ws_opts[3] ||
+	    strncmp(ws_opts[3], "websocket,", 10)) {
+		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+					       _("Unexpected response in WebSocket setup"));
+		return;
+	}
+
+	url = g_strdup_printf("%s/1/websocket/%s", priv->websocket_url, ws_opts[1]);
+	uri = soup_uri_new(url);
+	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
+	g_free(url);
+
+	/* New message */
+	msg = soup_message_new_from_uri("GET", uri);
+	purple_connection_update_progress(conn, _("Establishing WebSocket connection..."),
+					  4, CONNECT_STEPS);
+	protos = g_strsplit(ws_opts[3], ",", 0);
+	soup_session_websocket_connect_async(priv->sess, msg, NULL, protos, NULL, ws2_cb, conn);
+	g_strfreev(protos);
+	g_strfreev(ws_opts);
+	/* There's more to it than this but this will do for now... */
+
+}
 static void renew_cb(SoupSession *sess, SoupMessage *msg,
 			gpointer _conn)
 {
@@ -173,8 +248,14 @@ static void renew_cb(SoupSession *sess, SoupMessage *msg,
 	}
 	purple_account_set_string(conn->account, "token", priv->session_token);
 
-	/* There's more to it than this but this will do for now... */
-	purple_connection_set_state(conn, PURPLE_CONNECTED);
+	gchar *url = g_strdup_printf("%s/1", priv->websocket_url);
+	SoupURI *uri = soup_uri_new(url);
+	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
+	g_free(url);
+
+	purple_connection_update_progress(conn, _("Obtaining WebSocket params..."),
+					  3, CONNECT_STEPS);
+	chime_queue_http_request(conn, NULL, uri, ws_cb);
 }
 
 static void chime_renew_token(PurpleConnection *conn)
@@ -339,6 +420,10 @@ void chime_purple_close(PurpleConnection *conn)
 		if (priv->reg_node) {
 			json_node_unref(priv->reg_node);
 			priv->reg_node = NULL;
+		}
+		if (priv->ws_conn) {
+			g_object_unref(priv->ws_conn);
+			priv->ws_conn = NULL;
 		}
 		g_free(priv);
 		purple_connection_set_protocol_data(conn, NULL);

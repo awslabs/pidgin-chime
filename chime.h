@@ -7,6 +7,7 @@
 
 struct chime_private {
 	SoupSession *sess;
+	SoupWebsocketConnection *ws_conn;
 
 	JsonNode *reg_node;
 	const gchar *session_id;

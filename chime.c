@@ -4,6 +4,7 @@
 #include <version.h>
 #include <accountopt.h>
 #include <status.h>
+#include <roomlist.h>
 
 #include <glib/gi18n.h>
 #include <glib/gstrfuncs.h>
@@ -127,7 +128,7 @@ static void renew_cb(SoupSession *soup_sess, SoupMessage *msg,
 	cxn->session_token = g_strdup(sess_tok);
 
 	json_node_unref(tok_node);
-	
+
 	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", cxn->session_token);
 
 	while ( (l = g_list_first(cxn->msg_queue)) ) {
@@ -143,7 +144,7 @@ static void renew_cb(SoupSession *soup_sess, SoupMessage *msg,
 }
 
 void chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
-			      SoupURI *uri, SoupSessionCallback callback)
+			      SoupURI *uri, SoupSessionCallback callback, gpointer cb_data, SoupMessage **rmsg)
 {
 	SoupMessage *msg = soup_message_new_from_uri(node?"POST":"GET", uri);
 
@@ -165,7 +166,9 @@ void chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
 		g_object_unref(gen);
 		json_node_unref(node);
 	}
-	soup_session_queue_message(cxn->soup_sess, msg, callback, cxn);
+	if (rmsg)
+		*rmsg = msg;
+	soup_session_queue_message(cxn->soup_sess, msg, callback, cb_data);
 }
 
 
@@ -185,7 +188,7 @@ static void chime_renew_token(struct chime_connection *cxn)
 
 	uri = soup_uri_new_printf(cxn->profile_url, "/tokens");
 	soup_uri_set_query_from_fields(uri, "Token", cxn->session_token, NULL);
-	chime_queue_http_request(cxn, node, uri, renew_cb);
+	chime_queue_http_request(cxn, node, uri, renew_cb, cxn, NULL);
 }
 
 
@@ -329,8 +332,6 @@ static void ws_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cxn)
 	soup_session_websocket_connect_async(cxn->soup_sess, msg, NULL, protos, NULL, ws2_cb, cxn);
 	g_strfreev(protos);
 	g_strfreev(ws_opts);
-	/* There's more to it than this but this will do for now... */
-
 }
 
 
@@ -422,7 +423,7 @@ static void register_cb(SoupSession *soup_sess, SoupMessage *msg,
 
 	purple_connection_update_progress(cxn->prpl_conn, _("Obtaining WebSocket params..."),
 					  2, CONNECT_STEPS);
-	chime_queue_http_request(cxn, NULL, uri, ws_cb);
+	chime_queue_http_request(cxn, NULL, uri, ws_cb, cxn, NULL);
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
@@ -458,7 +459,7 @@ void chime_purple_login(PurpleAccount *account)
 	soup_uri_set_query_from_fields(uri, "Token", token, NULL);
 
 	purple_connection_update_progress(conn, _("Connecting..."), 1, CONNECT_STEPS);
-	chime_queue_http_request(cxn, node, uri, register_cb);
+	chime_queue_http_request(cxn, node, uri, register_cb, cxn, NULL);
 }
 
 void chime_purple_close(PurpleConnection *conn)
@@ -530,6 +531,89 @@ static int chime_purple_send_im(PurpleConnection *gc,
 	printf("send %s to %s\n", what, who);
 	return 1;
 }
+static void room_cb(JsonArray *array, guint index_,
+                     JsonNode *node, gpointer _roomlist)
+{
+	PurpleRoomlist *roomlist = _roomlist;
+	PurpleRoomlistRoom *room;
+	const gchar *name, *id, *visibility, *privacy;
+
+	if (!parse_string(node, "Name", &name) ||
+	    !parse_string(node, "RoomId", &id))
+		return;
+
+	room = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM, name, NULL);
+	purple_roomlist_room_add_field(roomlist, room, id);
+	purple_roomlist_room_add_field(roomlist, room,
+				       GUINT_TO_POINTER(!parse_string(node, "Visibility", &visibility) ||
+							!strcmp(visibility, "visible")));
+	purple_roomlist_room_add_field(roomlist, room,
+				       GUINT_TO_POINTER(!parse_string(node, "Privacy", &privacy) ||
+							!strcmp(privacy, "private")));
+	purple_roomlist_room_add(roomlist, room);
+}
+
+struct roomlist_data {
+	struct chime_connection *cxn;
+	SoupMessage *msg;
+};
+
+static void roomlist_cb(SoupSession *soup_sess, SoupMessage *msg,
+			gpointer _roomlist)
+{
+	PurpleRoomlist *roomlist = _roomlist;
+	struct chime_connection *cxn = roomlist->proto_data;
+	GError *error = NULL;
+	JsonNode *node = process_soup_response(msg, &error);
+
+	if (node) {
+		JsonNode *rooms_node;
+		JsonObject *obj;
+		JsonArray *rooms_arr;
+
+		obj = json_node_get_object(node);
+		rooms_node = json_object_get_member(obj, "Rooms");
+		if (rooms_node) {
+			rooms_arr = json_node_get_array(rooms_node);
+			json_array_foreach_element(rooms_arr, room_cb, roomlist);
+		}
+		json_node_unref(node);
+	}
+	purple_roomlist_set_in_progress(roomlist, FALSE);
+	g_free(roomlist->proto_data);
+	roomlist->proto_data = NULL;
+	purple_roomlist_unref(roomlist);
+}
+
+static PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
+{
+	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	struct roomlist_data *d = g_new0(struct roomlist_data, 1);
+	SoupURI *uri;
+	PurpleRoomlist *roomlist;
+	GList *fields = NULL;
+
+	roomlist = purple_roomlist_new(conn->account);
+	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_STRING, "", "RoomId", TRUE));
+	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_BOOL, _("Visible"), "Visibility", FALSE));
+	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_BOOL, _("Private"), "Privacy", FALSE));
+
+	purple_roomlist_set_fields(roomlist, fields);
+	purple_roomlist_set_in_progress(roomlist, TRUE);
+	roomlist->proto_data = d;
+	d->cxn = cxn;
+	uri = soup_uri_new_printf(cxn->messaging_url, "/rooms");
+	chime_queue_http_request(cxn, NULL, uri, roomlist_cb, roomlist, &d->msg);
+
+	return roomlist;
+}
+
+void chime_purple_roomlist_cancel(PurpleRoomlist *roomlist)
+{
+	struct roomlist_data *d = roomlist->proto_data;
+
+	soup_session_cancel_message(d->cxn->soup_sess, d->msg, 1);
+}
 
 static PurplePluginProtocolInfo chime_prpl_info = {
 	.options = OPT_PROTO_NO_PASSWORD,
@@ -540,6 +624,8 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.status_types = chime_purple_status_types,
 	.send_im = chime_purple_send_im,
 	.chat_info = chime_purple_chat_info,
+	.roomlist_get_list = chime_purple_roomlist_get_list,
+	.roomlist_cancel = chime_purple_roomlist_cancel,
 };
 
 static void chime_purple_show_about_plugin(PurplePluginAction *action)

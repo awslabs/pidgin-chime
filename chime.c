@@ -405,6 +405,8 @@ void chime_purple_close(PurpleConnection *conn)
 	GList *l;
 
 	if (cxn) {
+		chime_destroy_juggernaut(cxn);
+
 		if (cxn->soup_sess) {
 			soup_session_abort(cxn->soup_sess);
 			g_object_unref(cxn->soup_sess);
@@ -413,10 +415,6 @@ void chime_purple_close(PurpleConnection *conn)
 		if (cxn->reg_node) {
 			json_node_unref(cxn->reg_node);
 			cxn->reg_node = NULL;
-		}
-		if (cxn->ws_conn) {
-			g_object_unref(cxn->ws_conn);
-			cxn->ws_conn = NULL;
 		}
 		while ( (l = g_list_first(cxn->msg_queue)) ) {
 			struct chime_msg *cmsg = l->data;

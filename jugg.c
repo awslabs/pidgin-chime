@@ -18,12 +18,18 @@
 #include <string.h>
 
 #include <glib/gi18n.h>
+#include <glib/glist.h>
 
 #include <prpl.h>
 
 #include "chime.h"
 
 #include <libsoup/soup.h>
+
+struct jugg_subscription {
+	JuggernautCallback cb;
+	gpointer cb_data;
+};
 
 static void on_websocket_closed(SoupWebsocketConnection *ws,
 				gpointer _cxn)
@@ -96,8 +102,8 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "message",
 			 G_CALLBACK(on_websocket_message), cxn);
 
-	if (1) soup_websocket_connection_send_text(cxn->ws_conn,
-						   "3:::{\"type\":\"subscribe\",\"channel\":\"chat_room!9f50569a-f988-4802-a225-fc08e97d96fd\",\"channels\":null,\"except\":null,\"data\":null}");
+	if (0)
+		chime_jugg_subscribe(cxn, "chat_room!ce103b97-fcfa-491d-961a-9413a5e89e8d", NULL, NULL);
 	purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
 }
 
@@ -141,6 +147,25 @@ static void ws_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node
 	g_strfreev(ws_opts);
 }
 
+static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer user_data)
+{
+	g_list_free_full(v, g_free);
+	return TRUE;
+}
+
+void chime_destroy_juggernaut(struct chime_connection *cxn)
+{
+	if (cxn->ws_conn) {
+		g_object_unref(cxn->ws_conn);
+		cxn->ws_conn = NULL;
+	}
+	if (cxn->subscriptions) {
+		g_hash_table_foreach_remove(cxn->subscriptions, chime_sublist_destroy, NULL);
+		g_object_unref(cxn->subscriptions);
+		cxn->subscriptions = NULL;
+	}
+}
+
 void chime_init_juggernaut(struct chime_connection *cxn)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1");
@@ -149,4 +174,77 @@ void chime_init_juggernaut(struct chime_connection *cxn)
 	purple_connection_update_progress(cxn->prpl_conn, _("Obtaining WebSocket params..."),
 					  2, CONNECT_STEPS);
 	chime_queue_http_request(cxn, NULL, uri, ws_cb, NULL, TRUE);
+}
+
+static void send_subscription_message(struct chime_connection *cxn, const gchar *type, const gchar *channel)
+{
+	gchar *msg = g_strdup_printf("3:::{\"type\":\"%s\",\"channel\":\"%s\"}", type, channel);
+	printf("sub: %s\n", msg);
+	soup_websocket_connection_send_text(cxn->ws_conn, msg);
+	g_free(msg);
+}
+
+/*
+ * We allow multiple subscribers to a channel, as long as {cb, cb_data} is unique.
+ *
+ * cxn->subscriptions is a GHashTable with 'channel' as key.
+ *
+ * Each value is a GList, containing the set of {cb,cb_data} subscribers.
+ *
+ * We send the server a subscribe request when the first subscription to a
+ * channel occurs, and an unsubscribe request when the last one goes away.
+ */
+void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, JuggernautCallback cb, gpointer cb_data)
+{
+	struct jugg_subscription *sub = g_new0(struct jugg_subscription, 1);
+	GList *l;
+
+	sub->cb = cb;
+	sub->cb_data = cb_data;
+
+	if (!cxn->subscriptions)
+		cxn->subscriptions = g_hash_table_new_full(g_str_hash, g_str_equal,
+							   g_free, NULL);
+
+	l = g_hash_table_lookup(cxn->subscriptions, channel);
+	if (!l && cxn->ws_conn)
+		send_subscription_message(cxn, "subscribe", channel);
+
+	l = g_list_append(l, sub);
+	g_hash_table_replace(cxn->subscriptions, g_strdup(channel), l);
+}
+
+gboolean compare_sub(gconstpointer _a, gconstpointer _b)
+{
+	const struct jugg_subscription *a = _a;
+	const struct jugg_subscription *b = _b;
+
+	return !(a->cb == b->cb && a->cb_data == b->cb_data);
+}
+
+void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, JuggernautCallback cb, gpointer cb_data)
+{
+	struct jugg_subscription sub;
+	GList *l, *item;
+
+	if (!cxn->subscriptions)
+		return;
+
+	l = g_hash_table_lookup(cxn->subscriptions, channel);
+	if (!l)
+		return;
+
+	sub.cb = cb;
+	sub.cb_data = cb_data;
+
+	item = g_list_find_custom(l, &sub, compare_sub);
+	if (item) {
+		l = g_list_remove(l, item->data);
+		if (!l) {
+			g_hash_table_remove(cxn->subscriptions, channel);
+			if (cxn->ws_conn)
+				send_subscription_message(cxn, "unsubscribe", channel);
+		} else
+			g_hash_table_replace(cxn->subscriptions, g_strdup(channel), l);
+	}
 }

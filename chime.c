@@ -437,7 +437,7 @@ void chime_purple_login(PurpleAccount *account)
 	SoupURI *uri;
 
 	if (!token) {
-		purple_connection_error(cxn->prpl_conn,
+		purple_connection_error(conn,
 					_("No authentication token"));
 		return;
 	}

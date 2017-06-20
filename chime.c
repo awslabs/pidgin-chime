@@ -135,7 +135,7 @@ static void renew_cb(SoupSession *soup_sess, SoupMessage *msg,
 		struct chime_msg_queue *cmsg = l->data;
 
 		soup_message_headers_replace(cmsg->msg->request_headers, "Cookie", cookie_hdr);
-		soup_session_queue_message(cxn->soup_sess, cmsg->msg, cmsg->cb, cxn);
+		soup_session_queue_message(cxn->soup_sess, cmsg->msg, cmsg->cb, cmsg->cb_data);
 		g_free(cmsg);
 		cxn->msg_queue = g_list_remove(cxn->msg_queue, cmsg);
 	}
@@ -192,12 +192,13 @@ static void chime_renew_token(struct chime_connection *cxn)
 }
 
 
-static void resubmit_msg_for_auth(struct chime_connection *cxn, SoupMessage *msg, SoupSessionCallback cb)
+static void resubmit_msg_for_auth(struct chime_connection *cxn, SoupMessage *msg, SoupSessionCallback cb, gpointer cb_data)
 {
 	struct chime_msg_queue *cmsg = g_new0(struct chime_msg_queue, 1);
 
 	cmsg->msg = g_object_ref(msg);
 	cmsg->cb = cb;
+	cmsg->cb_data = cb_data;
 
 	if (cxn->msg_queue) {
 		/* Already renewing; just add to the list */
@@ -299,7 +300,7 @@ static void ws_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cxn)
 
 	if (foo || msg->status_code == 401) {
 		foo = 0;
-		resubmit_msg_for_auth(cxn, msg, ws_cb);
+		resubmit_msg_for_auth(cxn, msg, ws_cb, cxn);
 		return;
 	}
 	if (msg->status_code != 200) {
@@ -417,6 +418,8 @@ static void register_cb(SoupSession *soup_sess, SoupMessage *msg,
 					       _("Failed to process registration response"));
 		return;
 	}
+	purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
+	return;
 
 	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1");
 	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
@@ -501,8 +504,25 @@ void chime_purple_close(PurpleConnection *conn)
 
 GList *chime_purple_chat_info(PurpleConnection *conn)
 {
-	printf("chat_info\n");
+	struct proto_chat_entry *pce = g_new0(struct proto_chat_entry, 1);
+
+	pce->label = _("RoomId");
+	pce->identifier = "RoomId";
+	pce->required = TRUE;
+
+	return g_list_append(NULL, pce);
+}
+
+GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name)
+{
+	printf("chat_info_defaults %s\n", name);
 	return NULL;
+}
+
+void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
+{
+	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
+	printf("join_chat %p %s\n", data, roomid);
 }
 
 GList *chime_purple_status_types(PurpleAccount *account)
@@ -562,8 +582,13 @@ static void roomlist_cb(SoupSession *soup_sess, SoupMessage *msg,
 			gpointer _roomlist)
 {
 	PurpleRoomlist *roomlist = _roomlist;
-	struct chime_connection *cxn = roomlist->proto_data;
+	struct roomlist_data *d = roomlist->proto_data;
 	GError *error = NULL;
+
+	if (msg->status_code == 401) {
+		resubmit_msg_for_auth(d->cxn, msg, roomlist_cb, roomlist);
+		return;
+	}
 	JsonNode *node = process_soup_response(msg, &error);
 
 	if (node) {
@@ -624,8 +649,10 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.status_types = chime_purple_status_types,
 	.send_im = chime_purple_send_im,
 	.chat_info = chime_purple_chat_info,
+	.join_chat = chime_purple_join_chat,
 	.roomlist_get_list = chime_purple_roomlist_get_list,
 	.roomlist_cancel = chime_purple_roomlist_cancel,
+	.chat_info_defaults = chime_purple_chat_info_defaults,
 };
 
 static void chime_purple_show_about_plugin(PurplePluginAction *action)

@@ -8,6 +8,7 @@
 struct chime_msg_queue {
 	SoupMessage *msg;
 	SoupSessionCallback cb;
+	gpointer cb_data;
 };
 
 struct chime_connection {

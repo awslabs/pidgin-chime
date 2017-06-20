@@ -326,7 +326,7 @@ static void ws_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node
 		return;
 	}
 
-	uri = soup_uri_new_printf(cxn->websocket_url, "/1/websocket/%s", ws_opts[1]);
+	uri = soup_uri_new_printf(cxn->websocket_url, "/1/websocket/%s", ws_opts[0]);
 	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
 
 	/* New message */

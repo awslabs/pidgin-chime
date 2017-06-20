@@ -102,11 +102,45 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 	g_strfreev(parms);
 }
 
+static void each_chan(gpointer _chan, gpointer _sub, gpointer _builder)
+{
+	JsonBuilder **builder = _builder;
+
+	*builder = json_builder_add_string_value(*builder, _chan);
+}
+
+static void send_resubscribe_message(struct chime_connection *cxn)
+{
+	JsonBuilder *builder = json_builder_new();
+	JsonGenerator *gen;
+	gchar *msg, *msg2;
+
+	builder = json_builder_begin_object(builder);
+	builder = json_builder_set_member_name(builder, "type");
+	builder = json_builder_add_string_value(builder, "resubscribe");
+	builder = json_builder_set_member_name(builder, "channels");
+	builder = json_builder_begin_array(builder);
+	g_hash_table_foreach(cxn->subscriptions, each_chan, &builder);
+	builder = json_builder_end_array(builder);
+	builder = json_builder_end_object(builder);
+
+	gen = json_generator_new();
+	json_generator_set_root(gen, json_builder_get_root(builder));
+	msg = json_generator_to_data(gen, NULL);
+
+	msg2 = g_strdup_printf("3:::%s", msg);
+	soup_websocket_connection_send_text(cxn->ws_conn, msg2);
+
+	g_free(msg2);
+	g_free(msg);
+	g_object_unref(gen);
+	g_object_unref(builder);
+}
+
 static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 {
 	struct chime_connection *cxn = _cxn;
 	GError *error = NULL;
-
 
 	cxn->ws_conn = soup_session_websocket_connect_finish(SOUP_SESSION(obj),
 							      res, &error);
@@ -123,6 +157,9 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 			 G_CALLBACK(on_websocket_closed), cxn);
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "message",
 			 G_CALLBACK(on_websocket_message), cxn);
+
+	if (cxn->subscriptions)
+		send_resubscribe_message(cxn);
 
 	purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
 }

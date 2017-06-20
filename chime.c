@@ -300,7 +300,8 @@ static gboolean parse_regnode(struct chime_connection *cxn, JsonNode *regnode)
 
 	node = json_object_get_member(obj, "Profile");
 	if (!parse_string(node, "id", &cxn->session_id) ||
-	    !parse_string(node, "profile_channel", &cxn->profile_channel))
+	    !parse_string(node, "profile_channel", &cxn->profile_channel) ||
+	    !parse_string(node, "presence_channel", &cxn->presence_channel))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Device");
@@ -345,6 +346,18 @@ static gboolean parse_regnode(struct chime_connection *cxn, JsonNode *regnode)
 	return TRUE;
 }
 
+static void dump_incoming(gpointer cb_data, JsonNode *node)
+{
+	JsonGenerator *gen = json_generator_new();
+	gchar *msg;
+	json_generator_set_root(gen, node);
+	json_generator_set_pretty(gen, TRUE);
+	msg = json_generator_to_data(gen, NULL);
+	printf("incoming %s: %s\n", (gchar *)cb_data, msg);
+	g_free(msg);
+	g_object_unref(gen);
+}
+
 static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
 			JsonNode *node, gpointer _unused)
 {
@@ -361,6 +374,10 @@ static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
 	}
 
 	chime_init_juggernaut(cxn);
+
+	chime_jugg_subscribe(cxn, cxn->profile_channel, dump_incoming, "Profile");
+	chime_jugg_subscribe(cxn, cxn->presence_channel, dump_incoming, "Presence");
+	chime_jugg_subscribe(cxn, cxn->device_channel, dump_incoming, "Device");
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"

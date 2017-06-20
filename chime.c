@@ -282,15 +282,36 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 				 GBytes *message, gpointer _cxn)
 {
 	struct chime_connection *cxn = _cxn;
+	gchar **parms;
 	int i;
 	gsize size;
 	gconstpointer data;
 
-	printf("websocket message (type %d) received:\n", type);
-	data = g_bytes_get_data(message, &size);
-	for (i = 0; i < size; i++) {
+	if (type != SOUP_WEBSOCKET_DATA_TEXT)
+		return;
+
+	/* Ack */
+	if (!strcmp(data, "1::")) {
+		return;
+	}
+	/* Keepalive */
+	if (!strcmp(data, "2::")) {
+		soup_websocket_connection_send_text(cxn->ws_conn,  "2::");
+		return;
+	}
+	data = g_bytes_get_data(message, NULL);
+	parms = g_strsplit(data, ":", 4);
+	if (parms[0] && parms[1] && *parms[1] && parms[2]) {
+		/* Send an ack */
+		gchar *ack = g_strdup_printf("6:::%s", parms[1]);
+		soup_websocket_connection_send_text(cxn->ws_conn, ack);
+		g_free(ack);
+	}
+	g_strfreev(parms);
+	printf("websocket message (type %d) received:\n%s", type, (char *)data);
+	if (0) for (i = 0; i < size; i++) {
 		if (!(i & 0xf))
-			printf("%04x:", i);
+			printf("\n%04x:", i);
 		printf(" %02x", ((unsigned char *)data)[i]);
 	}
 	printf("\n");
@@ -317,6 +338,9 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 			 G_CALLBACK(on_websocket_closed), cxn);
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "message",
 			 G_CALLBACK(on_websocket_message), cxn);
+
+	if (0) soup_websocket_connection_send_text(cxn->ws_conn,
+						   "3:::{\"type\":\"subscribe\",\"channel\":\"chat_room!ce103b97-fcfa-491d-961a-9413a5e89e8d\",\"channels\":null,\"except\":null,\"data\":null}");
 	purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
 }
 

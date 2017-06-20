@@ -46,6 +46,8 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 	if (type != SOUP_WEBSOCKET_DATA_TEXT)
 		return;
 
+	data = g_bytes_get_data(message, NULL);
+
 	/* Ack */
 	if (!strcmp(data, "1::")) {
 		return;
@@ -55,7 +57,6 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 		soup_websocket_connection_send_text(cxn->ws_conn,  "2::");
 		return;
 	}
-	data = g_bytes_get_data(message, NULL);
 	parms = g_strsplit(data, ":", 4);
 	if (parms[0] && parms[1] && *parms[1] && parms[2]) {
 		/* Send an ack */

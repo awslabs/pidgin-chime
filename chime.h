@@ -1,3 +1,19 @@
+/*
+ * Pidgin/libpurple Chime client plugin
+ *
+ * Copyright © 2017 Amazon.com, Inc. or its affiliates.
+ *
+ * Author: David Woodhouse <dwmw2@infradead.org>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ */
 
 #ifndef __CHIME_H__
 #define __CHIME_H__
@@ -57,5 +73,16 @@ enum {
 	CHIME_ERROR_REQUEST_FAILED = 1,
 	CHIME_ERROR_BAD_RESPONSE,
 };
+
+#define CONNECT_STEPS 3
+
+/* chime.c */
+SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
+SoupMessage *chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
+				      SoupURI *uri, ChimeSoupMessageCallback callback,
+				      gpointer cb_data, gboolean auto_renew);
+
+/* jugg.c */
+void chime_init_juggernaut(struct chime_connection *cxn);
 
 #endif /* __CHIME_H__ */

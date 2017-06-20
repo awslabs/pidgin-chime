@@ -5,10 +5,19 @@
 #include <libsoup/soup.h>
 #include <json-glib/json-glib.h>
 
-struct chime_msg_queue {
-	SoupMessage *msg;
-	SoupSessionCallback cb;
+struct chime_connection;
+
+typedef void (*ChimeSoupMessageCallback)(struct chime_connection *cxn,
+					 SoupMessage *msg,
+					 JsonNode *node,
+					 gpointer cb_data);
+
+struct chime_msg {
+	struct chime_connection *cxn;
+	ChimeSoupMessageCallback cb;
 	gpointer cb_data;
+	SoupMessage *msg;
+	gboolean auto_renew;
 };
 
 struct chime_connection {

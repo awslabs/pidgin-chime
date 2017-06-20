@@ -296,11 +296,13 @@ static gboolean parse_regnode(struct chime_connection *cxn, JsonNode *regnode)
 	purple_account_set_string(cxn->prpl_conn->account, "token", sess_tok);
 	cxn->session_token = g_strdup(sess_tok);
 
+	if (!parse_string(sess_node, "SessionId", &cxn->session_id))
+		return FALSE;
+
 	obj = json_node_get_object(sess_node);
 
 	node = json_object_get_member(obj, "Profile");
-	if (!parse_string(node, "id", &cxn->session_id) ||
-	    !parse_string(node, "profile_channel", &cxn->profile_channel) ||
+	if (!parse_string(node, "profile_channel", &cxn->profile_channel) ||
 	    !parse_string(node, "presence_channel", &cxn->presence_channel))
 		return FALSE;
 
@@ -378,6 +380,8 @@ static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
 	chime_jugg_subscribe(cxn, cxn->profile_channel, dump_incoming, "Profile");
 	chime_jugg_subscribe(cxn, cxn->presence_channel, dump_incoming, "Presence");
 	chime_jugg_subscribe(cxn, cxn->device_channel, dump_incoming, "Device");
+
+	//	fetch_buddies(cxn);
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"

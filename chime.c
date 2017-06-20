@@ -278,6 +278,24 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 	       soup_websocket_connection_get_close_data(ws));
 }
 
+static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
+				 GBytes *message, gpointer _cxn)
+{
+	struct chime_connection *cxn = _cxn;
+	int i;
+	gsize size;
+	gconstpointer data;
+
+	printf("websocket message (type %d) received:\n", type);
+	data = g_bytes_get_data(message, &size);
+	for (i = 0; i < size; i++) {
+		if (!(i & 0xf))
+			printf("%04x:", i);
+		printf(" %02x", ((unsigned char *)data)[i]);
+	}
+	printf("\n");
+}
+
 static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 {
 	struct chime_connection *cxn = _cxn;
@@ -297,6 +315,8 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	printf("Got ws conn %p\n", cxn->ws_conn);
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "closed",
 			 G_CALLBACK(on_websocket_closed), cxn);
+	g_signal_connect(G_OBJECT(cxn->ws_conn), "message",
+			 G_CALLBACK(on_websocket_message), cxn);
 	purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
 }
 
@@ -520,6 +540,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 {
 	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
 	printf("join_chat %p %s\n", data, roomid);
+	//	PurpleConversation *conv = serv_got_joined_chat(conn, 0x1234, g_hash_table_lookup(data, "name"));
 }
 
 GList *chime_purple_status_types(PurpleAccount *account)

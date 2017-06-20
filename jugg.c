@@ -39,7 +39,31 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 	printf("websocket closed: %d %s!\n", soup_websocket_connection_get_close_code(ws),
 	       soup_websocket_connection_get_close_data(ws));
 }
+static void handle_callback_one(gpointer _sub, gpointer _node)
+{
+	struct jugg_subscription *sub = _sub;
+	JsonNode *node = _node;
 
+	sub->cb(sub->cb_data, node);
+}
+static void handle_callback(struct chime_connection *cxn, gchar *msg)
+{
+	JsonParser *parser = json_parser_new();
+
+	if (json_parser_load_from_data(parser, msg, strlen(msg), NULL)) {
+		JsonNode *r = json_parser_get_root(parser);
+		JsonObject *obj = json_node_get_object(r);
+		JsonNode *chan_node = json_object_get_member(obj, "channel");
+		JsonNode *data_node = json_object_get_member(obj, "data");
+
+		if (chan_node && data_node) {
+			const gchar *chan = json_node_get_string(chan_node);
+			GList *l = g_hash_table_lookup(cxn->subscriptions, chan);
+			g_list_foreach(l, handle_callback_one, data_node);
+		}
+	}
+	g_object_unref(parser);
+}
 static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 				 GBytes *message, gpointer _cxn)
 {
@@ -53,6 +77,8 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 		return;
 
 	data = g_bytes_get_data(message, NULL);
+
+	printf("websocket message received:\n%s\n", (char *)data);
 
 	/* Ack */
 	if (!strcmp(data, "1::")) {
@@ -69,15 +95,11 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 		gchar *ack = g_strdup_printf("6:::%s", parms[1]);
 		soup_websocket_connection_send_text(cxn->ws_conn, ack);
 		g_free(ack);
+
+		if (cxn->subscriptions && !strcmp(parms[0], "3") && parms[3])
+			handle_callback(cxn, parms[3]);
 	}
 	g_strfreev(parms);
-	printf("websocket message (type %d) received:\n%s", type, (char *)data);
-	if (0) for (i = 0; i < size; i++) {
-		if (!(i & 0xf))
-			printf("\n%04x:", i);
-		printf(" %02x", ((unsigned char *)data)[i]);
-	}
-	printf("\n");
 }
 
 static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
@@ -102,8 +124,6 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "message",
 			 G_CALLBACK(on_websocket_message), cxn);
 
-	if (0)
-		chime_jugg_subscribe(cxn, "chat_room!ce103b97-fcfa-491d-961a-9413a5e89e8d", NULL, NULL);
 	purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
 }
 
@@ -194,6 +214,14 @@ static void send_subscription_message(struct chime_connection *cxn, const gchar 
  * We send the server a subscribe request when the first subscription to a
  * channel occurs, and an unsubscribe request when the last one goes away.
  */
+gboolean compare_sub(gconstpointer _a, gconstpointer _b)
+{
+	const struct jugg_subscription *a = _a;
+	const struct jugg_subscription *b = _b;
+
+	return !(a->cb == b->cb && a->cb_data == b->cb_data);
+}
+
 void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, JuggernautCallback cb, gpointer cb_data)
 {
 	struct jugg_subscription *sub = g_new0(struct jugg_subscription, 1);
@@ -210,16 +238,13 @@ void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, Ju
 	if (!l && cxn->ws_conn)
 		send_subscription_message(cxn, "subscribe", channel);
 
+	if (g_list_find_custom(l, sub, compare_sub)) {
+		g_free(sub);
+		return;
+	}
+
 	l = g_list_append(l, sub);
 	g_hash_table_replace(cxn->subscriptions, g_strdup(channel), l);
-}
-
-gboolean compare_sub(gconstpointer _a, gconstpointer _b)
-{
-	const struct jugg_subscription *a = _a;
-	const struct jugg_subscription *b = _b;
-
-	return !(a->cb == b->cb && a->cb_data == b->cb_data);
 }
 
 void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, JuggernautCallback cb, gpointer cb_data)

@@ -98,51 +98,54 @@ static JsonNode *process_soup_response(SoupMessage *msg, GError **error)
 	return node;
 }
 
-static void renew_cb(SoupSession *sess, SoupMessage *msg,
-			gpointer _conn)
+static void renew_cb(SoupSession *soup_sess, SoupMessage *msg,
+		     gpointer _cxn)
 {
-	PurpleConnection *conn = _conn;
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	struct chime_connection *cxn = _cxn;
 	GError *error = NULL;
 	GList *l;
 	const gchar *sess_tok;
 	JsonNode *tok_node;
-
+	gchar *cookie_hdr;
 
 	tok_node = process_soup_response(msg, &error);
 	if (!tok_node) {
 		gchar *reason = g_strdup_printf(_("Token renewal: %s"),
 						error->message);
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, reason);
+		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, reason);
 		g_free(reason);
 		return;
 	}
 
 	if (!parse_string(tok_node, "SessionToken", &sess_tok)) {
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
 					       _("Failed to renew session token"));
 		return;
 	}
-	purple_account_set_string(conn->account, "token", sess_tok);
-	g_free(priv->session_token);
-	priv->session_token = g_strdup(sess_tok);
+	purple_account_set_string(cxn->prpl_conn->account, "token", sess_tok);
+	g_free(cxn->session_token);
+	cxn->session_token = g_strdup(sess_tok);
 
-	while ( (l = g_list_first(priv->msg_queue)) ) {
+	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", cxn->session_token);
+
+	while ( (l = g_list_first(cxn->msg_queue)) ) {
 		struct chime_msg_queue *cmsg = l->data;
 
-		soup_session_queue_message(priv->sess, cmsg->msg, cmsg->cb, conn);
-		priv->msg_queue = g_list_remove(priv->msg_queue, cmsg);
+		soup_message_headers_replace(cmsg->msg->request_headers, "Cookie", cookie_hdr);
+		soup_session_queue_message(cxn->soup_sess, cmsg->msg, cmsg->cb, cxn);
+		cxn->msg_queue = g_list_remove(cxn->msg_queue, cmsg);
 	}
+
+	g_free(cookie_hdr);
 }
 
-void chime_queue_http_request(PurpleConnection *conn, JsonNode *node,
+void chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
 			      SoupURI *uri, SoupSessionCallback callback)
 {
 	SoupMessage *msg = soup_message_new_from_uri(node?"POST":"GET", uri);
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
 
-	if (priv->session_token) {
-		gchar *cookie = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
+	if (cxn->session_token) {
+		gchar *cookie = g_strdup_printf("_aws_wt_session=%s", cxn->session_token);
 		soup_message_headers_append(msg->request_headers, "Cookie", cookie);
 		g_free(cookie);
 	}
@@ -158,13 +161,12 @@ void chime_queue_http_request(PurpleConnection *conn, JsonNode *node,
 		g_object_unref(gen);
 		json_node_unref(node);
 	}
-	soup_session_queue_message(priv->sess, msg, callback, conn);
+	soup_session_queue_message(cxn->soup_sess, msg, callback, cxn);
 }
 
 
-static void chime_renew_token(PurpleConnection *conn)
+static void chime_renew_token(struct chime_connection *cxn)
 {
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
 	SoupURI *uri;
 	JsonBuilder *builder;
 	JsonNode *node;
@@ -172,33 +174,32 @@ static void chime_renew_token(PurpleConnection *conn)
 	builder = json_builder_new();
 	builder = json_builder_begin_object(builder);
 	builder = json_builder_set_member_name(builder, "Token");
-	builder = json_builder_add_string_value(builder, priv->session_token);
+	builder = json_builder_add_string_value(builder, cxn->session_token);
 	builder = json_builder_end_object(builder);
 	node = json_builder_get_root(builder);
 	g_object_unref(builder);
 
-	uri = soup_uri_new_printf(priv->profile_url, "/tokens");
-	soup_uri_set_query_from_fields(uri, "Token", priv->session_token, NULL);
-	chime_queue_http_request(conn, node, uri, renew_cb);
+	uri = soup_uri_new_printf(cxn->profile_url, "/tokens");
+	soup_uri_set_query_from_fields(uri, "Token", cxn->session_token, NULL);
+	chime_queue_http_request(cxn, node, uri, renew_cb);
 }
 
 
-static void resubmit_msg_for_auth(PurpleConnection *conn, SoupMessage *msg, SoupSessionCallback cb)
+static void resubmit_msg_for_auth(struct chime_connection *cxn, SoupMessage *msg, SoupSessionCallback cb)
 {
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
 	struct chime_msg_queue *cmsg = g_new0(struct chime_msg_queue, 1);
 
 	cmsg->msg = g_object_ref(msg);
 	cmsg->cb = cb;
 
-	if (priv->msg_queue) {
+	if (cxn->msg_queue) {
 		/* Already renewing; just add to the list */
-		priv->msg_queue = g_list_append(priv->msg_queue, cmsg);
+		cxn->msg_queue = g_list_append(cxn->msg_queue, cmsg);
 		return;
 	}
 
-	priv->msg_queue = g_list_append(priv->msg_queue, cmsg);
-	chime_renew_token(conn);
+	cxn->msg_queue = g_list_append(cxn->msg_queue, cmsg);
+	chime_renew_token(cxn);
 }
 
 static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
@@ -249,42 +250,39 @@ static JsonNode *chime_device_register_req(PurpleAccount *account)
 
 
 static void on_websocket_closed(SoupWebsocketConnection *ws,
-				gpointer _conn)
+				gpointer _cxn)
 {
-	PurpleConnection *conn = _conn;
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	struct chime_connection *cxn = _cxn;
 
-	printf("websocket closedd: %d %s!\n", soup_websocket_connection_get_close_code(ws),
+	printf("websocket closed: %d %s!\n", soup_websocket_connection_get_close_code(ws),
 	       soup_websocket_connection_get_close_data(ws));
 }
 
-static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _conn)
+static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 {
-	PurpleConnection *conn = _conn;
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	struct chime_connection *cxn = _cxn;
 	GError *error = NULL;
 
 
-	priv->ws_conn = soup_session_websocket_connect_finish(SOUP_SESSION(obj),
+	cxn->ws_conn = soup_session_websocket_connect_finish(SOUP_SESSION(obj),
 							      res, &error);
-	if (!priv->ws_conn) {
+	if (!cxn->ws_conn) {
 		gchar *reason = g_strdup_printf(_("Websocket connection error %s"),
 						error->message);
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
 					       reason);
 		g_free(reason);
 		return;
 	}
-	printf("Got ws conn %p\n", priv->ws_conn);
-	g_signal_connect(G_OBJECT(priv->ws_conn), "closed",
-			 G_CALLBACK(on_websocket_closed), conn);
-	purple_connection_set_state(_conn, PURPLE_CONNECTED);
+	printf("Got ws conn %p\n", cxn->ws_conn);
+	g_signal_connect(G_OBJECT(cxn->ws_conn), "closed",
+			 G_CALLBACK(on_websocket_closed), cxn);
+	purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
 }
 
-static void ws_cb(SoupSession *sess, SoupMessage *msg, gpointer _conn)
+static void ws_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cxn)
 {
-	PurpleConnection *conn = _conn;
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	struct chime_connection *cxn = _cxn;
 	GError *error = NULL;
 	gchar **ws_opts = NULL;
 	gchar **protos = NULL;
@@ -292,13 +290,13 @@ static void ws_cb(SoupSession *sess, SoupMessage *msg, gpointer _conn)
 	SoupURI *uri;
 
 	if (msg->status_code == 401) {
-		resubmit_msg_for_auth(conn, msg, ws_cb);
+		resubmit_msg_for_auth(cxn, msg, ws_cb);
 		return;
 	}
 	if (msg->status_code != 200) {
 		gchar *reason = g_strdup_printf(_("Websocket connection error (%d): %s"),
 						msg->status_code, msg->reason_phrase);
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
 					       reason);
 		g_free(reason);
 		return;
@@ -308,22 +306,22 @@ static void ws_cb(SoupSession *sess, SoupMessage *msg, gpointer _conn)
 
 	if (!ws_opts || !ws_opts[1] || !ws_opts[2] || !ws_opts[3] ||
 	    strncmp(ws_opts[3], "websocket,", 10)) {
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
 					       _("Unexpected response in WebSocket setup"));
 		return;
 	}
 
-	url = g_strdup_printf("%s/1/websocket/%s", priv->websocket_url, ws_opts[1]);
+	url = g_strdup_printf("%s/1/websocket/%s", cxn->websocket_url, ws_opts[1]);
 	uri = soup_uri_new(url);
-	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
+	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
 	g_free(url);
 
 	/* New message */
 	msg = soup_message_new_from_uri("GET", uri);
-	purple_connection_update_progress(conn, _("Establishing WebSocket connection..."),
+	purple_connection_update_progress(cxn->prpl_conn, _("Establishing WebSocket connection..."),
 					  4, CONNECT_STEPS);
 	protos = g_strsplit(ws_opts[3], ",", 0);
-	soup_session_websocket_connect_async(priv->sess, msg, NULL, protos, NULL, ws2_cb, conn);
+	soup_session_websocket_connect_async(cxn->soup_sess, msg, NULL, protos, NULL, ws2_cb, cxn);
 	g_strfreev(protos);
 	g_strfreev(ws_opts);
 	/* There's more to it than this but this will do for now... */
@@ -331,10 +329,9 @@ static void ws_cb(SoupSession *sess, SoupMessage *msg, gpointer _conn)
 }
 
 
-static gboolean parse_regnode(PurpleConnection *conn, JsonNode *regnode)
+static gboolean parse_regnode(struct chime_connection *cxn, JsonNode *regnode)
 {
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
-	JsonObject *obj = json_node_get_object(priv->reg_node);
+	JsonObject *obj = json_node_get_object(cxn->reg_node);
 	JsonNode *node, *sess_node = json_object_get_member(obj, "Session");
 	const gchar *str, *sess_tok;
 
@@ -342,19 +339,19 @@ static gboolean parse_regnode(PurpleConnection *conn, JsonNode *regnode)
 		return FALSE;
 	if (!parse_string(sess_node, "SessionToken", &sess_tok))
 		return FALSE;
-	purple_account_set_string(conn->account, "token", sess_tok);
-	priv->session_token = g_strdup(sess_tok);
+	purple_account_set_string(cxn->prpl_conn->account, "token", sess_tok);
+	cxn->session_token = g_strdup(sess_tok);
 
 	obj = json_node_get_object(sess_node);
 
 	node = json_object_get_member(obj, "Profile");
-	if (!parse_string(node, "id", &priv->session_id) ||
-	    !parse_string(node, "profile_channel", &priv->profile_channel))
+	if (!parse_string(node, "id", &cxn->session_id) ||
+	    !parse_string(node, "profile_channel", &cxn->profile_channel))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Device");
-	if (!parse_string(node, "DeviceId", &priv->device_id) ||
-	    !parse_string(node, "Channel", &priv->device_channel))
+	if (!parse_string(node, "DeviceId", &cxn->device_id) ||
+	    !parse_string(node, "Channel", &cxn->device_channel))
 		return FALSE;
 
 	node = json_object_get_member(obj, "ServiceConfig");
@@ -363,92 +360,92 @@ static gboolean parse_regnode(PurpleConnection *conn, JsonNode *regnode)
 	obj = json_node_get_object(node);
 
 	node = json_object_get_member(obj, "Presence");
-	if (!parse_string(node, "RestUrl", &priv->presence_url))
+	if (!parse_string(node, "RestUrl", &cxn->presence_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Push");
-	if (!parse_string(node, "ReachabilityUrl", &priv->reachability_url) ||
-	    !parse_string(node, "WebsocketUrl", &priv->websocket_url))
+	if (!parse_string(node, "ReachabilityUrl", &cxn->reachability_url) ||
+	    !parse_string(node, "WebsocketUrl", &cxn->websocket_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Profile");
-	if (!parse_string(node, "RestUrl", &priv->profile_url))
+	if (!parse_string(node, "RestUrl", &cxn->profile_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Contacts");
-	if (!parse_string(node, "RestUrl", &priv->contacts_url))
+	if (!parse_string(node, "RestUrl", &cxn->contacts_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Messaging");
-	if (!parse_string(node, "RestUrl", &priv->messaging_url))
+	if (!parse_string(node, "RestUrl", &cxn->messaging_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Presence");
-	if (!parse_string(node, "RestUrl", &priv->presence_url))
+	if (!parse_string(node, "RestUrl", &cxn->presence_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Conference");
-	if (!parse_string(node, "RestUrl", &priv->conference_url))
+	if (!parse_string(node, "RestUrl", &cxn->conference_url))
 		return FALSE;
 
 	return TRUE;
 }
 
-static void register_cb(SoupSession *sess, SoupMessage *msg,
-			gpointer _conn)
+static void register_cb(SoupSession *soup_sess, SoupMessage *msg,
+			gpointer _cxn)
 {
-	PurpleConnection *conn = _conn;
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	struct chime_connection *cxn = _cxn;
 	GError *error = NULL;
 
-	priv->reg_node = process_soup_response(msg, &error);
-	if (!priv->reg_node) {
+	cxn->reg_node = process_soup_response(msg, &error);
+	if (!cxn->reg_node) {
 		gchar *reason = g_strdup_printf(_("Device registration failed: %s"),
 						error->message);
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, reason);
+		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, reason);
 		g_free(reason);
 		return;
 	}
 
-	if (!parse_regnode(conn, priv->reg_node)) {
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+	if (!parse_regnode(cxn, cxn->reg_node)) {
+		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
 					       _("Failed to process registration response"));
 		return;
 	}
 
-	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1");
-	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
+	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1");
+	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
 
-	purple_connection_update_progress(conn, _("Obtaining WebSocket params..."),
+	purple_connection_update_progress(cxn->prpl_conn, _("Obtaining WebSocket params..."),
 					  2, CONNECT_STEPS);
-	chime_queue_http_request(conn, NULL, uri, ws_cb);
+	chime_queue_http_request(cxn, NULL, uri, ws_cb);
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
 void chime_purple_login(PurpleAccount *account)
 {
 	PurpleConnection *conn = purple_account_get_connection(account);
+	struct chime_connection *cxn;
 	const gchar *token = purple_account_get_string(account, "token",
 						       NULL);
 	JsonNode *node;
-	struct chime_private *priv;
 	SoupURI *uri;
 
 	if (!token) {
-		purple_connection_error(conn,
+		purple_connection_error(cxn->prpl_conn,
 					_("No authentication token"));
 		return;
 	}
 
-	priv = g_new0(struct chime_private, 1);
-	purple_connection_set_protocol_data(conn, priv);
-
-	priv->sess = soup_session_new();
+	cxn = g_new0(struct chime_connection, 1);
+	purple_connection_set_protocol_data(conn, cxn);
+	cxn->prpl_conn = conn;
+	cxn->soup_sess = soup_session_new();
+	printf("conn %p cxn %p\n", conn, cxn);
 	if (getenv("CHIME_DEBUG") && atoi(getenv("CHIME_DEBUG")) > 0) {
 		SoupLogger *l = soup_logger_new(SOUP_LOGGER_LOG_BODY, -1);
-		soup_session_add_feature(priv->sess, SOUP_SESSION_FEATURE(l));
+		soup_session_add_feature(cxn->soup_sess, SOUP_SESSION_FEATURE(l));
 		g_object_unref(l);
-		g_object_set(priv->sess, "ssl-strict", FALSE, NULL);
+		g_object_set(cxn->soup_sess, "ssl-strict", FALSE, NULL);
 	}
 	node = chime_device_register_req(account);
 	uri = soup_uri_new_printf(purple_account_get_string(account, "server", SIGNIN_DEFAULT),
@@ -456,33 +453,33 @@ void chime_purple_login(PurpleAccount *account)
 	soup_uri_set_query_from_fields(uri, "Token", token, NULL);
 
 	purple_connection_update_progress(conn, _("Connecting..."), 1, CONNECT_STEPS);
-	chime_queue_http_request(conn, node, uri, register_cb);
+	chime_queue_http_request(cxn, node, uri, register_cb);
 }
 
 void chime_purple_close(PurpleConnection *conn)
 {
-	struct chime_private *priv = purple_connection_get_protocol_data(conn);
+	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
 
-	if (priv) {
-		if (priv->sess) {
-			soup_session_abort(priv->sess);
-			g_object_unref(priv->sess);
-			priv->sess = NULL;
+	if (cxn) {
+		if (cxn->soup_sess) {
+			soup_session_abort(cxn->soup_sess);
+			g_object_unref(cxn->soup_sess);
+			cxn->soup_sess = NULL;
 		}
-		if (priv->reg_node) {
-			json_node_unref(priv->reg_node);
-			priv->reg_node = NULL;
+		if (cxn->reg_node) {
+			json_node_unref(cxn->reg_node);
+			cxn->reg_node = NULL;
 		}
-		if (priv->ws_conn) {
-			g_object_unref(priv->ws_conn);
-			priv->ws_conn = NULL;
+		if (cxn->ws_conn) {
+			g_object_unref(cxn->ws_conn);
+			cxn->ws_conn = NULL;
 		}
-		if (priv->msg_queue) {
-			g_list_free_full(priv->msg_queue, g_object_unref);
-			priv->msg_queue = NULL;
+		if (cxn->msg_queue) {
+			g_list_free_full(cxn->msg_queue, g_object_unref);
+			cxn->msg_queue = NULL;
 		}
-		g_free(priv);
-		purple_connection_set_protocol_data(conn, NULL);
+		purple_connection_set_protocol_data(cxn->prpl_conn, NULL);
+		g_free(cxn);
 	}
 	printf("Chime close\n");
 }

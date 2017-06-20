@@ -10,8 +10,10 @@ struct chime_msg_queue {
 	SoupSessionCallback cb;
 };
 
-struct chime_private {
-	SoupSession *sess;
+struct chime_connection {
+	PurpleConnection *prpl_conn;
+
+	SoupSession *soup_sess;
 	SoupWebsocketConnection *ws_conn;
 
 	gchar *session_token;

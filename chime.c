@@ -126,6 +126,8 @@ static void renew_cb(SoupSession *soup_sess, SoupMessage *msg,
 	g_free(cxn->session_token);
 	cxn->session_token = g_strdup(sess_tok);
 
+	json_node_unref(tok_node);
+	
 	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", cxn->session_token);
 
 	while ( (l = g_list_first(cxn->msg_queue)) ) {
@@ -133,6 +135,7 @@ static void renew_cb(SoupSession *soup_sess, SoupMessage *msg,
 
 		soup_message_headers_replace(cmsg->msg->request_headers, "Cookie", cookie_hdr);
 		soup_session_queue_message(cxn->soup_sess, cmsg->msg, cmsg->cb, cxn);
+		g_free(cmsg);
 		cxn->msg_queue = g_list_remove(cxn->msg_queue, cmsg);
 	}
 
@@ -144,6 +147,7 @@ void chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
 {
 	SoupMessage *msg = soup_message_new_from_uri(node?"POST":"GET", uri);
 
+	soup_uri_free(uri);
 	if (cxn->session_token) {
 		gchar *cookie = g_strdup_printf("_aws_wt_session=%s", cxn->session_token);
 		soup_message_headers_append(msg->request_headers, "Cookie", cookie);
@@ -288,8 +292,10 @@ static void ws_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cxn)
 	gchar **protos = NULL;
 	gchar *url;
 	SoupURI *uri;
+	static int foo = 0;
 
-	if (msg->status_code == 401) {
+	if (foo || msg->status_code == 401) {
+		foo = 0;
 		resubmit_msg_for_auth(cxn, msg, ws_cb);
 		return;
 	}
@@ -311,13 +317,12 @@ static void ws_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cxn)
 		return;
 	}
 
-	url = g_strdup_printf("%s/1/websocket/%s", cxn->websocket_url, ws_opts[1]);
-	uri = soup_uri_new(url);
+	uri = soup_uri_new_printf(cxn->websocket_url, "/1/websocket/%s", ws_opts[1]);
 	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
-	g_free(url);
 
 	/* New message */
 	msg = soup_message_new_from_uri("GET", uri);
+	soup_uri_free(uri);
 	purple_connection_update_progress(cxn->prpl_conn, _("Establishing WebSocket connection..."),
 					  4, CONNECT_STEPS);
 	protos = g_strsplit(ws_opts[3], ",", 0);
@@ -459,6 +464,7 @@ void chime_purple_login(PurpleAccount *account)
 void chime_purple_close(PurpleConnection *conn)
 {
 	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	GList *l;
 
 	if (cxn) {
 		if (cxn->soup_sess) {
@@ -474,9 +480,17 @@ void chime_purple_close(PurpleConnection *conn)
 			g_object_unref(cxn->ws_conn);
 			cxn->ws_conn = NULL;
 		}
-		if (cxn->msg_queue) {
-			g_list_free_full(cxn->msg_queue, g_object_unref);
-			cxn->msg_queue = NULL;
+		while ( (l = g_list_first(cxn->msg_queue)) ) {
+			struct chime_msg_queue *cmsg = l->data;
+
+			g_object_unref(cmsg->msg);
+			g_free(cmsg);
+			cxn->msg_queue = g_list_remove(cxn->msg_queue, cmsg);
+		}
+		cxn->msg_queue = NULL;
+		if (cxn->session_token) {
+			g_free(cxn->session_token);
+			cxn->session_token = NULL;
 		}
 		purple_connection_set_protocol_data(cxn->prpl_conn, NULL);
 		g_free(cxn);

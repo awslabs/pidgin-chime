@@ -476,14 +476,17 @@ GList *chime_purple_status_types(PurpleAccount *account)
 	type = purple_status_type_new(PURPLE_STATUS_OFFLINE, "1",
 				      _("Offline"), TRUE);
 	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_MOBILE, "2",
-				      _("Mobile"), TRUE);
+	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, "2",
+				      _("Avail2"), TRUE);
+	types = g_list_append(types, type);
+	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, "3",
+				      _("Avail3"), TRUE);
 	types = g_list_append(types, type);
 	type = purple_status_type_new(PURPLE_STATUS_UNAVAILABLE, "4",
 				      _("Busy"), TRUE);
 	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, "5",
-				      _("Available"), TRUE);
+	type = purple_status_type_new(PURPLE_STATUS_MOBILE, "5",
+				      _("Mobile"), TRUE);
 	types = g_list_append(types, type);
 
 	return types;

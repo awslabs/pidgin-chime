@@ -34,15 +34,21 @@ struct buddy_data {
 	SoupMessage *add_msg;
 };
 
-static void set_buddy_presence(struct chime_connection *cxn, const gchar *id, int availability)
+static void set_buddy_presence(struct chime_connection *cxn, JsonNode *node)
 {
-	printf("Set %s avail %d\n", id, availability);
+	const gchar *id;
+
 	if (!cxn->buddies)
+		return;
+	if (!parse_string(node, "ProfileId", &id))
 		return;
 	PurpleBuddy *buddy = g_hash_table_lookup(cxn->buddies, id);
 	if (!buddy)
 		return;
-	gchar *sts = g_strdup_printf("%d", availability);
+	JsonObject *obj = json_node_get_object(node);
+	node = json_object_get_member(obj, "Availability");
+	gchar *sts = g_strdup_printf("%d", (int)json_node_get_int(node));
+	printf("Set %s avail %s\n", buddy->name, sts);
 	purple_prpl_got_user_status(cxn->prpl_conn->account, buddy->name, sts, NULL);
 	g_free(sts);
 }
@@ -63,21 +69,18 @@ static void buddy_presence_cb(gpointer _cxn, JsonNode *node)
 	if (!node)
 		return;
 
-	if (!parse_string(node, "ProfileId", &str))
-		return;
-	obj = json_node_get_object(node);
-	node = json_object_get_member(obj, "Availability");
-	set_buddy_presence(cxn, str, json_node_get_int(node));
+	set_buddy_presence(cxn, node);
 }
 
 
 struct buddy_gather {
 	struct chime_connection *cxn;
-	GList *ids;
+	GSList *ids;
 };
-static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _cxn)
+static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _bg)
 {
-	struct chime_connection *cxn = _cxn;
+	struct buddy_gather *bg = _bg;
+	struct chime_connection *cxn = bg->cxn;
 	struct buddy_data *bd;
 	const gchar *email, *full_name, *presence_channel, *profile_channel, *display_name, *id;
 
@@ -117,6 +120,8 @@ static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _cx
 	if (!bd->presence_channel) {
 		bd->presence_channel = g_strdup(presence_channel);
 		chime_jugg_subscribe(cxn, presence_channel, buddy_presence_cb, cxn);
+		/* We'll need to request presence */
+		bg->ids = g_slist_prepend(bg->ids, bd->id);
 	}
 }
 
@@ -154,12 +159,35 @@ void chime_purple_buddy_free(PurpleBuddy *buddy)
 	buddy->proto_data = NULL;
 }
 
+/* Fetching presence for new buddies */
+static void one_presence_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _cxn)
+{
+	struct chime_connection *cxn = _cxn;
+	set_buddy_presence(cxn, elem);
+}
+
+static void presence_cb(struct chime_connection *cxn, SoupMessage *msg,
+			 JsonNode *node, gpointer _unused)
+{
+	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code))
+		return;
+
+	JsonObject *obj = json_node_get_object(node);
+	node = json_object_get_member(obj, "Presences");
+	JsonArray *arr = json_node_get_array(node);
+	json_array_foreach_element(arr, one_presence_cb, cxn);
+}
+
 static void buddies_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
 {
+	struct buddy_gather bg;
+	bg.cxn = cxn;
+	bg.ids = NULL;
+
 	if (node) {
 		JsonArray *arr= json_node_get_array(node);
 
-		json_array_foreach_element(arr, one_buddy_cb, cxn);
+		json_array_foreach_element(arr, one_buddy_cb, &bg);
 	}
 
 	/* Delete any that don't exist on the server (any more) */
@@ -172,6 +200,24 @@ static void buddies_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode 
 			purple_blist_remove_buddy(buddy);
 		}
 		l = g_slist_remove(l, buddy);
+	}
+	/* New contacts; fetch presence */
+	if (bg.ids) {
+		int len = g_slist_length(bg.ids);
+		gchar **strs = g_new0(gchar *, len + 1);
+		while (bg.ids) {
+			strs[--len] = bg.ids->data;
+			bg.ids = g_slist_remove(bg.ids, bg.ids->data);
+		}
+		gchar *query = g_strjoinv(",", strs);
+		g_free(strs);
+
+		SoupURI *uri = soup_uri_new_printf(cxn->presence_url, "/presence");
+		soup_uri_set_query_from_fields(uri, "profile-ids", query, NULL);
+		g_free(query);
+
+		chime_queue_http_request(cxn, NULL, uri, presence_cb, NULL, TRUE);
+
 	}
 }
 

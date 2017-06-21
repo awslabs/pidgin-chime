@@ -218,7 +218,7 @@ void chime_destroy_juggernaut(struct chime_connection *cxn)
 	}
 	if (cxn->subscriptions) {
 		g_hash_table_foreach_remove(cxn->subscriptions, chime_sublist_destroy, NULL);
-		g_object_unref(cxn->subscriptions);
+		g_hash_table_destroy(cxn->subscriptions);
 		cxn->subscriptions = NULL;
 	}
 }
@@ -310,3 +310,16 @@ void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, 
 			g_hash_table_replace(cxn->subscriptions, g_strdup(channel), l);
 	}
 }
+
+void jugg_dump_incoming(gpointer cb_data, JsonNode *node)
+{
+	JsonGenerator *gen = json_generator_new();
+	gchar *msg;
+	json_generator_set_root(gen, node);
+	json_generator_set_pretty(gen, TRUE);
+	msg = json_generator_to_data(gen, NULL);
+	printf("incoming %s: %s\n", (gchar *)cb_data, msg);
+	g_free(msg);
+	g_object_unref(gen);
+}
+

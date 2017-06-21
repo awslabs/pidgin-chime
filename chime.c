@@ -54,7 +54,7 @@ SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...)
 	return uri;
 }
 /* Helper function to get a string from a JSON child node */
-static gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
+gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
 {
 	JsonObject *obj;
 	JsonNode *node;
@@ -136,14 +136,13 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 		return;
 	}
 
-	if (msg->status_code == 200 || msg->status_code == 201) {
-		const gchar *content_type = soup_message_headers_get_content_type(msg->response_headers, NULL);
-		if (content_type && !strcmp(content_type, "application/json")) {
-			parser = json_parser_new();
-			if (json_parser_load_from_data(parser, msg->response_body->data, msg->response_body->length, NULL))
-				node = json_parser_get_root(parser);
-		}
+	const gchar *content_type = soup_message_headers_get_content_type(msg->response_headers, NULL);
+	if (content_type && !strcmp(content_type, "application/json")) {
+		parser = json_parser_new();
+		if (json_parser_load_from_data(parser, msg->response_body->data, msg->response_body->length, NULL))
+			node = json_parser_get_root(parser);
 	}
+
 	cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);
 	if (parser)
 		g_object_unref(parser);
@@ -168,6 +167,7 @@ SoupMessage *chime_queue_http_request(struct chime_connection *cxn, JsonNode *no
 		soup_message_headers_append(cmsg->msg->request_headers, "Cookie", cookie);
 		g_free(cookie);
 	}
+	soup_message_headers_append(cmsg->msg->request_headers, "Accept", "*/*");
 	if (node) {
 		gchar *body;
 		gsize body_size;
@@ -348,18 +348,6 @@ static gboolean parse_regnode(struct chime_connection *cxn, JsonNode *regnode)
 	return TRUE;
 }
 
-static void dump_incoming(gpointer cb_data, JsonNode *node)
-{
-	JsonGenerator *gen = json_generator_new();
-	gchar *msg;
-	json_generator_set_root(gen, node);
-	json_generator_set_pretty(gen, TRUE);
-	msg = json_generator_to_data(gen, NULL);
-	printf("incoming %s: %s\n", (gchar *)cb_data, msg);
-	g_free(msg);
-	g_object_unref(gen);
-}
-
 static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
 			JsonNode *node, gpointer _unused)
 {
@@ -377,11 +365,11 @@ static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
 
 	chime_init_juggernaut(cxn);
 
-	chime_jugg_subscribe(cxn, cxn->profile_channel, dump_incoming, "Profile");
-	chime_jugg_subscribe(cxn, cxn->presence_channel, dump_incoming, "Presence");
-	chime_jugg_subscribe(cxn, cxn->device_channel, dump_incoming, "Device");
+	chime_jugg_subscribe(cxn, cxn->profile_channel, jugg_dump_incoming, "Profile");
+	chime_jugg_subscribe(cxn, cxn->presence_channel, jugg_dump_incoming, "Presence");
+	chime_jugg_subscribe(cxn, cxn->device_channel, jugg_dump_incoming, "Device");
 
-	//	fetch_buddies(cxn);
+	chime_init_buddies(cxn);
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
@@ -426,13 +414,14 @@ void chime_purple_close(PurpleConnection *conn)
 	GList *l;
 
 	if (cxn) {
-		chime_destroy_juggernaut(cxn);
-
 		if (cxn->soup_sess) {
 			soup_session_abort(cxn->soup_sess);
 			g_object_unref(cxn->soup_sess);
 			cxn->soup_sess = NULL;
 		}
+		chime_destroy_juggernaut(cxn);
+		chime_destroy_buddies(cxn);
+
 		if (cxn->reg_node) {
 			json_node_unref(cxn->reg_node);
 			cxn->reg_node = NULL;
@@ -599,6 +588,9 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.roomlist_get_list = chime_purple_roomlist_get_list,
 	.roomlist_cancel = chime_purple_roomlist_cancel,
 	.chat_info_defaults = chime_purple_chat_info_defaults,
+	.add_buddy = chime_purple_add_buddy,
+	.buddy_free = chime_purple_buddy_free,
+	.remove_buddy = chime_purple_remove_buddy,
 };
 
 static void chime_purple_show_about_plugin(PurplePluginAction *action)

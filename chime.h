@@ -38,16 +38,20 @@ struct chime_msg {
 
 struct chime_connection {
 	PurpleConnection *prpl_conn;
-
-	SoupSession *soup_sess;
-	SoupWebsocketConnection *ws_conn;
-	GHashTable *subscriptions;
-
 	gchar *session_token;
 
 	/* Messages queued for resubmission */
 	GList *msg_queue;
 
+	/* Juggernaut */
+	SoupSession *soup_sess;
+	SoupWebsocketConnection *ws_conn;
+	GHashTable *subscriptions;
+
+	/* Buddies */
+	GHashTable *buddies;
+
+	/* Service config */
 	JsonNode *reg_node;
 	const gchar *session_id;
 	const gchar *profile_id;
@@ -78,6 +82,7 @@ enum {
 #define CONNECT_STEPS 3
 
 /* chime.c */
+gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
 SoupMessage *chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
 				      SoupURI *uri, ChimeSoupMessageCallback callback,
@@ -90,5 +95,14 @@ void chime_destroy_juggernaut(struct chime_connection *cxn);
 typedef void (*JuggernautCallback)(gpointer cb_data, JsonNode *node);
 void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, JuggernautCallback cb, gpointer cb_data);
 void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, JuggernautCallback cb, gpointer cb_data);
+void jugg_dump_incoming(gpointer cb_data, JsonNode *node);
+
+/* buddy.c */
+void fetch_buddies(struct chime_connection *cxn);
+void chime_purple_buddy_free(PurpleBuddy *buddy);
+void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
+void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
+void chime_init_buddies(struct chime_connection *cxn);
+void chime_destroy_buddies(struct chime_connection *cxn);
 
 #endif /* __CHIME_H__ */

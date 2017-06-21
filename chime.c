@@ -281,8 +281,6 @@ static JsonNode *chime_device_register_req(PurpleAccount *account)
 	jb = json_builder_add_string_value(jb, "osx");
 	jb = json_builder_set_member_name(jb, "DeviceToken");
 	jb = json_builder_add_string_value(jb, devtoken);
-	jb = json_builder_set_member_name(jb, "UaChannelToken");
-	jb = json_builder_add_string_value(jb, "blah42");
 	jb = json_builder_set_member_name(jb, "Capabilities");
 	jb = json_builder_add_int_value(jb, CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS |
 					CHIME_DEVICE_CAP_PRESENCE_PUSH |
@@ -526,7 +524,7 @@ static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status
 	JsonNode *node = json_builder_get_root(builder);
 
 	SoupURI *uri = soup_uri_new_printf(cxn->presence_url, "/presencesettings");
-	chime_queue_http_request(cxn, node, uri, sts_cb, NULL, FALSE);
+	chime_queue_http_request(cxn, node, uri, sts_cb, NULL, TRUE);
 
 	g_object_unref(builder);
 

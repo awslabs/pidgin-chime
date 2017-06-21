@@ -28,6 +28,9 @@
 
 struct chime_connection;
 
+#define CHIME_MAX_STATUS 6
+const gchar *chime_statuses[CHIME_MAX_STATUS];
+
 typedef void (*ChimeSoupMessageCallback)(struct chime_connection *cxn,
 					 SoupMessage *msg,
 					 JsonNode *node,

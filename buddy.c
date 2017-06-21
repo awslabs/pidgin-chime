@@ -47,10 +47,11 @@ static void set_buddy_presence(struct chime_connection *cxn, JsonNode *node)
 		return;
 	JsonObject *obj = json_node_get_object(node);
 	node = json_object_get_member(obj, "Availability");
-	gchar *sts = g_strdup_printf("%d", (int)json_node_get_int(node));
-	printf("Set %s avail %s\n", buddy->name, sts);
-	purple_prpl_got_user_status(cxn->prpl_conn->account, buddy->name, sts, NULL);
-	g_free(sts);
+	int sts = json_node_get_int(node);
+	if (sts > 0 && sts < CHIME_MAX_STATUS) {
+		printf("Set %s avail %s\n", buddy->name, chime_statuses[sts]);
+		purple_prpl_got_user_status(cxn->prpl_conn->account, buddy->name, chime_statuses[sts], NULL);
+	}
 }
 
 static void buddy_presence_cb(gpointer _cxn, JsonNode *node)

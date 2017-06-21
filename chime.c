@@ -230,11 +230,12 @@ static void chime_renew_token(struct chime_connection *cxn)
 	builder = json_builder_add_string_value(builder, cxn->session_token);
 	builder = json_builder_end_object(builder);
 	node = json_builder_get_root(builder);
-	g_object_unref(builder);
 
 	uri = soup_uri_new_printf(cxn->profile_url, "/tokens");
 	soup_uri_set_query_from_fields(uri, "Token", cxn->session_token, NULL);
 	chime_queue_http_request(cxn, node, uri, renew_cb, NULL, FALSE);
+
+	g_object_unref(builder);
 }
 
 
@@ -481,30 +482,55 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 	//	PurpleConversation *conv = serv_got_joined_chat(conn, 0x1234, g_hash_table_lookup(data, "name"));
 }
 
+const gchar *chime_statuses[CHIME_MAX_STATUS] = {
+	"zero", "offline", "Available", "three", "Busy", "Mobile"
+};
+
 GList *chime_purple_status_types(PurpleAccount *account)
 {
 	PurpleStatusType *type;
 	GList *types = NULL;
 
-	type = purple_status_type_new(PURPLE_STATUS_OFFLINE, "1",
+	type = purple_status_type_new(PURPLE_STATUS_OFFLINE, chime_statuses[1],
 				      _("Offline"), TRUE);
 	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, "2",
-				      _("Avail2"), TRUE);
+	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, chime_statuses[2],
+				      _("Available"), TRUE);
 	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, "3",
-				      _("Avail3"), TRUE);
+	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, chime_statuses[3],
+				      _("Status 3"), FALSE);
 	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_UNAVAILABLE, "4",
+	type = purple_status_type_new(PURPLE_STATUS_UNAVAILABLE, chime_statuses[4],
 				      _("Busy"), TRUE);
 	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_MOBILE, "5",
-				      _("Mobile"), TRUE);
+	type = purple_status_type_new(PURPLE_STATUS_MOBILE, chime_statuses[5],
+				      _("Mobile"), FALSE);
 	types = g_list_append(types, type);
 
 	return types;
 }
+static void sts_cb(struct chime_connection *cxn, SoupMessage *msg,
+		   JsonNode *node, gpointer _roomlist)
+{
+}
+static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status)
+{
+	struct chime_connection *cxn = purple_connection_get_protocol_data(account->gc);
+	printf("set status %s\n", purple_status_get_id(status));
 
+	JsonBuilder *builder = json_builder_new();
+	builder = json_builder_begin_object(builder);
+	builder = json_builder_set_member_name(builder, "ManualAvailability");
+	builder = json_builder_add_string_value(builder, purple_status_get_id(status));
+	builder = json_builder_end_object(builder);
+	JsonNode *node = json_builder_get_root(builder);
+
+	SoupURI *uri = soup_uri_new_printf(cxn->presence_url, "/presencesettings");
+	chime_queue_http_request(cxn, node, uri, sts_cb, NULL, FALSE);
+
+	g_object_unref(builder);
+
+}
 static int chime_purple_send_im(PurpleConnection *gc,
 				const char *who,
 				const char *what,
@@ -601,6 +627,7 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.login = chime_purple_login,
 	.close = chime_purple_close,
 	.status_types = chime_purple_status_types,
+	.set_status = chime_purple_set_status,
 	.send_im = chime_purple_send_im,
 	.chat_info = chime_purple_chat_info,
 	.join_chat = chime_purple_join_chat,

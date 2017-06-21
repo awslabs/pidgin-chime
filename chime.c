@@ -600,6 +600,7 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.add_buddy = chime_purple_add_buddy,
 	.buddy_free = chime_purple_buddy_free,
 	.remove_buddy = chime_purple_remove_buddy,
+	.keepalive = chime_purple_keepalive,
 };
 
 static void chime_purple_show_about_plugin(PurplePluginAction *action)

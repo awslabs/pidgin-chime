@@ -323,3 +323,12 @@ void jugg_dump_incoming(gpointer cb_data, JsonNode *node)
 	g_object_unref(gen);
 }
 
+void chime_purple_keepalive(PurpleConnection *conn)
+{
+	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+
+	/* XX: Check for response. But at least this will trigger a disconnect
+	   in some cases which we otherwise wouldn't have noticed. */
+	if (cxn->ws_conn)
+		soup_websocket_connection_send_text(cxn->ws_conn, "1::");
+}

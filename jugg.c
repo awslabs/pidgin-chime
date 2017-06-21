@@ -26,6 +26,8 @@
 
 #include <libsoup/soup.h>
 
+static void connect_jugg(struct chime_connection *cxn);
+
 struct jugg_subscription {
 	JuggernautCallback cb;
 	gpointer cb_data;
@@ -36,8 +38,18 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 {
 	struct chime_connection *cxn = _cxn;
 
-	printf("websocket closed: %d %s!\n", soup_websocket_connection_get_close_code(ws),
-	       soup_websocket_connection_get_close_data(ws));
+	printf("websocket closed: %d %s (%d)!\n", soup_websocket_connection_get_close_code(ws),
+	       soup_websocket_connection_get_close_data(ws), cxn->jugg_connected);
+
+	g_object_unref(cxn->ws_conn);
+	cxn->ws_conn = NULL;
+
+	if (cxn->jugg_connected)
+		connect_jugg(cxn);
+	else
+		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+					       _("Failed to establish WebSocket connection"));
+
 }
 static void handle_callback_one(gpointer _sub, gpointer _node)
 {
@@ -79,10 +91,12 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 
 	data = g_bytes_get_data(message, NULL);
 
-	printf("websocket message received:\n%s\n", (char *)data);
+	printf("websocket message received:\n'%s'\n", (char *)data);
 
 	/* Ack */
 	if (!strcmp(data, "1::")) {
+		/* If we go this far, allow reconnect */
+		cxn->jugg_connected = TRUE;
 		return;
 	}
 	/* Keepalive */
@@ -165,12 +179,23 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
 }
 
+static void connect_jugg(struct chime_connection *cxn)
+{
+	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1/websocket/%s", cxn->ws_key);
+	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
+
+	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
+	soup_uri_free(uri);
+
+	printf("no connected\n");
+	cxn->jugg_connected = FALSE;
+	soup_session_websocket_connect_async(cxn->soup_sess, msg, NULL, NULL, NULL, ws2_cb, cxn);
+}
+
+
 static void ws_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
 {
 	gchar **ws_opts = NULL;
-	gchar **protos = NULL;
-	gchar *url;
-	SoupURI *uri;
 
 	if (msg->status_code != 200) {
 		gchar *reason = g_strdup_printf(_("Websocket connection error (%d): %s"),
@@ -190,18 +215,12 @@ static void ws_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node
 		return;
 	}
 
-	uri = soup_uri_new_printf(cxn->websocket_url, "/1/websocket/%s", ws_opts[0]);
-	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
-
-	/* New message */
-	msg = soup_message_new_from_uri("GET", uri);
-	soup_uri_free(uri);
+	cxn->ws_key = g_strdup(ws_opts[0]);
 	purple_connection_update_progress(cxn->prpl_conn, _("Establishing WebSocket connection..."),
 					  4, CONNECT_STEPS);
-	protos = g_strsplit(ws_opts[3], ",", 0);
-	soup_session_websocket_connect_async(cxn->soup_sess, msg, NULL, protos, NULL, ws2_cb, cxn);
-	g_strfreev(protos);
 	g_strfreev(ws_opts);
+
+	connect_jugg(cxn);
 }
 
 static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer user_data)
@@ -220,6 +239,10 @@ void chime_destroy_juggernaut(struct chime_connection *cxn)
 		g_hash_table_foreach_remove(cxn->subscriptions, chime_sublist_destroy, NULL);
 		g_hash_table_destroy(cxn->subscriptions);
 		cxn->subscriptions = NULL;
+	}
+	if (cxn->ws_key) {
+		g_free(cxn->ws_key);
+		cxn->ws_key = NULL;
 	}
 }
 
@@ -329,6 +352,6 @@ void chime_purple_keepalive(PurpleConnection *conn)
 
 	/* XX: Check for response. But at least this will trigger a disconnect
 	   in some cases which we otherwise wouldn't have noticed. */
-	if (cxn->ws_conn)
+	if (cxn->ws_conn && cxn->jugg_connected)
 		soup_websocket_connection_send_text(cxn->ws_conn, "1::");
 }

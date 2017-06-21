@@ -38,14 +38,17 @@ struct chime_msg {
 
 struct chime_connection {
 	PurpleConnection *prpl_conn;
+
+	SoupSession *soup_sess;
 	gchar *session_token;
 
 	/* Messages queued for resubmission */
 	GList *msg_queue;
 
 	/* Juggernaut */
-	SoupSession *soup_sess;
 	SoupWebsocketConnection *ws_conn;
+	gboolean jugg_connected;
+	gchar *ws_key;
 	GHashTable *subscriptions;
 
 	/* Buddies */

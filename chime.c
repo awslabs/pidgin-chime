@@ -473,16 +473,20 @@ GList *chime_purple_status_types(PurpleAccount *account)
 	PurpleStatusType *type;
 	GList *types = NULL;
 
-	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, NULL,
-				      _("available"), TRUE);
+	type = purple_status_type_new(PURPLE_STATUS_OFFLINE, "1",
+				      _("Offline"), TRUE);
+	types = g_list_append(types, type);
+	type = purple_status_type_new(PURPLE_STATUS_MOBILE, "2",
+				      _("Mobile"), TRUE);
+	types = g_list_append(types, type);
+	type = purple_status_type_new(PURPLE_STATUS_UNAVAILABLE, "4",
+				      _("Busy"), TRUE);
+	types = g_list_append(types, type);
+	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, "5",
+				      _("Available"), TRUE);
 	types = g_list_append(types, type);
 
 	return types;
-}
-
-gchar *chime_purple_status_text(PurpleBuddy *buddy)
-{
-	return g_strdup("fish");
 }
 
 static int chime_purple_send_im(PurpleConnection *gc,
@@ -580,7 +584,6 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.list_icon = chime_purple_list_icon,
 	.login = chime_purple_login,
 	.close = chime_purple_close,
-	.status_text = chime_purple_status_text,
 	.status_types = chime_purple_status_types,
 	.send_im = chime_purple_send_im,
 	.chat_info = chime_purple_chat_info,

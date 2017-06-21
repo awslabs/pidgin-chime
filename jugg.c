@@ -64,6 +64,7 @@ static void handle_callback(struct chime_connection *cxn, gchar *msg)
 	}
 	g_object_unref(parser);
 }
+static void send_resubscribe_message(struct chime_connection *cxn);
 static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 				 GBytes *message, gpointer _cxn)
 {
@@ -130,7 +131,7 @@ static void send_resubscribe_message(struct chime_connection *cxn)
 
 	msg2 = g_strdup_printf("3:::%s", msg);
 	soup_websocket_connection_send_text(cxn->ws_conn, msg2);
-
+	printf("resub msg: %s\n", msg2);
 	g_free(msg2);
 	g_free(msg);
 	g_object_unref(gen);
@@ -170,7 +171,6 @@ static void ws_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node
 	gchar **protos = NULL;
 	gchar *url;
 	SoupURI *uri;
-	static int foo = 0;
 
 	if (msg->status_code != 200) {
 		gchar *reason = g_strdup_printf(_("Websocket connection error (%d): %s"),

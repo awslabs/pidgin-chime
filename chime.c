@@ -266,7 +266,7 @@ static JsonNode *chime_device_register_req(PurpleAccount *account)
 	JsonNode *jn;
 	const gchar *devtoken = purple_account_get_string(account, "devtoken", NULL);
 
-	if (!devtoken && !devtoken[0]) {
+	if (!devtoken || !devtoken[0]) {
 		gchar *uuid = purple_uuid_random();
 		purple_account_set_string(account, "devtoken", uuid);
 		g_free(uuid);

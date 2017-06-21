@@ -21,6 +21,11 @@
 #include <libsoup/soup.h>
 #include <json-glib/json-glib.h>
 
+#define CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS		(1<<1)
+#define CHIME_DEVICE_CAP_PRESENCE_PUSH			(1<<2)
+#define CHIME_DEVICE_CAP_WEBINAR			(1<<3)
+#define CHIME_DEVICE_CAP_PRESENCE_SUBSCRIPTION		(1<<4)
+
 struct chime_connection;
 
 typedef void (*ChimeSoupMessageCallback)(struct chime_connection *cxn,

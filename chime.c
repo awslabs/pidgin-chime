@@ -263,19 +263,29 @@ static JsonNode *chime_device_register_req(PurpleAccount *account)
 {
 	JsonBuilder *jb;
 	JsonNode *jn;
+	const gchar *devtoken = purple_account_get_string(account, "devtoken", NULL);
+
+	if (!devtoken && !devtoken[0]) {
+		gchar *uuid = purple_uuid_random();
+		purple_account_set_string(account, "devtoken", uuid);
+		g_free(uuid);
+		devtoken = purple_account_get_string(account, "devtoken", NULL);
+	}
 
 	jb = json_builder_new();
 	jb = json_builder_begin_object(jb);
 	jb = json_builder_set_member_name(jb, "Device");
 	jb = json_builder_begin_object(jb);
 	jb = json_builder_set_member_name(jb, "Platform");
-	jb = json_builder_add_string_value(jb, "android");
+	jb = json_builder_add_string_value(jb, "osx");
 	jb = json_builder_set_member_name(jb, "DeviceToken");
-	jb = json_builder_add_string_value(jb, "not-a-real-device-not-even-android");
+	jb = json_builder_add_string_value(jb, devtoken);
 	jb = json_builder_set_member_name(jb, "UaChannelToken");
 	jb = json_builder_add_string_value(jb, "blah42");
 	jb = json_builder_set_member_name(jb, "Capabilities");
-	jb = json_builder_add_int_value(jb, 1234);
+	jb = json_builder_add_int_value(jb, CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS |
+					CHIME_DEVICE_CAP_PRESENCE_PUSH |
+					CHIME_DEVICE_CAP_PRESENCE_SUBSCRIPTION);
 	jb = json_builder_end_object(jb);
 	jb = json_builder_end_object(jb);
 	jn = json_builder_get_root(jb);

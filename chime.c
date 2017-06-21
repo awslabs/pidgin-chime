@@ -168,6 +168,7 @@ SoupMessage *chime_queue_http_request(struct chime_connection *cxn, JsonNode *no
 		g_free(cookie);
 	}
 	soup_message_headers_append(cmsg->msg->request_headers, "Accept", "*/*");
+	soup_message_headers_append(cmsg->msg->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 	if (node) {
 		gchar *body;
 		gsize body_size;
@@ -400,8 +401,10 @@ void chime_purple_login(PurpleAccount *account)
 		g_object_set(cxn->soup_sess, "ssl-strict", FALSE, NULL);
 	}
 	node = chime_device_register_req(account);
-	uri = soup_uri_new_printf(purple_account_get_string(account, "server", SIGNIN_DEFAULT),
-				  "/sessions");
+	const gchar *server = purple_account_get_string(account, "server", NULL);
+	if (!server || !server[0])
+		server = SIGNIN_DEFAULT;
+	uri = soup_uri_new_printf(server, "/sessions");
 	soup_uri_set_query_from_fields(uri, "Token", token, NULL);
 
 	purple_connection_update_progress(conn, _("Connecting..."), 1, CONNECT_STEPS);

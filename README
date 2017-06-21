@@ -1,0 +1,46 @@
+
+Pidgin plugin for Amazon Chime
+==============================
+
+
+    =======
+    SUPPORT
+    =======
+
+This plugin is not supported by the Amazon Chime team. Do not contact
+them for any assistance with this client.
+
+
+    ============
+    INSTALLATION
+    ============
+
+$ sudo dnf install 'pkgconfig(purple)' 'pkgconfig(libsoup-2.4)' 'pkgconfig(json-glib-1.0)'
+$ ./configure
+$ make
+$ sudo make install
+
+Given the rate of development, you may find it easier to make a symbolic
+link from the installed plugin (e.g. /usr/lib64/purple-2/libchime.so) to
+.libs/libchime.so in your working tree.
+
+
+    ==============
+    AUTHENTICATION
+    ==============
+
+Initial authentication to Chime is performed via a web browser. Start
+at https://signin.id.ue1.app.chime.aws/ and complete the authentication
+process until you end up at a URI that the browser cannot handle, which
+looks something like
+      chime://sso_sessions?Token=eyJyZ…
+
+The part after 'Token=' is your authentication token. Create an account
+in Pidgin, providing this token in the 'Advanced' tab of the settings.
+
+
+    =========
+    DENUGGING
+    =========
+
+Run from a terminal with the CHIME_DEBUG environment variable set.

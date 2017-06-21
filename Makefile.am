@@ -1,5 +1,5 @@
 
-lib_LTLIBRARIES = libchime.la
+plugin_LTLIBRARIES = libchime.la
 
 libchime_la_SOURCES = chime.c jugg.c buddy.c chime.h
 libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS)

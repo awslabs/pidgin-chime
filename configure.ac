@@ -10,9 +10,12 @@ LT_INIT
 
 AC_PREREQ([2.62], [], [AC_SUBST([localedir], ['$(datadir)/locale'])])
 
-PKG_CHECK_MODULES(PURPLE, [purple-3], [],
-		  [PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0])])
+plugindir=
+PKG_CHECK_MODULES(PURPLE, [purple-3], [plugindir="$($PKG_CONFIG --variable=plugindir purple-3)"],
+		  [PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0])
+		   plugindir="$($PKG_CONFIG --variable=plugindir purple)"])
 
+AC_SUBST(plugindir, $plugindir)
 PKG_CHECK_MODULES(SOUP, [libsoup-2.4])
 PKG_CHECK_MODULES(JSON, [json-glib-1.0])
 

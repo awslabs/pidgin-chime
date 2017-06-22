@@ -66,6 +66,9 @@ struct chime_connection {
 	GHashTable *rooms_by_id;
 	GHashTable *rooms_by_name;
 
+	GHashTable *live_chats;
+	int chat_id;
+
 	/* Service config */
 	JsonNode *reg_node;
 	const gchar *session_id;
@@ -125,5 +128,8 @@ void chime_destroy_buddies(struct chime_connection *cxn);
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);
 void chime_init_rooms(struct chime_connection *cxn);
 void chime_destroy_rooms(struct chime_connection *cxn);
+GList *chime_purple_chat_info(PurpleConnection *conn);
+GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name);
+void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data);
 
 #endif /* __CHIME_H__ */

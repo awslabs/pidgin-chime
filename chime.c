@@ -457,29 +457,6 @@ void chime_purple_close(PurpleConnection *conn)
 	printf("Chime close\n");
 }
 
-GList *chime_purple_chat_info(PurpleConnection *conn)
-{
-	struct proto_chat_entry *pce = g_new0(struct proto_chat_entry, 1);
-
-	pce->label = _("Name:");
-	pce->identifier = "Name";
-	pce->required = TRUE;
-
-	return g_list_append(NULL, pce);
-}
-
-GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name)
-{
-	printf("chat_info_defaults %s\n", name);
-	return NULL;
-}
-
-void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
-{
-	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
-	printf("join_chat %p %s\n", data, roomid);
-	//	PurpleConversation *conv = serv_got_joined_chat(conn, 0x1234, g_hash_table_lookup(data, "name"));
-}
 
 const gchar *chime_statuses[CHIME_MAX_STATUS] = {
 	"zero", "offline", "Available", "three", "Busy", "Mobile"

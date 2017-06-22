@@ -29,6 +29,9 @@
 #include <libsoup/soup.h>
 
 struct chime_room {
+	PurpleConversation *chat;
+	gboolean fetch_done;
+
 	gchar *channel;
 	gchar *id;
 	gchar *type;
@@ -52,9 +55,20 @@ static void one_room_cb(JsonArray *array, guint index_,
 	    !parse_string(node, "Visibility", &visibility))
 		return;
 
-	room = g_new0(struct chime_room, 1);
+	room = g_hash_table_lookup(cxn->rooms_by_id, id);
+	if (room) {
+		g_hash_table_remove(cxn->rooms_by_name, room->name);
+		g_free(room->channel);
+		g_free(room->type);
+		g_free(room->name);
+		g_free(room->privacy);
+		g_free(room->visibility);
+	} else {
+		room = g_new0(struct chime_room, 1);
+		room->id = g_strdup(id);
+	}
+
 	room->channel = g_strdup(channel);
-	room->id = g_strdup(id);
 	room->type = g_strdup(type);
 	room->name = g_strdup(name);
 	room->privacy = g_strdup(privacy);
@@ -88,17 +102,40 @@ void fetch_rooms(struct chime_connection *cxn)
 	chime_queue_http_request(cxn, NULL, uri, roomlist_cb, NULL, TRUE);
 }
 
-void chime_init_rooms(struct chime_connection *cxn)
+static void chat_msg_cb(gpointer _room, JsonNode *node)
 {
-	cxn->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
-	cxn->rooms_by_id = g_hash_table_new(g_str_hash, g_str_equal);
+	struct chime_room *room = _room;
+	const gchar *str;
 
-	fetch_rooms(cxn);
+	if (!room->chat)
+		return;
+
+	JsonObject *obj = json_node_get_object(node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return;
+	if (parse_string(record, "Content", &str)) {
+		PurpleConnection *conn = room->chat->account->gc;
+		struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+		int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(room->chat));
+		serv_got_chat_in(conn, id, "someone", PURPLE_MESSAGE_RECV, str, time(NULL));
+	}
 }
-static void destroy_room(gpointer _id, gpointer _room, gpointer _unused)
-{
-	struct chime_room *room;
 
+
+static void destroy_room(gpointer _room)
+{
+	struct chime_room *room = _room;
+
+	if (room->chat) {
+		PurpleConnection *conn = room->chat->account->gc;
+		struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+		int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(room->chat));
+		chime_jugg_subscribe(cxn, room->channel, chat_msg_cb, room);
+		serv_got_chat_left(conn, id);
+		g_hash_table_remove(cxn->live_chats, GUINT_TO_POINTER(room->id));
+		room->chat = NULL;
+	}
 	g_free(room->channel);
 	g_free(room->id);
 	g_free(room->type);
@@ -107,9 +144,17 @@ static void destroy_room(gpointer _id, gpointer _room, gpointer _unused)
 	g_free(room->visibility);
 	g_free(room);
 }
+
+void chime_init_rooms(struct chime_connection *cxn)
+{
+	cxn->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
+	cxn->rooms_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_room);
+	cxn->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
+	fetch_rooms(cxn);
+}
+
 void chime_destroy_rooms(struct chime_connection *cxn)
 {
-	g_hash_table_foreach(cxn->rooms_by_name, destroy_room, NULL);
 	g_hash_table_destroy(cxn->rooms_by_name);
 	g_hash_table_destroy(cxn->rooms_by_id);
 	cxn->rooms_by_name = cxn->rooms_by_id = NULL;
@@ -150,3 +195,74 @@ PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
 	return roomlist;
 }
 
+
+
+GList *chime_purple_chat_info(PurpleConnection *conn)
+{
+	struct proto_chat_entry *pce = g_new0(struct proto_chat_entry, 1);
+	GList *l;
+	pce->label = _("Name:");
+	pce->identifier = "Name";
+	pce->required = TRUE;
+
+	l = g_list_append(NULL, pce);
+
+	/* Ick. We don't want this to be *shown* but the name alone isn't sufficient
+	   because they aren't unique, and there's no way to preserve it otherwise
+	   when the chat is added to the buddy list. */
+	pce = g_new0(struct proto_chat_entry, 1);
+	pce->label = _("RoomId");
+	pce->identifier = "RoomId";
+	pce->required = TRUE;
+
+	return g_list_append(l, pce);
+}
+
+GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name)
+{
+	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	struct chime_room *room = NULL;
+	GHashTable *hash;
+
+	if (cxn->rooms_by_name)
+		room = g_hash_table_lookup(cxn->rooms_by_name, name);
+	if (!room)
+		return NULL;
+
+	hash = g_hash_table_new(g_str_hash, g_str_equal);
+	g_hash_table_insert(hash, "Name", room->name);
+	g_hash_table_insert(hash, "RoomId", room->id);
+	return hash;
+}
+
+void chime_purple_chat_leave(PurpleConnection *conn, int id)
+{
+	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	struct chime_room *room = g_hash_table_lookup(cxn->live_chats, GUINT_TO_POINTER(id));
+
+	if (!room)
+		return;
+
+	chime_jugg_unsubscribe(cxn, room->channel, chat_msg_cb, room);
+	serv_got_chat_left(conn, id);
+	room->chat = NULL;
+	g_hash_table_remove(cxn->live_chats, GUINT_TO_POINTER(id));
+}
+
+void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
+{
+	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	struct chime_room *room;
+
+	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
+
+	printf("join_chat %p %s %s\n", data, roomid, g_hash_table_lookup(data, "Name"));
+	room = g_hash_table_lookup(cxn->rooms_by_id, roomid);
+	if (!room || room->chat)
+		return;
+
+	int chat_id = ++cxn->chat_id;
+	room->chat = serv_got_joined_chat(conn, chat_id, g_hash_table_lookup(data, "Name"));
+	g_hash_table_insert(cxn->live_chats, GUINT_TO_POINTER(chat_id), room);
+	chime_jugg_subscribe(cxn, room->channel, chat_msg_cb, room);
+}

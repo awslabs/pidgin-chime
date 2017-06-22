@@ -1,4 +1,6 @@
 
+SUBDIRS = po
+
 AM_CPPFLAGS = @WFLAGS@
 
 plugin_LTLIBRARIES = libchime.la
@@ -7,3 +9,14 @@ libchime_la_SOURCES = chime.c jugg.c buddy.c rooms.c chat.c chime.h
 libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS)
 libchime_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS)
 libchime_la_LDFLAGS = -module -avoid-version -no-undefined
+
+POTFILES = $(libchime_la_SOURCES)
+
+po/$(PACKAGE).pot: $(POTFILES)
+	@echo "Regenerating $@" ; rm -f $@ && \
+	xgettext --directory=$(top_srcdir) --from-code=UTF-8 \
+	  --sort-by-file --add-comments --keyword=_ --keyword=N_ \
+	  --package-name="@PACKAGE@" --package-version="@VERSION@" \
+	  --msgid-bugs-address=dwmw2@infradead.org \
+	  -o $@ $(POTFILES)
+

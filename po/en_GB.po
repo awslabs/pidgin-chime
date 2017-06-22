@@ -1,0 +1,142 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the pidgin-chime package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pidgin-chime 0.01\n"
+"Report-Msgid-Bugs-To: dwmw2@infradead.org\n"
+"POT-Creation-Date: 2017-06-22 15:03-0500\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: en_GB <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: buddy.c:98 buddy.c:100
+msgid "Chime Contacts"
+msgstr ""
+
+#: buddy.c:240
+#, c-format
+msgid "Failed to add/invite contact: %s"
+msgstr ""
+
+#: buddy.c:300
+msgid "Cannot remove buddies yet"
+msgstr ""
+
+#: chat.c:58
+msgid "<unknown sender>"
+msgstr ""
+
+#: chat.c:380
+#, c-format
+msgid "Failed to deliver message (%d): %s"
+msgstr ""
+
+#: chime.c:163
+msgid "Failed to renew session token"
+msgstr ""
+
+#: chime.c:329
+msgid "Device registration failed"
+msgstr ""
+
+#: chime.c:336
+msgid "Failed to process registration response"
+msgstr ""
+
+#: chime.c:362
+msgid "No authentication token"
+msgstr ""
+
+#: chime.c:384
+msgid "Connecting..."
+msgstr ""
+
+#: chime.c:436
+msgid "Offline"
+msgstr ""
+
+#: chime.c:439
+msgid "Available"
+msgstr ""
+
+#: chime.c:442
+msgid "Status 3"
+msgstr ""
+
+#: chime.c:445
+msgid "Busy"
+msgstr ""
+
+#: chime.c:448
+msgid "Mobile"
+msgstr ""
+
+#: chime.c:507
+msgid "Foo"
+msgstr ""
+
+#: chime.c:507
+msgid "Hello"
+msgstr ""
+
+#: chime.c:517
+msgid "About Chime plugin..."
+msgstr ""
+
+#: chime.c:548
+msgid "Signin URL"
+msgstr ""
+
+#: chime.c:552
+msgid "Token"
+msgstr ""
+
+#: jugg.c:51
+msgid "Failed to establish WebSocket connection"
+msgstr ""
+
+#: jugg.c:161
+#, c-format
+msgid "Websocket connection error %s"
+msgstr ""
+
+#: jugg.c:199
+#, c-format
+msgid "Websocket connection error (%d): %s"
+msgstr ""
+
+#: jugg.c:212
+msgid "Unexpected response in WebSocket setup"
+msgstr ""
+
+#: jugg.c:217
+msgid "Establishing WebSocket connection..."
+msgstr ""
+
+#: jugg.c:252
+msgid "Obtaining WebSocket params..."
+msgstr ""
+
+#: rooms.c:147
+msgid "Visible"
+msgstr ""
+
+#: rooms.c:148
+msgid "Private"
+msgstr ""
+
+#: rooms.c:165
+msgid "Name:"
+msgstr ""
+
+#: rooms.c:175
+msgid "RoomId"
+msgstr ""

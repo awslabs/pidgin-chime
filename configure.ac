@@ -39,5 +39,21 @@ AC_SUBST(plugindir, $plugindir)
 PKG_CHECK_MODULES(SOUP, [libsoup-2.4])
 PKG_CHECK_MODULES(JSON, [json-glib-1.0])
 
-AC_CONFIG_FILES(Makefile)
+AC_PATH_PROG(MSGFMT, msgfmt)
+if test "$MSGFMT" = ""; then
+   AC_ERROR([msgfmt could not be found. Try configuring with --disable-nls])
+fi
+
+AC_SUBST([CONFIG_STATUS_DEPENDENCIES],
+	['$(top_srcdir)/po/LINGUAS'])
+
+RAWLINGUAS=`sed -e "/^#/d" -e "s/#.*//" "${srcdir}/po/LINGUAS"`
+# Remove newlines
+LINGUAS=`echo $RAWLINGUAS`
+AC_SUBST(LINGUAS)
+
+AC_CONFIG_FILES([
+	Makefile
+	po/Makefile
+	])
 AC_OUTPUT

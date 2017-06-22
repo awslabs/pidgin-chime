@@ -1,4 +1,6 @@
 
+AM_CPPFLAGS = @WFLAGS@
+
 plugin_LTLIBRARIES = libchime.la
 
 libchime_la_SOURCES = chime.c jugg.c buddy.c rooms.c chat.c chime.h

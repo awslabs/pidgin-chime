@@ -10,6 +10,26 @@ LT_INIT
 
 AC_PREREQ([2.62], [], [AC_SUBST([localedir], ['$(datadir)/locale'])])
 
+AS_COMPILER_FLAGS(WFLAGS,
+        "-Wall
+         -Wextra
+         -Wno-missing-field-initializers
+         -Wno-sign-compare
+         -Wno-unused-parameter
+         -Werror=pointer-to-int-cast
+         -Wdeclaration-after-statement
+         -Werror-implicit-function-declaration
+         -Wformat-nonliteral
+         -Wformat-security
+         -Winit-self
+         -Wmissing-declarations
+         -Wmissing-include-dirs
+         -Wnested-externs
+         -Wpointer-arith
+         -Wwrite-strings
+	 -Wno-declaration-after-statement")
+AC_SUBST(WFLAGS, [$WFLAGS])
+
 plugindir=
 PKG_CHECK_MODULES(PURPLE, [purple-3], [plugindir="$($PKG_CONFIG --variable=plugindir purple-3)"],
 		  [PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0])

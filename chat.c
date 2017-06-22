@@ -41,14 +41,6 @@ struct chime_chat {
 static void chat_deliver_msg(struct chime_chat *chat, JsonNode *node, int msg_time)
 {
 	const gchar *str;
-	if (!msg_time) {
-		GTimeVal tv;
-		if (!parse_string(node, "CreatedOn", &str) ||
-		    !g_time_val_from_iso8601(str, &tv))
-			msg_time = time(NULL);
-		else
-			msg_time = tv.tv_sec;
-	}
 	if (parse_string(node, "Content", &str)) {
 		PurpleConnection *conn = chat->conv->account->gc;
 		struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
@@ -74,7 +66,18 @@ static void chat_msg_cb(gpointer _chat, JsonNode *node)
 			g_hash_table_insert(chat->messages, (gchar *)id, json_node_ref(node));
 		return;
 	}
-	chat_deliver_msg(chat, record, time(NULL));
+
+	GTimeVal tv;
+	if (!parse_string(record, "CreatedOn", &str) ||
+	    !g_time_val_from_iso8601(str, &tv))
+		return;
+
+	gchar *last_msgs_key = g_strdup_printf("last-room-%s", chat->room->id);
+	purple_account_set_string(chat->conv->account,
+				  last_msgs_key, str);
+	g_free(last_msgs_key);
+
+	chat_deliver_msg(chat, record, tv.tv_sec);
 }
 
 void chime_destroy_chat(struct chime_chat *chat)
@@ -92,7 +95,7 @@ void chime_destroy_chat(struct chime_chat *chat)
 		soup_session_cancel_message(cxn->soup_sess, chat->members_msg, 1);
 		chat->members_msg = NULL;
 	}
-	chime_jugg_unsubscribe(cxn, room->channel, chat_msg_cb, room);
+	chime_jugg_unsubscribe(cxn, room->channel, chat_msg_cb, chat);
 
 	serv_got_chat_left(conn, id);
 	g_hash_table_remove(cxn->live_chats, GUINT_TO_POINTER(room->id));

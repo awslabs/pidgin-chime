@@ -76,7 +76,7 @@ static void add_chat_member(struct chime_chat *chat, JsonNode *node)
 		return;
 	if (!strcmp(presence, "notPresent"))
 		flags = PURPLE_CBFLAGS_AWAY;
-	else if (!strcmp(presence, "Present"))
+	else if (!strcmp(presence, "present"))
 		flags = PURPLE_CBFLAGS_VOICE;
 	else {
 		printf("Unknown presnce %s\n", presence);
@@ -387,6 +387,7 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 {
 	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
 	struct chime_chat *chat = g_hash_table_lookup(cxn->live_chats, GUINT_TO_POINTER(id));
+	int ret;
 
 	/* For idempotency of requests. Not that we retry. */
 	gchar *uuid = purple_uuid_random();
@@ -400,10 +401,13 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	jb = json_builder_add_string_value(jb, uuid);
 	jb = json_builder_end_object(jb);
 
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages");
-	if (chime_queue_http_request(cxn, NULL, uri, send_msg_cb, chat))
-		return 0;
+	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages", chat->room->id);
+	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, send_msg_cb, chat))
+		ret = 0;
 	else
-		return -1;
+		ret = -1;
+
+	g_object_unref(jb);
+	return ret;
 }
 

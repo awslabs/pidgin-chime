@@ -4,6 +4,8 @@ Makefile.in
 *.la
 *.lo
 *.o
+po/*.mo
+*.tar.gz
 aclocal.m4
 autom4te*
 compile

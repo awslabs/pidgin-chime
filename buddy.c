@@ -27,6 +27,7 @@
 
 #include <libsoup/soup.h>
 
+/* We keep this in ->proto_data */
 struct buddy_data {
 	gchar *presence_channel;
 	gchar *profile_channel;
@@ -34,6 +35,8 @@ struct buddy_data {
 	SoupMessage *add_msg;
 };
 
+/* Called to signal presence to Pidgin, with a node obtained
+ * either from Juggernaut or explicit request (at startup). */
 static void set_buddy_presence(struct chime_connection *cxn, JsonNode *node)
 {
 	const gchar *id;
@@ -54,12 +57,11 @@ static void set_buddy_presence(struct chime_connection *cxn, JsonNode *node)
 	}
 }
 
+/* Callback for Juggernaut notifications about status */
 static void buddy_presence_cb(gpointer _cxn, JsonNode *node)
 {
 	struct chime_connection *cxn = _cxn;
 	const gchar *str;
-
-	jugg_dump_incoming((char *)"Buddy presence", node);
 
 	if (!parse_string(node, "klass", &str) ||
 	    strcmp(str, "Presence"))
@@ -73,11 +75,12 @@ static void buddy_presence_cb(gpointer _cxn, JsonNode *node)
 	set_buddy_presence(cxn, node);
 }
 
-
+/* Temporary struct for iterating over a JsonArray of presences */
 struct buddy_gather {
 	struct chime_connection *cxn;
 	GSList *ids;
 };
+
 static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _bg)
 {
 	struct buddy_gather *bg = _bg;
@@ -103,12 +106,10 @@ static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _bg
 
 		buddy = purple_buddy_new(cxn->prpl_conn->account, email, display_name);
 		purple_blist_add_buddy(buddy, NULL, group, NULL);
-
-		printf("New buddy %s\n", display_name);
 	}
-	if (!buddy->proto_data) {
+	if (!buddy->proto_data)
 		buddy->proto_data = g_new0(struct buddy_data, 1);
-	}
+
 	bd = buddy->proto_data;
 	if (!bd->id) {
 		bd->id = g_strdup(id);
@@ -196,12 +197,12 @@ static void buddies_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode 
 	while (l) {
 		PurpleBuddy *buddy = l->data;
 		struct buddy_data *bd = buddy->proto_data;
-		if (!bd || !bd->id) {
-			printf("kill %s %p %s\n", buddy->name, bd, bd?bd->id:"<no bd>");
+		if (!bd || !bd->id)
 			purple_blist_remove_buddy(buddy);
-		}
+
 		l = g_slist_remove(l, buddy);
 	}
+
 	/* New contacts; fetch presence */
 	if (bg.ids) {
 		int len = g_slist_length(bg.ids);

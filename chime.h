@@ -88,6 +88,18 @@ struct chime_connection {
 	const gchar *conference_url;
 };
 
+struct chime_chat;
+
+struct chime_room {
+	struct chime_chat *chat;
+
+	gchar *channel;
+	gchar *id;
+	gchar *type;
+	gchar *name;
+	gchar *privacy;
+	gchar *visibility;
+};
 
 extern GQuark pidgin_chime_error_quark(void);
 #define CHIME_ERROR pidgin_chime_error_quark()
@@ -130,6 +142,10 @@ void chime_init_rooms(struct chime_connection *cxn);
 void chime_destroy_rooms(struct chime_connection *cxn);
 GList *chime_purple_chat_info(PurpleConnection *conn);
 GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name);
+
+/* chat.c */
+void chime_destroy_chat(struct chime_chat *chat);
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data);
+void chime_purple_chat_leave(PurpleConnection *conn, int id);
 
 #endif /* __CHIME_H__ */

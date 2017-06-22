@@ -526,6 +526,7 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.send_im = chime_purple_send_im,
 	.chat_info = chime_purple_chat_info,
 	.join_chat = chime_purple_join_chat,
+	.chat_leave = chime_purple_chat_leave,
 	.roomlist_get_list = chime_purple_roomlist_get_list,
 	.chat_info_defaults = chime_purple_chat_info_defaults,
 	.add_buddy = chime_purple_add_buddy,

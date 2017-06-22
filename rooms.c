@@ -28,18 +28,6 @@
 
 #include <libsoup/soup.h>
 
-struct chime_room {
-	PurpleConversation *chat;
-	gboolean fetch_done;
-
-	gchar *channel;
-	gchar *id;
-	gchar *type;
-	gchar *name;
-	gchar *privacy;
-	gchar *visibility;
-};
-
 static void one_room_cb(JsonArray *array, guint index_,
 			JsonNode *node, gpointer _cxn)
 {
@@ -102,40 +90,13 @@ void fetch_rooms(struct chime_connection *cxn)
 	chime_queue_http_request(cxn, NULL, uri, roomlist_cb, NULL, TRUE);
 }
 
-static void chat_msg_cb(gpointer _room, JsonNode *node)
-{
-	struct chime_room *room = _room;
-	const gchar *str;
-
-	if (!room->chat)
-		return;
-
-	JsonObject *obj = json_node_get_object(node);
-	JsonNode *record = json_object_get_member(obj, "record");
-	if (!record)
-		return;
-	if (parse_string(record, "Content", &str)) {
-		PurpleConnection *conn = room->chat->account->gc;
-		struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
-		int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(room->chat));
-		serv_got_chat_in(conn, id, "someone", PURPLE_MESSAGE_RECV, str, time(NULL));
-	}
-}
-
-
 static void destroy_room(gpointer _room)
 {
 	struct chime_room *room = _room;
 
-	if (room->chat) {
-		PurpleConnection *conn = room->chat->account->gc;
-		struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
-		int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(room->chat));
-		chime_jugg_subscribe(cxn, room->channel, chat_msg_cb, room);
-		serv_got_chat_left(conn, id);
-		g_hash_table_remove(cxn->live_chats, GUINT_TO_POINTER(room->id));
-		room->chat = NULL;
-	}
+	if (room->chat)
+		chime_destroy_chat(room->chat);
+
 	g_free(room->channel);
 	g_free(room->id);
 	g_free(room->type);
@@ -235,34 +196,4 @@ GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *
 	return hash;
 }
 
-void chime_purple_chat_leave(PurpleConnection *conn, int id)
-{
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
-	struct chime_room *room = g_hash_table_lookup(cxn->live_chats, GUINT_TO_POINTER(id));
 
-	if (!room)
-		return;
-
-	chime_jugg_unsubscribe(cxn, room->channel, chat_msg_cb, room);
-	serv_got_chat_left(conn, id);
-	room->chat = NULL;
-	g_hash_table_remove(cxn->live_chats, GUINT_TO_POINTER(id));
-}
-
-void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
-{
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
-	struct chime_room *room;
-
-	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
-
-	printf("join_chat %p %s %s\n", data, roomid, g_hash_table_lookup(data, "Name"));
-	room = g_hash_table_lookup(cxn->rooms_by_id, roomid);
-	if (!room || room->chat)
-		return;
-
-	int chat_id = ++cxn->chat_id;
-	room->chat = serv_got_joined_chat(conn, chat_id, g_hash_table_lookup(data, "Name"));
-	g_hash_table_insert(cxn->live_chats, GUINT_TO_POINTER(chat_id), room);
-	chime_jugg_subscribe(cxn, room->channel, chat_msg_cb, room);
-}

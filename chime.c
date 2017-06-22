@@ -79,40 +79,6 @@ gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
 	return TRUE;
 }
 
-static JsonNode *process_soup_response(SoupMessage *msg, GError **error)
-{
-	const gchar *content_type;
-	JsonParser *parser;
-	JsonNode *node;
-
-	if (msg->status_code != 200 && msg->status_code != 201) {
-		g_set_error(error, CHIME_ERROR,
-			    CHIME_ERROR_REQUEST_FAILED,
-			    _("Request failed(%d): %s"),
-			    msg->status_code, msg->reason_phrase);
-		return NULL;
-	}
-
-	content_type = soup_message_headers_get_content_type(msg->response_headers, NULL);
-	if (!content_type || strcmp(content_type, "application/json")) {
-		g_set_error(error, CHIME_ERROR,
-			    CHIME_ERROR_BAD_RESPONSE,
-			    _("Server sent wrong content-type '%s'"),
-			    content_type);
-		return NULL;
-	}
-	parser = json_parser_new();
-	if (!json_parser_load_from_data(parser, msg->response_body->data, msg->response_body->length,
-					error)) {
-		g_object_unref(parser);
-		return NULL;
-	}
-
-	node = json_node_ref(json_parser_get_root(parser));
-	g_object_unref(parser);
-	return node;
-}
-
 static void chime_renew_token(struct chime_connection *cxn);
 
 static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg)
@@ -189,10 +155,8 @@ SoupMessage *chime_queue_http_request(struct chime_connection *cxn, JsonNode *no
 static void renew_cb(struct chime_connection *cxn, SoupMessage *msg,
 		     JsonNode *node, gpointer _unused)
 {
-	GError *error = NULL;
 	GList *l;
 	const gchar *sess_tok;
-	JsonNode *tok_node;
 	gchar *cookie_hdr;
 
 	if (!node || !parse_string(node, "SessionToken", &sess_tok)) {
@@ -251,10 +215,11 @@ static gboolean chime_purple_plugin_unload(PurplePlugin *plugin)
 	return TRUE;
 }
 
-void chime_purple_plugin_destroy(PurplePlugin *plugin)
+static void chime_purple_plugin_destroy(PurplePlugin *plugin)
 {
 }
-const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
+
+static const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
 {
         return "chime";
 }
@@ -296,7 +261,7 @@ static gboolean parse_regnode(struct chime_connection *cxn, JsonNode *regnode)
 {
 	JsonObject *obj = json_node_get_object(cxn->reg_node);
 	JsonNode *node, *sess_node = json_object_get_member(obj, "Session");
-	const gchar *str, *sess_tok;
+	const gchar *sess_tok;
 
 	if (!sess_node)
 		return FALSE;
@@ -374,16 +339,16 @@ static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
 
 	chime_init_juggernaut(cxn);
 
-	chime_jugg_subscribe(cxn, cxn->profile_channel, jugg_dump_incoming, "Profile");
-	chime_jugg_subscribe(cxn, cxn->presence_channel, jugg_dump_incoming, "Presence");
-	chime_jugg_subscribe(cxn, cxn->device_channel, jugg_dump_incoming, "Device");
+	chime_jugg_subscribe(cxn, cxn->profile_channel, jugg_dump_incoming, (gpointer)"Profile");
+	chime_jugg_subscribe(cxn, cxn->presence_channel, jugg_dump_incoming, (gpointer)"Presence");
+	chime_jugg_subscribe(cxn, cxn->device_channel, jugg_dump_incoming, (gpointer)"Device");
 
 	chime_init_buddies(cxn);
 	chime_init_rooms(cxn);
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
-void chime_purple_login(PurpleAccount *account)
+static void chime_purple_login(PurpleAccount *account)
 {
 	PurpleConnection *conn = purple_account_get_connection(account);
 	struct chime_connection *cxn;
@@ -420,7 +385,7 @@ void chime_purple_login(PurpleAccount *account)
 	chime_queue_http_request(cxn, node, uri, register_cb, NULL, TRUE);
 }
 
-void chime_purple_close(PurpleConnection *conn)
+static void chime_purple_close(PurpleConnection *conn)
 {
 	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
 	GList *l;
@@ -462,7 +427,7 @@ const gchar *chime_statuses[CHIME_MAX_STATUS] = {
 	"zero", "offline", "Available", "three", "Busy", "Mobile"
 };
 
-GList *chime_purple_status_types(PurpleAccount *account)
+static GList *chime_purple_status_types(PurpleAccount *account)
 {
 	PurpleStatusType *type;
 	GList *types = NULL;
@@ -527,6 +492,7 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.chat_info = chime_purple_chat_info,
 	.join_chat = chime_purple_join_chat,
 	.chat_leave = chime_purple_chat_leave,
+	.chat_send = chime_purple_chat_send,
 	.roomlist_get_list = chime_purple_roomlist_get_list,
 	.chat_info_defaults = chime_purple_chat_info_defaults,
 	.add_buddy = chime_purple_add_buddy,
@@ -561,12 +527,12 @@ static PurplePluginInfo chime_plugin_info = {
 	.minor_version = PURPLE_MINOR_VERSION,
 	.type = PURPLE_PLUGIN_PROTOCOL,
 	.priority = PURPLE_PRIORITY_DEFAULT,
-	.id = "prpl-chime",
-	.name = "Amazon Chime",
-	.version = PACKAGE_VERSION,
-	.summary = "Amazon Chime Protocol Plugin",
-	.description = "A plugin for Chime",
-	.author = "David Woodhouse <dwmw2@infradead.org>",
+	.id = (char *)"prpl-chime",
+	.name = (char *)"Amazon Chime",
+	.version = (char *)PACKAGE_VERSION,
+	.summary = (char *)"Amazon Chime Protocol Plugin",
+	.description = (char *)"A plugin for Chime",
+	.author = (char *)"David Woodhouse <dwmw2@infradead.org>",
 	.load = chime_purple_plugin_load,
 	.unload = chime_purple_plugin_unload,
 	.destroy = chime_purple_plugin_destroy,

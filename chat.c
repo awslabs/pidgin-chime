@@ -50,7 +50,6 @@ static void chat_deliver_msg(struct chime_chat *chat, JsonNode *node, int msg_ti
 	const gchar *str, *content;
 	if (parse_string(node, "Content", &content)) {
 		PurpleConnection *conn = chat->conv->account->gc;
-		struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
 		int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
 
 		if (parse_string(node, "Sender", &str))
@@ -174,7 +173,7 @@ struct msg_sort {
 	JsonNode *node;
 };
 
-gint compare_ms(gconstpointer _a, gconstpointer _b)
+static gint compare_ms(gconstpointer _a, gconstpointer _b)
 {
 	const struct msg_sort *a = _a;
 	const struct msg_sort *b = _b;
@@ -187,7 +186,7 @@ gint compare_ms(gconstpointer _a, gconstpointer _b)
 	return 0;
 }
 
-int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
+static int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
 {
 	const gchar *str;
 	GList **l = _list;
@@ -205,7 +204,7 @@ int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
 	return TRUE;
 }
 
-void chime_complete_chat_setup(struct chime_connection *cxn, struct chime_chat *chat)
+static void chime_complete_chat_setup(struct chime_connection *cxn, struct chime_chat *chat)
 {
 	GList *l = NULL;
 	printf("List at %p\n", &l);
@@ -238,7 +237,6 @@ void chime_complete_chat_setup(struct chime_connection *cxn, struct chime_chat *
 static void one_msg_cb(JsonArray *array, guint index_,
 		       JsonNode *node, gpointer _hash)
 {
-	struct chime_chat *chat;
 	const char *id;
 
 	if (parse_string(node, "MessageId", &id))
@@ -385,7 +383,7 @@ static void send_msg_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode
        }
 }
 
-int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags *flags)
+int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags)
 {
 	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
 	struct chime_chat *chat = g_hash_table_lookup(cxn->live_chats, GUINT_TO_POINTER(id));
@@ -403,6 +401,9 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	jb = json_builder_end_object(jb);
 
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages");
-	chime_queue_http_request(cxn, NULL, uri, send_msg_cb, chat, TRUE);
+	if (chime_queue_http_request(cxn, NULL, uri, send_msg_cb, chat, TRUE))
+		return 0;
+	else
+		return -1;
 }
 

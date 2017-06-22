@@ -147,5 +147,6 @@ GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *
 void chime_destroy_chat(struct chime_chat *chat);
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data);
 void chime_purple_chat_leave(PurpleConnection *conn, int id);
+int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags);
 
 #endif /* __CHIME_H__ */

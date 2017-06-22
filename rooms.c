@@ -84,7 +84,7 @@ static void roomlist_cb(struct chime_connection *cxn, SoupMessage *msg,
 }
 
 
-void fetch_rooms(struct chime_connection *cxn)
+static void fetch_rooms(struct chime_connection *cxn)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms");
 	chime_queue_http_request(cxn, NULL, uri, roomlist_cb, NULL, TRUE);
@@ -191,8 +191,8 @@ GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *
 		return NULL;
 
 	hash = g_hash_table_new(g_str_hash, g_str_equal);
-	g_hash_table_insert(hash, "Name", room->name);
-	g_hash_table_insert(hash, "RoomId", room->id);
+	g_hash_table_insert(hash, (char *)"Name", room->name);
+	g_hash_table_insert(hash, (char *)"RoomId", room->id);
 	return hash;
 }
 

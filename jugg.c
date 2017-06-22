@@ -82,8 +82,6 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 {
 	struct chime_connection *cxn = _cxn;
 	gchar **parms;
-	int i;
-	gsize size;
 	gconstpointer data;
 
 	if (type != SOUP_WEBSOCKET_DATA_TEXT)
@@ -274,7 +272,7 @@ static void send_subscription_message(struct chime_connection *cxn, const gchar 
  * We send the server a subscribe request when the first subscription to a
  * channel occurs, and an unsubscribe request when the last one goes away.
  */
-gboolean compare_sub(gconstpointer _a, gconstpointer _b)
+static gboolean compare_sub(gconstpointer _a, gconstpointer _b)
 {
 	const struct jugg_subscription *a = _a;
 	const struct jugg_subscription *b = _b;

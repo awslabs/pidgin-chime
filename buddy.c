@@ -59,7 +59,7 @@ static void buddy_presence_cb(gpointer _cxn, JsonNode *node)
 	struct chime_connection *cxn = _cxn;
 	const gchar *str;
 
-	jugg_dump_incoming("Buddy presence", node);
+	jugg_dump_incoming((char *)"Buddy presence", node);
 
 	if (!parse_string(node, "klass", &str) ||
 	    strcmp(str, "Presence"))
@@ -116,7 +116,7 @@ static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _bg
 	}
 	if (!bd->profile_channel) {
 		bd->profile_channel = g_strdup(profile_channel);
-		chime_jugg_subscribe(cxn, profile_channel, jugg_dump_incoming, "Buddy Profile");
+		chime_jugg_subscribe(cxn, profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
 	}
 	if (!bd->presence_channel) {
 		bd->presence_channel = g_strdup(presence_channel);
@@ -147,7 +147,7 @@ void chime_purple_buddy_free(PurpleBuddy *buddy)
 		bd->id = NULL;
 	}
 	if (bd->profile_channel) {
-		chime_jugg_unsubscribe(cxn, bd->profile_channel, jugg_dump_incoming, "Buddy Profile");
+		chime_jugg_unsubscribe(cxn, bd->profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
 		g_free(bd->profile_channel);
 		bd->profile_channel = NULL;
 	}
@@ -254,7 +254,7 @@ static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNod
 	   predictable... */
 	if (!bd->profile_channel) {
 		bd->profile_channel = g_strdup_printf("profile_presence!%s", id);
-		chime_jugg_subscribe(cxn, bd->profile_channel, jugg_dump_incoming, "Buddy Profile");
+		chime_jugg_subscribe(cxn, bd->profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
 	}
 	if (!bd->presence_channel) {
 		bd->presence_channel = g_strdup_printf("profile!%s", id);
@@ -274,7 +274,6 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 {
 	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
 	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/invites");
-	SoupMessage *msg;
 	JsonBuilder *builder = json_builder_new();
 	struct buddy_data *bd = buddy->proto_data;
 

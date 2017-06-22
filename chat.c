@@ -372,3 +372,37 @@ void chime_purple_chat_leave(PurpleConnection *conn, int id)
 
 	chime_destroy_chat(chat);
 }
+
+static void send_msg_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _chat)
+{
+       struct chime_chat *chat = _chat;
+
+       /* Nothing to do o nsuccess */
+       if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		gchar *err_msg = g_strdup_printf(_("Failed to deliver message (%d): %s"),
+						 msg->status_code, msg->reason_phrase);
+		purple_conversation_write(chat->conv, NULL, err_msg, PURPLE_MESSAGE_ERROR, time(NULL));
+       }
+}
+
+int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags *flags)
+{
+	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	struct chime_chat *chat = g_hash_table_lookup(cxn->live_chats, GUINT_TO_POINTER(id));
+
+	/* For idempotency of requests. Not that we retry. */
+	gchar *uuid = purple_uuid_random();
+
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "Content");
+	jb = json_builder_add_string_value(jb, message);
+	jb = json_builder_set_member_name(jb, "ClientRequestToken");
+	jb = json_builder_add_string_value(jb, uuid);
+	jb = json_builder_end_object(jb);
+
+	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages");
+	chime_queue_http_request(cxn, NULL, uri, send_msg_cb, chat, TRUE);
+}
+

@@ -254,7 +254,7 @@ static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNod
 	   channels without refetching all contacts, but they *are*
 	   predictable... */
 	if (!bd->profile_channel) {
-		bd->profile_channel = g_strdup_printf("profile_presence!%s", id);
+		bd->profile_channel = g_strdup_printf("profile!%s", id);
 		chime_jugg_subscribe(cxn, bd->profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
 	}
 	if (!bd->presence_channel) {

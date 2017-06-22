@@ -20,3 +20,5 @@ po/$(PACKAGE).pot: $(POTFILES)
 	  --msgid-bugs-address=dwmw2@infradead.org \
 	  -o $@ $(POTFILES)
 
+
+EXTRA_DIST = COPYING.LGPL README

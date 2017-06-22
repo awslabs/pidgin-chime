@@ -62,6 +62,10 @@ struct chime_connection {
 	/* Buddies */
 	GHashTable *buddies;
 
+	/* Rooms */
+	GHashTable *rooms_by_id;
+	GHashTable *rooms_by_name;
+
 	/* Service config */
 	JsonNode *reg_node;
 	const gchar *session_id;
@@ -116,5 +120,10 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
 void chime_init_buddies(struct chime_connection *cxn);
 void chime_destroy_buddies(struct chime_connection *cxn);
+
+/* rooms.c */
+PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);
+void chime_init_rooms(struct chime_connection *cxn);
+void chime_destroy_rooms(struct chime_connection *cxn);
 
 #endif /* __CHIME_H__ */

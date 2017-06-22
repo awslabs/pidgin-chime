@@ -21,7 +21,6 @@
 #include <version.h>
 #include <accountopt.h>
 #include <status.h>
-#include <roomlist.h>
 
 #include <glib/gi18n.h>
 #include <glib/gstrfuncs.h>
@@ -380,6 +379,7 @@ static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
 	chime_jugg_subscribe(cxn, cxn->device_channel, jugg_dump_incoming, "Device");
 
 	chime_init_buddies(cxn);
+	chime_init_rooms(cxn);
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
@@ -433,6 +433,7 @@ void chime_purple_close(PurpleConnection *conn)
 		}
 		chime_destroy_juggernaut(cxn);
 		chime_destroy_buddies(cxn);
+		chime_destroy_rooms(cxn);
 
 		if (cxn->reg_node) {
 			json_node_unref(cxn->reg_node);
@@ -538,87 +539,6 @@ static int chime_purple_send_im(PurpleConnection *gc,
 	printf("send %s to %s\n", what, who);
 	return 1;
 }
-static void room_cb(JsonArray *array, guint index_,
-                     JsonNode *node, gpointer _roomlist)
-{
-	PurpleRoomlist *roomlist = _roomlist;
-	PurpleRoomlistRoom *room;
-	const gchar *name, *id, *visibility, *privacy;
-
-	if (!parse_string(node, "Name", &name) ||
-	    !parse_string(node, "RoomId", &id))
-		return;
-
-	room = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM, name, NULL);
-	purple_roomlist_room_add_field(roomlist, room, id);
-	purple_roomlist_room_add_field(roomlist, room,
-				       GUINT_TO_POINTER(!parse_string(node, "Visibility", &visibility) ||
-							!strcmp(visibility, "visible")));
-	purple_roomlist_room_add_field(roomlist, room,
-				       GUINT_TO_POINTER(!parse_string(node, "Privacy", &privacy) ||
-							!strcmp(privacy, "private")));
-	purple_roomlist_room_add(roomlist, room);
-}
-
-struct roomlist_data {
-	struct chime_connection *cxn;
-	SoupMessage *msg;
-};
-
-static void roomlist_cb(struct chime_connection *cxn, SoupMessage *msg,
-			JsonNode *node, gpointer _roomlist)
-{
-	PurpleRoomlist *roomlist = _roomlist;
-	GError *error = NULL;
-
-	if (node) {
-		JsonNode *rooms_node;
-		JsonObject *obj;
-		JsonArray *rooms_arr;
-
-		obj = json_node_get_object(node);
-		rooms_node = json_object_get_member(obj, "Rooms");
-		if (rooms_node) {
-			rooms_arr = json_node_get_array(rooms_node);
-			json_array_foreach_element(rooms_arr, room_cb, roomlist);
-		}
-	}
-	purple_roomlist_set_in_progress(roomlist, FALSE);
-	g_free(roomlist->proto_data);
-	roomlist->proto_data = NULL;
-	purple_roomlist_unref(roomlist);
-}
-
-static PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
-{
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
-	struct roomlist_data *d = g_new0(struct roomlist_data, 1);
-	SoupURI *uri;
-	PurpleRoomlist *roomlist;
-	GList *fields = NULL;
-
-	roomlist = purple_roomlist_new(conn->account);
-	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_STRING, "", "RoomId", TRUE));
-	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_BOOL, _("Visible"), "Visibility", FALSE));
-	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_BOOL, _("Private"), "Privacy", FALSE));
-
-	purple_roomlist_set_fields(roomlist, fields);
-	purple_roomlist_set_in_progress(roomlist, TRUE);
-	roomlist->proto_data = d;
-	d->cxn = cxn;
-	uri = soup_uri_new_printf(cxn->messaging_url, "/rooms");
-	d->msg = chime_queue_http_request(cxn, NULL, uri, roomlist_cb, roomlist, TRUE);
-
-	return roomlist;
-}
-
-void chime_purple_roomlist_cancel(PurpleRoomlist *roomlist)
-{
-	struct roomlist_data *d = roomlist->proto_data;
-
-	soup_session_cancel_message(d->cxn->soup_sess, d->msg, 1);
-}
-
 static PurplePluginProtocolInfo chime_prpl_info = {
 	.options = OPT_PROTO_NO_PASSWORD,
 	.list_icon = chime_purple_list_icon,
@@ -630,7 +550,6 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.chat_info = chime_purple_chat_info,
 	.join_chat = chime_purple_join_chat,
 	.roomlist_get_list = chime_purple_roomlist_get_list,
-	.roomlist_cancel = chime_purple_roomlist_cancel,
 	.chat_info_defaults = chime_purple_chat_info_defaults,
 	.add_buddy = chime_purple_add_buddy,
 	.buddy_free = chime_purple_buddy_free,

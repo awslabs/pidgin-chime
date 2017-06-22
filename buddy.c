@@ -217,7 +217,7 @@ static void buddies_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode 
 		soup_uri_set_query_from_fields(uri, "profile-ids", query, NULL);
 		g_free(query);
 
-		chime_queue_http_request(cxn, NULL, uri, presence_cb, NULL, TRUE);
+		chime_queue_http_request(cxn, NULL, uri, presence_cb, NULL);
 
 	}
 }
@@ -267,7 +267,7 @@ static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNod
 void fetch_buddies(struct chime_connection *cxn)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/contacts");
-	chime_queue_http_request(cxn, NULL, uri, buddies_cb, NULL, TRUE);
+	chime_queue_http_request(cxn, NULL, uri, buddies_cb, NULL);
 }
 
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group)
@@ -289,7 +289,7 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 		bd = buddy->proto_data = g_new0(struct buddy_data, 1);
 
 	/* For cancellation if the buddy is deleted before the request completes */
-	bd->add_msg = chime_queue_http_request(cxn, json_builder_get_root(builder), uri, add_buddy_cb, buddy, TRUE);
+	bd->add_msg = chime_queue_http_request(cxn, json_builder_get_root(builder), uri, add_buddy_cb, buddy);
 
 	g_object_unref(builder);
 }

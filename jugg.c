@@ -251,7 +251,7 @@ void chime_init_juggernaut(struct chime_connection *cxn)
 
 	purple_connection_update_progress(cxn->prpl_conn, _("Obtaining WebSocket params..."),
 					  2, CONNECT_STEPS);
-	chime_queue_http_request(cxn, NULL, uri, ws_cb, NULL, TRUE);
+	chime_queue_http_request(cxn, NULL, uri, ws_cb, NULL);
 }
 
 static void send_subscription_message(struct chime_connection *cxn, const gchar *type, const gchar *channel)

@@ -114,9 +114,11 @@ enum {
 /* chime.c */
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
-SoupMessage *chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
-				      SoupURI *uri, ChimeSoupMessageCallback callback,
-				      gpointer cb_data, gboolean auto_renew);
+SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
+					SoupURI *uri, ChimeSoupMessageCallback callback,
+					gpointer cb_data, gboolean auto_renew);
+#define chime_queue_http_request(_c, _n, _u, _cb, _d)			\
+	__chime_queue_http_request((_c), (_n), (_u), (_cb), (_d), TRUE)
 
 /* jugg.c */
 void chime_init_juggernaut(struct chime_connection *cxn);

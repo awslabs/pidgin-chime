@@ -286,7 +286,7 @@ void fetch_chat_messages(struct chime_connection *cxn, struct chime_chat *chat, 
 		opts[i++] = NULL;
 
 	soup_uri_set_query_from_fields(uri, "max-results", "50", opts[0], opts[1], opts[2], opts[3], NULL);
-	chat->msgs_msg = chime_queue_http_request(cxn, NULL, uri, fetch_msgs_cb, chat, TRUE);
+	chat->msgs_msg = chime_queue_http_request(cxn, NULL, uri, fetch_msgs_cb, chat);
 }
 
 
@@ -324,7 +324,7 @@ void fetch_chat_memberships(struct chime_connection *cxn, struct chime_chat *cha
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/memberships", room->id);
 
 	soup_uri_set_query_from_fields(uri, "max-results", "50", next_token ? "next-token" : NULL, next_token, NULL);
-	chat->members_msg = chime_queue_http_request(cxn, NULL, uri, fetch_members_cb, chat, TRUE);
+	chat->members_msg = chime_queue_http_request(cxn, NULL, uri, fetch_members_cb, chat);
 }
 
 static void kill_member(gpointer _member)
@@ -401,7 +401,7 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	jb = json_builder_end_object(jb);
 
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages");
-	if (chime_queue_http_request(cxn, NULL, uri, send_msg_cb, chat, TRUE))
+	if (chime_queue_http_request(cxn, NULL, uri, send_msg_cb, chat))
 		return 0;
 	else
 		return -1;

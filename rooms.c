@@ -87,7 +87,7 @@ static void roomlist_cb(struct chime_connection *cxn, SoupMessage *msg,
 static void fetch_rooms(struct chime_connection *cxn)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms");
-	chime_queue_http_request(cxn, NULL, uri, roomlist_cb, NULL, TRUE);
+	chime_queue_http_request(cxn, NULL, uri, roomlist_cb, NULL);
 }
 
 static void destroy_room(gpointer _room)

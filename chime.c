@@ -32,6 +32,8 @@
 
 #include "chime.h"
 
+static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg);
+
 G_DEFINE_QUARK(PidginChimeError, pidgin_chime_error);
 
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...)
@@ -52,6 +54,7 @@ SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...)
 	g_free(append);
 	return uri;
 }
+
 /* Helper function to get a string from a JSON child node */
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
 {
@@ -79,8 +82,63 @@ gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
 	return TRUE;
 }
 
-static void chime_renew_token(struct chime_connection *cxn);
+/* If we get an auth failure on a standard request, we automatically attempt
+ * to renew the authentication token and resubmit the request. */
+static void renew_cb(struct chime_connection *cxn, SoupMessage *msg,
+		     JsonNode *node, gpointer _unused)
+{
+	GList *l;
+	const gchar *sess_tok;
+	gchar *cookie_hdr;
 
+	if (!node || !parse_string(node, "SessionToken", &sess_tok)) {
+		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+					       _("Failed to renew session token"));
+		/* No need to cancel the outstanding requests; the session
+		   will be torn down anyway. */
+		return;
+	}
+
+	purple_account_set_string(cxn->prpl_conn->account, "token", sess_tok);
+	g_free(cxn->session_token);
+	cxn->session_token = g_strdup(sess_tok);
+
+	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", cxn->session_token);
+
+	while ( (l = g_list_first(cxn->msg_queue)) ) {
+		struct chime_msg *cmsg = l->data;
+
+		soup_message_headers_replace(cmsg->msg->request_headers, "Cookie", cookie_hdr);
+		soup_session_queue_message(cxn->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
+		cxn->msg_queue = g_list_remove(cxn->msg_queue, cmsg);
+	}
+
+	g_free(cookie_hdr);
+}
+
+static void chime_renew_token(struct chime_connection *cxn)
+{
+	SoupURI *uri;
+	JsonBuilder *builder;
+	JsonNode *node;
+
+	builder = json_builder_new();
+	builder = json_builder_begin_object(builder);
+	builder = json_builder_set_member_name(builder, "Token");
+	builder = json_builder_add_string_value(builder, cxn->session_token);
+	builder = json_builder_end_object(builder);
+	node = json_builder_get_root(builder);
+
+	uri = soup_uri_new_printf(cxn->profile_url, "/tokens");
+	soup_uri_set_query_from_fields(uri, "Token", cxn->session_token, NULL);
+	__chime_queue_http_request(cxn, node, uri, renew_cb, NULL, FALSE);
+
+	g_object_unref(builder);
+}
+
+/* First callback for SoupMessage completion — do the common
+ * parsing of the JSON response (if any) and hand it on to the
+ * real callback function. Also handles auth token renewal. */
 static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg)
 {
 	struct chime_msg *cmsg = _cmsg;
@@ -114,7 +172,8 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 	g_free(cmsg);
 }
 
-SoupMessage *chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
+
+SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
 				      SoupURI *uri, ChimeSoupMessageCallback callback,
 				      gpointer cb_data, gboolean auto_renew)
 {
@@ -151,56 +210,6 @@ SoupMessage *chime_queue_http_request(struct chime_connection *cxn, JsonNode *no
 
 	return cmsg->msg;
 }
-
-static void renew_cb(struct chime_connection *cxn, SoupMessage *msg,
-		     JsonNode *node, gpointer _unused)
-{
-	GList *l;
-	const gchar *sess_tok;
-	gchar *cookie_hdr;
-
-	if (!node || !parse_string(node, "SessionToken", &sess_tok)) {
-		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Failed to renew session token"));
-		return;
-	}
-
-	purple_account_set_string(cxn->prpl_conn->account, "token", sess_tok);
-	g_free(cxn->session_token);
-	cxn->session_token = g_strdup(sess_tok);
-
-	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", cxn->session_token);
-
-	while ( (l = g_list_first(cxn->msg_queue)) ) {
-		struct chime_msg *cmsg = l->data;
-
-		soup_message_headers_replace(cmsg->msg->request_headers, "Cookie", cookie_hdr);
-		soup_session_queue_message(cxn->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
-		cxn->msg_queue = g_list_remove(cxn->msg_queue, cmsg);
-	}
-
-	g_free(cookie_hdr);
-}
-
-static void chime_renew_token(struct chime_connection *cxn)
-{
-	SoupURI *uri;
-	JsonBuilder *builder;
-	JsonNode *node;
-
-	builder = json_builder_new();
-	builder = json_builder_begin_object(builder);
-	builder = json_builder_set_member_name(builder, "Token");
-	builder = json_builder_add_string_value(builder, cxn->session_token);
-	builder = json_builder_end_object(builder);
-	node = json_builder_get_root(builder);
-
-	uri = soup_uri_new_printf(cxn->profile_url, "/tokens");
-	soup_uri_set_query_from_fields(uri, "Token", cxn->session_token, NULL);
-	chime_queue_http_request(cxn, node, uri, renew_cb, NULL, FALSE);
-
-	g_object_unref(builder);
-}
-
 
 static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
 {
@@ -382,7 +391,7 @@ static void chime_purple_login(PurpleAccount *account)
 	soup_uri_set_query_from_fields(uri, "Token", token, NULL);
 
 	purple_connection_update_progress(conn, _("Connecting..."), 1, CONNECT_STEPS);
-	chime_queue_http_request(cxn, node, uri, register_cb, NULL, TRUE);
+	chime_queue_http_request(cxn, node, uri, register_cb, NULL);
 }
 
 static void chime_purple_close(PurpleConnection *conn)
@@ -467,7 +476,7 @@ static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status
 	JsonNode *node = json_builder_get_root(builder);
 
 	SoupURI *uri = soup_uri_new_printf(cxn->presence_url, "/presencesettings");
-	chime_queue_http_request(cxn, node, uri, sts_cb, NULL, TRUE);
+	chime_queue_http_request(cxn, node, uri, sts_cb, NULL);
 
 	g_object_unref(builder);
 

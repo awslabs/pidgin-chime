@@ -61,35 +61,81 @@ static void chat_deliver_msg(struct chime_chat *chat, JsonNode *node, int msg_ti
 	}
 
 }
-static void chat_msg_cb(gpointer _chat, JsonNode *node)
+
+
+static void add_chat_member(struct chime_chat *chat, JsonNode *node)
+{
+	const char *id, *full_name;
+	PurpleConvChatBuddyFlags flags;
+	JsonObject *obj = json_node_get_object(node);
+	JsonNode *member = json_object_get_member(obj, "Member");
+	if (!member)
+		return;
+
+	const gchar *presence;
+	if (!parse_string(node, "Presence", &presence))
+		return;
+	if (!strcmp(presence, "notPresent"))
+		flags = PURPLE_CBFLAGS_AWAY;
+	else if (!strcmp(presence, "Present"))
+		flags = PURPLE_CBFLAGS_VOICE;
+	else {
+		printf("Unknown presnce %s\n", presence);
+		return;
+	}
+	if (!parse_string(member, "ProfileId", &id) ||
+	    !parse_string(member, "FullName", &full_name))
+		return;
+
+	if (!g_hash_table_lookup(chat->members, id)) {
+		struct chat_member *m = g_new0(struct chat_member, 1);
+		m->id = g_strdup(id);
+		m->full_name = g_strdup(full_name);
+		g_hash_table_insert(chat->members, m->id, m);
+
+		purple_conv_chat_add_user(PURPLE_CONV_CHAT(chat->conv), m->full_name,
+					  NULL, flags, !chat->members_done);
+	} else {
+		purple_conv_chat_user_set_flags(PURPLE_CONV_CHAT(chat->conv), full_name, flags);
+	}
+}
+static void chat_jugg_cb(gpointer _chat, JsonNode *node)
 {
 	struct chime_chat *chat = _chat;
-	const gchar *str;
+	const gchar *klass;
 
 	JsonObject *obj = json_node_get_object(node);
 	JsonNode *record = json_object_get_member(obj, "record");
 	if (!record)
 		return;
-	/* Still gathering messages. Add to the table, to avoid dupes */
-	if (chat->messages) {
-		const gchar *id;
 
-		if (parse_string(record, "MessageId", &id))
-			g_hash_table_insert(chat->messages, (gchar *)id, json_node_ref(node));
+	if (!parse_string(node, "klass", &klass))
 		return;
+
+	if (!strcmp(klass, "RoomMessage")) {
+		if (chat->messages) {
+			/* Still gathering messages. Add to the table, to avoid dupes */
+			const gchar *id;
+			if (parse_string(record, "MessageId", &id))
+				g_hash_table_insert(chat->messages, (gchar *)id, json_node_ref(node));
+			return;
+		}
+
+		GTimeVal tv;
+		const gchar *msg_time;
+		if (!parse_string(record, "CreatedOn", &msg_time) ||
+		    !g_time_val_from_iso8601(msg_time, &tv))
+			return;
+
+		gchar *last_msgs_key = g_strdup_printf("last-room-%s", chat->room->id);
+		purple_account_set_string(chat->conv->account, last_msgs_key, msg_time);
+		g_free(last_msgs_key);
+
+		chat_deliver_msg(chat, record, tv.tv_sec);
+	} else if (!strcmp(klass, "RoomMembership")) {
+		/* What abpout removal? */
+		add_chat_member(chat, record);
 	}
-
-	GTimeVal tv;
-	if (!parse_string(record, "CreatedOn", &str) ||
-	    !g_time_val_from_iso8601(str, &tv))
-		return;
-
-	gchar *last_msgs_key = g_strdup_printf("last-room-%s", chat->room->id);
-	purple_account_set_string(chat->conv->account,
-				  last_msgs_key, str);
-	g_free(last_msgs_key);
-
-	chat_deliver_msg(chat, record, tv.tv_sec);
 }
 
 void chime_destroy_chat(struct chime_chat *chat)
@@ -107,7 +153,7 @@ void chime_destroy_chat(struct chime_chat *chat)
 		soup_session_cancel_message(cxn->soup_sess, chat->members_msg, 1);
 		chat->members_msg = NULL;
 	}
-	chime_jugg_unsubscribe(cxn, room->channel, chat_msg_cb, chat);
+	chime_jugg_unsubscribe(cxn, room->channel, chat_jugg_cb, chat);
 
 	serv_got_chat_left(conn, id);
 	g_hash_table_remove(cxn->live_chats, GUINT_TO_POINTER(room->id));
@@ -249,24 +295,7 @@ void fetch_chat_messages(struct chime_connection *cxn, struct chime_chat *chat, 
 static void one_member_cb(JsonArray *array, guint index_,
 			  JsonNode *node, gpointer _chat)
 {
-	struct chime_chat *chat = _chat;
-	const char *id, *full_name;
-
-	JsonObject *obj = json_node_get_object(node);
-	JsonNode *member = json_object_get_member(obj, "Member");
-	if (!member)
-		return;
-
-	if (!parse_string(member, "ProfileId", &id) ||
-	    !parse_string(member, "FullName", &full_name))
-		return;
-
-	struct chat_member *m = g_new0(struct chat_member, 1);
-	m->id = g_strdup(id);
-	m->full_name = g_strdup(full_name);
-	g_hash_table_insert(chat->members, m->id, m);
-
-	/* XXX: Tell pidgin about the membership (and presence) */
+	add_chat_member(_chat, node);
 }
 
 void fetch_chat_memberships(struct chime_connection *cxn, struct chime_chat *chat, const gchar *next_token);
@@ -330,7 +359,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 
 	chat->members = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, kill_member);
 	chat->messages = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);
-	chime_jugg_subscribe(cxn, room->channel, chat_msg_cb, chat);
+	chime_jugg_subscribe(cxn, room->channel, chat_jugg_cb, chat);
 
 	fetch_chat_messages(cxn, chat, NULL);
 	fetch_chat_memberships(cxn, chat, NULL);

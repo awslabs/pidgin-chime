@@ -185,6 +185,9 @@ GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *
 	struct chime_room *room = NULL;
 	GHashTable *hash;
 
+	if (!name)
+		return NULL;
+
 	if (cxn->rooms_by_name)
 		room = g_hash_table_lookup(cxn->rooms_by_name, name);
 	if (!room)

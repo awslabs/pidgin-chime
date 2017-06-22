@@ -248,7 +248,7 @@ static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNod
 	if (parse_string(node, "id", &id)) {
 		printf("new buddy id %s\n", id);
 		bd->id = g_strdup(id);
-		g_hash_table_insert(cxn->buddies, buddy->name, bd->id);
+		g_hash_table_insert(cxn->buddies, bd->id, buddy);
 	}
 	/* XXX: Don't know how to correctly get the presence/profile
 	   channels without refetching all contacts, but they *are*
@@ -258,7 +258,7 @@ static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNod
 		chime_jugg_subscribe(cxn, bd->profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
 	}
 	if (!bd->presence_channel) {
-		bd->presence_channel = g_strdup_printf("profile!%s", id);
+		bd->presence_channel = g_strdup_printf("profile_presence!%s", id);
 		chime_jugg_subscribe(cxn, bd->presence_channel, buddy_presence_cb, cxn);
 	}
 

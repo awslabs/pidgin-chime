@@ -66,9 +66,12 @@ static void one_room_cb(JsonArray *array, guint index_,
 	g_hash_table_insert(cxn->rooms_by_name, room->name, room);
 }
 
+static void fetch_rooms(struct chime_connection *cxn, const gchar *next_token);
 static void roomlist_cb(struct chime_connection *cxn, SoupMessage *msg,
 			JsonNode *node, gpointer _roomlist)
 {
+	const gchar *next_token;
+
 	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
 		JsonNode *rooms_node;
 		JsonObject *obj;
@@ -80,13 +83,21 @@ static void roomlist_cb(struct chime_connection *cxn, SoupMessage *msg,
 			rooms_arr = json_node_get_array(rooms_node);
 			json_array_foreach_element(rooms_arr, one_room_cb, cxn);
 		}
+		if (parse_string(node, "NextToken", &next_token))
+			fetch_rooms(cxn, next_token);
+		else {
+			/* Aren't we supposed to do something to indicate we're done? */
+		}
 	}
 }
 
-
-static void fetch_rooms(struct chime_connection *cxn)
+static void fetch_rooms(struct chime_connection *cxn, const gchar *next_token)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms");
+
+	soup_uri_set_query_from_fields(uri, "max-results", "50",
+				       next_token ? "next-token" : NULL, next_token,
+				       NULL);
 	chime_queue_http_request(cxn, NULL, uri, roomlist_cb, NULL);
 }
 
@@ -111,7 +122,7 @@ void chime_init_rooms(struct chime_connection *cxn)
 	cxn->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->rooms_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_room);
 	cxn->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
-	fetch_rooms(cxn);
+	fetch_rooms(cxn, NULL);
 }
 
 void chime_destroy_rooms(struct chime_connection *cxn)

@@ -223,6 +223,13 @@ static void buddies_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode 
 	}
 }
 
+void fetch_buddies(struct chime_connection *cxn)
+{
+	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/contacts");
+	chime_queue_http_request(cxn, NULL, uri, buddies_cb, NULL);
+}
+
+
 static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _buddy)
 {
 	PurpleBuddy *buddy = _buddy;
@@ -263,12 +270,6 @@ static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNod
 	}
 
 	//	fetch_buddies(cxn);
-}
-
-void fetch_buddies(struct chime_connection *cxn)
-{
-	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/contacts");
-	chime_queue_http_request(cxn, NULL, uri, buddies_cb, NULL);
 }
 
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group)

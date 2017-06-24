@@ -352,7 +352,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 	chat->room = room;
 
 	int chat_id = ++cxn->chat_id;
-	chat->conv = serv_got_joined_chat(conn, chat_id, g_hash_table_lookup(data, "Name"));
+	chat->conv = serv_got_joined_chat(conn, chat_id, room->name);
 	g_hash_table_insert(cxn->live_chats, GUINT_TO_POINTER(chat_id), chat);
 
 	chat->members = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, kill_member);

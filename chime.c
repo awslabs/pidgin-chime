@@ -214,6 +214,7 @@ SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *
 static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
 {
 	printf("Chime plugin load\n");
+	setvbuf(stdout, NULL, _IONBF, 0);
 	purple_notify_message(plugin, PURPLE_NOTIFY_MSG_INFO, "Foo",
 			      "Chime plugin starting...", NULL, NULL, NULL);
 	return TRUE;

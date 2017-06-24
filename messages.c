@@ -28,7 +28,6 @@
 
 #include <libsoup/soup.h>
 
-
 struct msg_sort {
 	GTimeVal tm;
 	JsonNode *node;
@@ -65,21 +64,19 @@ static int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
 	return TRUE;
 }
 
-void chat_deliver_msg(struct chime_chat *chat, JsonNode *node, time_t msg_time);
-
-void chime_complete_chat_setup(struct chime_connection *cxn, struct chime_chat *chat)
+void chime_complete_messages(struct chime_connection *cxn, struct chime_msgs *msgs)
 {
 	GList *l = NULL;
 	printf("List at %p\n", &l);
 	/* Sort messages by time */
-	g_hash_table_foreach_remove(chat->messages, insert_queued_msg, &l);
-	g_hash_table_destroy(chat->messages);
-	chat->messages = NULL;
+	g_hash_table_foreach_remove(msgs->messages, insert_queued_msg, &l);
+	g_hash_table_destroy(msgs->messages);
+	msgs->messages = NULL;
 
 	while (l) {
 		struct msg_sort *ms = l->data;
 		JsonNode *node = ms->node;
-		chat_deliver_msg(chat, node, ms->tm.tv_sec);
+		msgs->cb(msgs, node, ms->tm.tv_sec);
 		g_free(ms);
 		l = g_list_remove(l, ms);
 
@@ -87,7 +84,9 @@ void chime_complete_chat_setup(struct chime_connection *cxn, struct chime_chat *
 		if (!l) {
 			const gchar *tm;
 			if (parse_string(node, "CreatedOn", &tm)){
-				gchar *last_msgs_key = g_strdup_printf("last-room-%s", chat->room->id);
+				gchar *last_msgs_key = g_strdup_printf("last-%s-%s",
+								       msgs->is_room ? "room" : "conversation",
+								       msgs->id);
 				purple_account_set_string(cxn->prpl_conn->account,
 							  last_msgs_key, tm);
 				g_free(last_msgs_key);
@@ -106,37 +105,41 @@ static void one_msg_cb(JsonArray *array, guint index_,
 		g_hash_table_insert(_hash, (gpointer)id, json_node_ref(node));
 }
 
-void fetch_chat_messages(struct chime_connection *cxn, struct chime_chat *chat, const gchar *next_token);
-static void fetch_msgs_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _chat)
+static void fetch_msgs_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _msgs)
 {
-	struct chime_chat *chat = _chat;
+	struct chime_msgs *msgs = _msgs;
 	const gchar *next_token;
 
 	JsonObject *obj = json_node_get_object(node);
 	JsonNode *msgs_node = json_object_get_member(obj, "Messages");
 	JsonArray *msgs_array = json_node_get_array(msgs_node);
 
-	chat->msgs_msg = NULL;
-	json_array_foreach_element(msgs_array, one_msg_cb, chat->messages);
+	msgs->soup_msg = NULL;
+	json_array_foreach_element(msgs_array, one_msg_cb, msgs->messages);
 
 	if (parse_string(node, "NextToken", &next_token))
-		fetch_chat_messages(cxn, _chat, next_token);
+		fetch_messages(cxn, _msgs, next_token);
 	else {
-		chat->msgs_done = TRUE;
-		if (chat->members_done)
-			chime_complete_chat_setup(cxn, chat);
+		msgs->msgs_done = TRUE;
+		if (msgs->members_done)
+			chime_complete_messages(cxn, msgs);
 	}
 }
 
-void fetch_chat_messages(struct chime_connection *cxn, struct chime_chat *chat, const gchar *next_token)
+void fetch_messages(struct chime_connection *cxn, struct chime_msgs *msgs, const gchar *next_token)
 {
-	struct chime_room *room = chat->room;
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages", room->id);
+	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/%ss/%s/messages",
+					   msgs->is_room ? "room" : "conversation", msgs->id);
 	const gchar *opts[4];
 	int i = 0;
-	gchar *last_msgs_key = g_strdup_printf("last-room-%s", room->id);
+
+	gchar *last_msgs_key = g_strdup_printf("last-%s-%s", msgs->is_room ? "room" : "conversation", msgs->id);
 	const gchar *after = purple_account_get_string(cxn->prpl_conn->account, last_msgs_key, NULL);
 	g_free(last_msgs_key);
+
+	if (!msgs->messages)
+		msgs->messages = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);
+
 	if (after && after[0]) {
 		opts[i++] = "after";
 		opts[i++] = after;
@@ -149,7 +152,7 @@ void fetch_chat_messages(struct chime_connection *cxn, struct chime_chat *chat, 
 		opts[i++] = NULL;
 
 	soup_uri_set_query_from_fields(uri, "max-results", "50", opts[0], opts[1], opts[2], opts[3], NULL);
-	chat->msgs_msg = chime_queue_http_request(cxn, NULL, uri, fetch_msgs_cb, chat);
+	msgs->soup_msg = chime_queue_http_request(cxn, NULL, uri, fetch_msgs_cb, msgs);
 }
 
 

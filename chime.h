@@ -88,15 +88,16 @@ struct chime_connection {
 	const gchar *conference_url;
 };
 
-struct chime_chat {
-	struct chime_room *room;
-	PurpleConversation *conv;
-	/* For cancellation */
-	gboolean members_done, msgs_done;
-	SoupMessage *msgs_msg, *members_msg;
-	gboolean got_members, got_msgs;
+struct chime_msgs;
+typedef void (*chime_msg_cb)(struct chime_msgs *chat, JsonNode *node, time_t tm);
+
+struct chime_msgs {
+	gboolean is_room;
+	const char *id;
 	GHashTable *messages; /* While fetching */
-	GHashTable *members;
+	SoupMessage *soup_msg; /* For cancellation */
+	gboolean members_done, msgs_done;
+	chime_msg_cb cb;
 };
 
 struct chime_chat;
@@ -163,6 +164,7 @@ void chime_purple_chat_leave(PurpleConnection *conn, int id);
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags);
 
 /* messages.c */
-void fetch_chat_messages(struct chime_connection *cxn, struct chime_chat *chat, const gchar *next_token);
-void chime_complete_chat_setup(struct chime_connection *cxn, struct chime_chat *chat);
+typedef void (*chime_msg_cb)(struct chime_msgs *chat, JsonNode *node, time_t tm);
+void fetch_messages(struct chime_connection *cxn, struct chime_msgs *msgs, const gchar *next_token);
+void chime_complete_messages(struct chime_connection *cxn, struct chime_msgs *msgs);
 #endif /* __CHIME_H__ */

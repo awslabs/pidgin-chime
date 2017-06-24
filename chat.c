@@ -28,14 +28,26 @@
 
 #include <libsoup/soup.h>
 
+struct chime_chat {
+	/* msgs first as it's a "subclass". Really ought to do proper GTypes here... */
+	struct chime_msgs msgs;
+
+	struct chime_room *room;
+	PurpleConversation *conv;
+	/* For cancellation */
+	SoupMessage *members_msg;
+	gboolean got_members;
+	GHashTable *members;
+};
+
 struct chat_member {
 	gchar *id;
 	gchar *full_name;
 };
 
-void chat_deliver_msg(struct chime_chat *chat, JsonNode *node, time_t msg_time);
-void chat_deliver_msg(struct chime_chat *chat, JsonNode *node, time_t msg_time)
+static void chat_deliver_msg(struct chime_msgs *msgs, JsonNode *node, time_t msg_time)
 {
+	struct chime_chat *chat = (struct chime_chat *)msgs;
 	struct chat_member *who = NULL;
 	const gchar *str, *content;
 	if (parse_string(node, "Content", &content)) {
@@ -83,7 +95,7 @@ static void add_chat_member(struct chime_chat *chat, JsonNode *node)
 		g_hash_table_insert(chat->members, m->id, m);
 
 		purple_conv_chat_add_user(PURPLE_CONV_CHAT(chat->conv), m->full_name,
-					  NULL, flags, !chat->members_done);
+					  NULL, flags, !chat->msgs.members_done);
 	} else {
 		purple_conv_chat_user_set_flags(PURPLE_CONV_CHAT(chat->conv), full_name, flags);
 	}
@@ -103,11 +115,11 @@ static void chat_jugg_cb(gpointer _chat, JsonNode *node)
 		return;
 
 	if (!strcmp(klass, "RoomMessage")) {
-		if (chat->messages) {
+		if (chat->msgs.messages) {
 			/* Still gathering messages. Add to the table, to avoid dupes */
 			const gchar *id;
 			if (parse_string(record, "MessageId", &id))
-				g_hash_table_insert(chat->messages, (gchar *)id, json_node_ref(node));
+				g_hash_table_insert(chat->msgs.messages, (gchar *)id, json_node_ref(node));
 			return;
 		}
 
@@ -121,7 +133,7 @@ static void chat_jugg_cb(gpointer _chat, JsonNode *node)
 		purple_account_set_string(chat->conv->account, last_msgs_key, msg_time);
 		g_free(last_msgs_key);
 
-		chat_deliver_msg(chat, record, tv.tv_sec);
+		chat_deliver_msg(&chat->msgs, record, tv.tv_sec);
 	} else if (!strcmp(klass, "RoomMembership")) {
 		/* What abpout removal? */
 		add_chat_member(chat, record);
@@ -135,9 +147,9 @@ void chime_destroy_chat(struct chime_chat *chat)
 	struct chime_room *room = chat->room;
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(room->chat->conv));
 
-	if (chat->msgs_msg) {
-		soup_session_cancel_message(cxn->soup_sess, chat->msgs_msg, 1);
-		chat->msgs_msg = NULL;
+	if (chat->msgs.soup_msg) {
+		soup_session_cancel_message(cxn->soup_sess, chat->msgs.soup_msg, 1);
+		chat->msgs.soup_msg = NULL;
 	}
 	if (chat->members_msg) {
 		soup_session_cancel_message(cxn->soup_sess, chat->members_msg, 1);
@@ -148,8 +160,8 @@ void chime_destroy_chat(struct chime_chat *chat)
 	serv_got_chat_left(conn, id);
 	g_hash_table_remove(cxn->live_chats, GUINT_TO_POINTER(room->id));
 
-	if (chat->messages)
-		g_hash_table_destroy(chat->messages);
+	if (chat->msgs.messages)
+		g_hash_table_destroy(chat->msgs.messages);
 	if (chat->members)
 		g_hash_table_destroy(chat->members);
 
@@ -178,11 +190,11 @@ static void fetch_members_cb(struct chime_connection *cxn, SoupMessage *msg, Jso
 	json_array_foreach_element(members_array, one_member_cb, chat);
 
 	if (parse_string(node, "NextToken", &next_token))
-		fetch_chat_messages(cxn, _chat, next_token);
+		fetch_chat_memberships(cxn, _chat, next_token);
 	else {
-		chat->members_done = TRUE;
-		if (chat->msgs_done)
-			chime_complete_chat_setup(cxn, chat);
+		chat->msgs.members_done = TRUE;
+		if (chat->msgs.msgs_done)
+			chime_complete_messages(cxn, &chat->msgs);
 	}
 }
 
@@ -212,7 +224,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 
 	printf("join_chat %p %s %s\n", data, roomid, (gchar *)g_hash_table_lookup(data, "Name"));
 	room = g_hash_table_lookup(cxn->rooms_by_id, roomid);
-	if (!room || room->chat)
+if (!room || room->chat)
 		return;
 
 	chat = g_new0(struct chime_chat, 1);
@@ -224,10 +236,12 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 	g_hash_table_insert(cxn->live_chats, GUINT_TO_POINTER(chat_id), chat);
 
 	chat->members = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, kill_member);
-	chat->messages = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);
 	chime_jugg_subscribe(cxn, room->channel, chat_jugg_cb, chat);
 
-	fetch_chat_messages(cxn, chat, NULL);
+	chat->msgs.is_room = TRUE;
+	chat->msgs.id = room->id;
+	chat->msgs.cb = chat_deliver_msg;
+	fetch_messages(cxn, &chat->msgs, NULL);
 	fetch_chat_memberships(cxn, chat, NULL);
 }
 

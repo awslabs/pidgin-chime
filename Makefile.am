@@ -1,5 +1,5 @@
 
-SUBDIRS = po
+SUBDIRS = po pixmaps
 
 AM_CPPFLAGS = @WFLAGS@
 

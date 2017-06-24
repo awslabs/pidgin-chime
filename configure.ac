@@ -34,9 +34,15 @@ AC_SUBST(WFLAGS, [$WFLAGS])
 plugindir=
 PKG_CHECK_MODULES(PURPLE, [purple-3], [plugindir="$($PKG_CONFIG --variable=plugindir purple-3)"],
 		  [PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0])
-		   plugindir="$($PKG_CONFIG --variable=plugindir purple)"])
+		   plugindir="$($PKG_CONFIG --variable=plugindir purple)"
+		   purple_datadir="$($PKG_CONFIG --variable=datadir purple)"
+		   ])
 
 AC_SUBST(plugindir, $plugindir)
+if [ "$purple_datadir" = "" ]; then
+   purple_datadir = "$datadir"
+fi
+AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
 PKG_CHECK_MODULES(SOUP, [libsoup-2.4])
 PKG_CHECK_MODULES(JSON, [json-glib-1.0])
 
@@ -56,5 +62,12 @@ AC_SUBST(LINGUAS)
 AC_CONFIG_FILES([
 	Makefile
 	po/Makefile
+	pixmaps/Makefile
+	pixmaps/scalable/Makefile
+	pixmaps/16/Makefile
+	pixmaps/22/Makefile
+	pixmaps/24/Makefile
+	pixmaps/32/Makefile
+	pixmaps/48/Makefile
 	])
 AC_OUTPUT

@@ -88,6 +88,17 @@ struct chime_connection {
 	const gchar *conference_url;
 };
 
+struct chime_chat {
+	struct chime_room *room;
+	PurpleConversation *conv;
+	/* For cancellation */
+	gboolean members_done, msgs_done;
+	SoupMessage *msgs_msg, *members_msg;
+	gboolean got_members, got_msgs;
+	GHashTable *messages; /* While fetching */
+	GHashTable *members;
+};
+
 struct chime_chat;
 
 struct chime_room {
@@ -151,4 +162,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data);
 void chime_purple_chat_leave(PurpleConnection *conn, int id);
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags);
 
+/* messages.c */
+void fetch_chat_messages(struct chime_connection *cxn, struct chime_chat *chat, const gchar *next_token);
+void chime_complete_chat_setup(struct chime_connection *cxn, struct chime_chat *chat);
 #endif /* __CHIME_H__ */

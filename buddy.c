@@ -27,25 +27,17 @@
 
 #include <libsoup/soup.h>
 
-/* We keep this in ->proto_data */
-struct buddy_data {
-	gchar *presence_channel;
-	gchar *profile_channel;
-	gchar *id;
-	SoupMessage *add_msg;
-};
-
 /* Called to signal presence to Pidgin, with a node obtained
  * either from Juggernaut or explicit request (at startup). */
 static void set_buddy_presence(struct chime_connection *cxn, JsonNode *node)
 {
 	const gchar *id;
 
-	if (!cxn->buddies)
+	if (!cxn->contacts)
 		return;
 	if (!parse_string(node, "ProfileId", &id))
 		return;
-	PurpleBuddy *buddy = g_hash_table_lookup(cxn->buddies, id);
+	PurpleBuddy *buddy = g_hash_table_lookup(cxn->contacts, id);
 	if (!buddy)
 		return;
 	JsonObject *obj = json_node_get_object(node);
@@ -85,7 +77,7 @@ static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _bg
 {
 	struct buddy_gather *bg = _bg;
 	struct chime_connection *cxn = bg->cxn;
-	struct buddy_data *bd;
+	struct chime_contact *contact;
 	const gchar *email, *full_name, *presence_channel, *profile_channel, *display_name, *id;
 
 	if (!parse_string(elem, "email", &email) ||
@@ -108,60 +100,60 @@ static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _bg
 		purple_blist_add_buddy(buddy, NULL, group, NULL);
 	}
 	if (!buddy->proto_data)
-		buddy->proto_data = g_new0(struct buddy_data, 1);
+		buddy->proto_data = g_new0(struct chime_contact, 1);
 
-	bd = buddy->proto_data;
-	if (!bd->id) {
-		bd->id = g_strdup(id);
-		g_hash_table_insert(cxn->buddies, bd->id, buddy);
+	contact = buddy->proto_data;
+	if (!contact->profile_id) {
+		contact->profile_id = g_strdup(id);
+		g_hash_table_insert(cxn->contacts, contact->profile_id, buddy);
 	}
-	if (!bd->profile_channel) {
-		bd->profile_channel = g_strdup(profile_channel);
+	if (!contact->profile_channel) {
+		contact->profile_channel = g_strdup(profile_channel);
 		chime_jugg_subscribe(cxn, profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
 	}
-	if (!bd->presence_channel) {
-		bd->presence_channel = g_strdup(presence_channel);
+	if (!contact->presence_channel) {
+		contact->presence_channel = g_strdup(presence_channel);
 		chime_jugg_subscribe(cxn, presence_channel, buddy_presence_cb, cxn);
 		/* We'll need to request presence */
-		bg->ids = g_slist_prepend(bg->ids, bd->id);
+		bg->ids = g_slist_prepend(bg->ids, contact->profile_id);
 	}
 }
 
 void chime_purple_buddy_free(PurpleBuddy *buddy)
 {
 	struct chime_connection *cxn = purple_connection_get_protocol_data(buddy->account->gc);
-	struct buddy_data *bd = buddy->proto_data;
+	struct chime_contact *contact = buddy->proto_data;
 
 	printf("buddy_free %s\n", purple_buddy_get_name(buddy));
 
-	if (!bd)
+	if (!contact)
 		return;
 
-	if (bd->add_msg) {
-		SoupMessage *msg = bd->add_msg;
-		bd->add_msg = NULL; /* Stop the callback from doing anything */
+	if (contact->add_msg) {
+		SoupMessage *msg = contact->add_msg;
+		contact->add_msg = NULL; /* Stop the callback from doing anything */
 		soup_session_cancel_message(cxn->soup_sess, msg, 1);
 	}
-	if (bd->id) {
-		g_hash_table_remove(cxn->buddies, bd->id);
-		g_free(bd->id);
-		bd->id = NULL;
+	if (contact->profile_id) {
+		g_hash_table_remove(cxn->contacts, contact->profile_id);
+		g_free(contact->profile_id);
+		contact->profile_id = NULL;
 	}
-	if (bd->profile_channel) {
-		chime_jugg_unsubscribe(cxn, bd->profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
-		g_free(bd->profile_channel);
-		bd->profile_channel = NULL;
+	if (contact->profile_channel) {
+		chime_jugg_unsubscribe(cxn, contact->profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
+		g_free(contact->profile_channel);
+		contact->profile_channel = NULL;
 	}
-	if (bd->presence_channel) {
-		chime_jugg_unsubscribe(cxn, bd->presence_channel, buddy_presence_cb, cxn);
-		g_free(bd->presence_channel);
-		bd->presence_channel = NULL;
+	if (contact->presence_channel) {
+		chime_jugg_unsubscribe(cxn, contact->presence_channel, buddy_presence_cb, cxn);
+		g_free(contact->presence_channel);
+		contact->presence_channel = NULL;
 	}
-	g_free(bd);
+	g_free(contact);
 	buddy->proto_data = NULL;
 }
 
-/* Fetching presence for new buddies */
+/* Fetching presence for new contacts */
 static void one_presence_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _cxn)
 {
 	struct chime_connection *cxn = _cxn;
@@ -196,8 +188,8 @@ static void buddies_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode 
 	GSList *l = purple_find_buddies(cxn->prpl_conn->account, NULL);
 	while (l) {
 		PurpleBuddy *buddy = l->data;
-		struct buddy_data *bd = buddy->proto_data;
-		if (!bd || !bd->id)
+		struct chime_contact *contact = buddy->proto_data;
+		if (!contact || !contact->profile_id)
 			purple_blist_remove_buddy(buddy);
 
 		l = g_slist_remove(l, buddy);
@@ -233,12 +225,12 @@ void fetch_buddies(struct chime_connection *cxn)
 static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _buddy)
 {
 	PurpleBuddy *buddy = _buddy;
-	struct buddy_data *bd = buddy->proto_data;
+	struct chime_contact *contact = buddy->proto_data;
 
-	if (!bd || bd->add_msg != msg)
+	if (!contact || contact->add_msg != msg)
 		return;
 
-	bd->add_msg = NULL;
+	contact->add_msg = NULL;
 
 	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
 		const gchar *reason = msg->reason_phrase;
@@ -254,19 +246,19 @@ static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNod
 	const gchar *id;
 	if (parse_string(node, "id", &id)) {
 		printf("new buddy id %s\n", id);
-		bd->id = g_strdup(id);
-		g_hash_table_insert(cxn->buddies, bd->id, buddy);
+		contact->profile_id = g_strdup(id);
+		g_hash_table_insert(cxn->contacts, contact->profile_id, buddy);
 	}
 	/* XXX: Don't know how to correctly get the presence/profile
 	   channels without refetching all contacts, but they *are*
 	   predictable... */
-	if (!bd->profile_channel) {
-		bd->profile_channel = g_strdup_printf("profile!%s", id);
-		chime_jugg_subscribe(cxn, bd->profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
+	if (!contact->profile_channel) {
+		contact->profile_channel = g_strdup_printf("profile!%s", id);
+		chime_jugg_subscribe(cxn, contact->profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
 	}
-	if (!bd->presence_channel) {
-		bd->presence_channel = g_strdup_printf("profile_presence!%s", id);
-		chime_jugg_subscribe(cxn, bd->presence_channel, buddy_presence_cb, cxn);
+	if (!contact->presence_channel) {
+		contact->presence_channel = g_strdup_printf("profile_presence!%s", id);
+		chime_jugg_subscribe(cxn, contact->presence_channel, buddy_presence_cb, cxn);
 	}
 
 	//	fetch_buddies(cxn);
@@ -277,7 +269,7 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
 	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/invites");
 	JsonBuilder *builder = json_builder_new();
-	struct buddy_data *bd = buddy->proto_data;
+	struct chime_contact *contact = buddy->proto_data;
 
 	builder = json_builder_begin_object(builder);
 	builder = json_builder_set_member_name(builder, "profile");
@@ -287,11 +279,11 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 	builder = json_builder_end_object(builder);
 	builder = json_builder_end_object(builder);
 
-	if (!bd)
-		bd = buddy->proto_data = g_new0(struct buddy_data, 1);
+	if (!contact)
+		contact = buddy->proto_data = g_new0(struct chime_contact, 1);
 
 	/* For cancellation if the buddy is deleted before the request completes */
-	bd->add_msg = chime_queue_http_request(cxn, json_builder_get_root(builder), uri, add_buddy_cb, buddy);
+	contact->add_msg = chime_queue_http_request(cxn, json_builder_get_root(builder), uri, add_buddy_cb, buddy);
 
 	g_object_unref(builder);
 }
@@ -306,13 +298,13 @@ void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, Purpl
 
 void chime_init_buddies(struct chime_connection *cxn)
 {
-	cxn->buddies = g_hash_table_new(g_str_hash, g_str_equal);
+	cxn->contacts = g_hash_table_new(g_str_hash, g_str_equal);
 
 	fetch_buddies(cxn);
 }
 
 void chime_destroy_buddies(struct chime_connection *cxn)
 {
-	g_hash_table_destroy(cxn->buddies);
-	cxn->buddies = NULL;
+	g_hash_table_destroy(cxn->contacts);
+	cxn->contacts = NULL;
 }

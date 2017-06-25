@@ -36,6 +36,8 @@ typedef void (*ChimeSoupMessageCallback)(struct chime_connection *cxn,
 					 JsonNode *node,
 					 gpointer cb_data);
 
+/* SoupMessage handling for Chime communication, with retry on re-auth
+ * and JSON parsing. XX: MAke this a proper superclass of SoupMessage */
 struct chime_msg {
 	struct chime_connection *cxn;
 	ChimeSoupMessageCallback cb;
@@ -60,14 +62,21 @@ struct chime_connection {
 	GHashTable *subscriptions;
 
 	/* Buddies */
-	GHashTable *buddies;
+	GHashTable *contacts;
+	GSList *contacts_needed;
 
 	/* Rooms */
 	GHashTable *rooms_by_id;
 	GHashTable *rooms_by_name;
-
 	GHashTable *live_chats;
 	int chat_id;
+
+	/* Conversations */
+	GHashTable *conversations_by_id;
+	GHashTable *conversations_by_name;
+
+	/* Contacts */
+	GHashTable *contacts_by_id;
 
 	/* Service config */
 	JsonNode *reg_node;
@@ -86,6 +95,20 @@ struct chime_connection {
 	const gchar *contacts_url;
 	const gchar *messaging_url;
 	const gchar *conference_url;
+};
+
+
+struct chime_contact
+{
+	gchar *profile_id;
+	gchar *presence_channel;
+	gchar *profile_channel;
+	SoupMessage *add_msg;
+
+	/* A given contact may be a Buddy, or may just be known because
+	 * they're in an active conversation */
+	PurpleBuddy *buddy;
+	GList *conversations;
 };
 
 struct chime_msgs;

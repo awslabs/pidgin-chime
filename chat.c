@@ -95,7 +95,7 @@ static void add_chat_member(struct chime_chat *chat, JsonNode *node)
 		g_hash_table_insert(chat->members, m->id, m);
 
 		purple_conv_chat_add_user(PURPLE_CONV_CHAT(chat->conv), m->full_name,
-					  NULL, flags, !chat->msgs.members_done);
+					  NULL, flags, chat->msgs.members_done);
 	} else {
 		purple_conv_chat_user_set_flags(PURPLE_CONV_CHAT(chat->conv), full_name, flags);
 	}

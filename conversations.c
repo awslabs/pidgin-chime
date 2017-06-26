@@ -149,11 +149,49 @@ static void destroy_conversation(gpointer _conv)
 	g_free(conv);
 }
 
+static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
+{
+	struct chime_connection *cxn = _cxn;
+
+	JsonObject *obj = json_node_get_object(node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
+	const gchar *sender, *message, *created;
+	gint64 sys;
+
+	if (!parse_string(record, "Sender", &sender) ||
+	    !parse_string(record, "Content", &message) ||
+	    !parse_string(record, "CreatedOn", &created) ||
+	    !parse_int(record, "IsSystemMessage", &sys))
+		return FALSE;
+
+	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
+							    sender);
+	struct chime_conversation *conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
+							      sender);
+	/* Only 1:1 IM so far; representing multi-party conversations as chats comes later */
+	if (!contact || !conv)
+		return FALSE;
+
+	GTimeVal tv;
+	if (!g_time_val_from_iso8601(created, &tv))
+		return FALSE;
+
+	PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
+	if (sys)
+		flags |= PURPLE_MESSAGE_SYSTEM;
+	serv_got_im(cxn->prpl_conn, contact->email, message, flags, tv.tv_sec);
+	return TRUE;
+}
+
 void chime_init_conversations(struct chime_connection *cxn)
 {
 	cxn->im_conversations_by_peer_id = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->conversations_by_name = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->conversations_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_conversation);
+	chime_jugg_subscribe(cxn, cxn->device_channel, "ConversationMessage", conv_msg_cb, cxn);
 	fetch_conversations(cxn, NULL);
 }
 
@@ -188,6 +226,7 @@ static void im_error(struct chime_connection *cxn, struct im_send_data *im,
 
 	g_free(msg);
 }
+
 static void send_im_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _im)
 {
 	struct im_send_data *im = _im;

@@ -5,6 +5,7 @@ Makefile.in
 *.lo
 *.o
 po/*.mo
+pixmaps/*/*.png
 *.tar.gz
 aclocal.m4
 autom4te*

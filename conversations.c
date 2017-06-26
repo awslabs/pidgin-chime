@@ -163,6 +163,39 @@ static gboolean conv_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 	return TRUE;
 }
 
+static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node);
+static void fetch_new_conv_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node,
+			      gpointer _msgnode)
+{
+	JsonNode *msgnode = _msgnode;
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		JsonObject *obj = json_node_get_object(node);
+		node = json_object_get_member(obj, "Conversation");
+		if (!node)
+			goto bad;
+
+		one_conversation_cb(NULL, 0, node, cxn);
+
+		/* Sanity check; we don't want to just keep looping for ever if it goes wrong */
+		const gchar *conv_id;
+		if (!parse_string(node, "ConversationId", &conv_id))
+			goto bad;
+
+		struct chime_conversation *conv = g_hash_table_lookup(cxn->conversations_by_id,
+								      conv_id);
+		if (!conv)
+			goto bad;
+
+		/* OK, now we know about the new conversation we can play the msg node */
+		conv_msg_cb(cxn, "ConversationMessage", msgnode);
+		json_node_unref(msgnode);
+		return;
+	}
+ bad:
+	json_node_unref(msgnode);
+}
+
 static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 {
 	struct chime_connection *cxn = _cxn;
@@ -171,6 +204,26 @@ static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 	JsonNode *record = json_object_get_member(obj, "record");
 	if (!record)
 		return FALSE;
+
+	const gchar *conv_id;
+
+	if (!parse_string(record, "ConversationId", &conv_id))
+		return FALSE;
+
+	struct chime_conversation *conv = g_hash_table_lookup(cxn->conversations_by_id,
+							      conv_id);
+	if (!conv) {
+		/* It seems they don't do the helpful thing and send the notification
+		 * of a new conversation before they send the first message. So let's
+		 * go looking for it... */
+
+		SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s", conv_id);
+		if (chime_queue_http_request(cxn, NULL, uri, fetch_new_conv_cb, node)) {
+			json_node_ref(node);
+			return TRUE;
+		}
+		return FALSE;
+	}
 
 	const gchar *sender, *message, *created;
 	gint64 sys;
@@ -181,12 +234,14 @@ static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 	    !parse_int(record, "IsSystemMessage", &sys))
 		return FALSE;
 
+	if (conv != g_hash_table_lookup(cxn->im_conversations_by_peer_id, sender)) {
+		/* Only 1:1 IM so far; representing multi-party conversations as chats comes later */
+		return FALSE;
+	}
+
 	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
 							    sender);
-	struct chime_conversation *conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
-							      sender);
-	/* Only 1:1 IM so far; representing multi-party conversations as chats comes later */
-	if (!contact || !conv)
+	if (!contact)
 		return FALSE;
 
 	GTimeVal tv;

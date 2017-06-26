@@ -164,19 +164,122 @@ void chime_destroy_conversations(struct chime_connection *cxn)
 	g_hash_table_destroy(cxn->conversations_by_id);
 	cxn->conversations_by_name = cxn->conversations_by_id = NULL;
 }
-static void send_im_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _contact)
+
+struct im_send_data {
+	struct chime_contact *contact;
+	gchar *message;
+	PurpleMessageFlags flags;
+};
+
+static void im_error(struct chime_connection *cxn, struct im_send_data *im,
+		     const gchar *format, ...)
 {
-//	struct chime_contact *contact = _contact;
+	va_list args;
+
+	va_start(args, format);
+	gchar *msg = g_strdup_vprintf(format, args);
+	va_end(args);
+
+	PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY,
+									  im->contact->email,
+									  cxn->prpl_conn->account);
+	if (pconv)
+		purple_conversation_write(pconv, NULL, msg, PURPLE_MESSAGE_ERROR, time(NULL));
+
+	g_free(msg);
+}
+static void send_im_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _im)
+{
+	struct im_send_data *im = _im;
 
 	/* Nothing to do o nsuccess */
 	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
-//		gchar *err_msg = g_strdup_printf(_("Failed to deliver message (%d): %s"),
-//						 msg->status_code, msg->reason_phrase);
-//		purple_conversation_write(chat->conv, NULL, err_msg, PURPLE_MESSAGE_ERROR, time(NULL));
-//		g_free(err_msg);
+		im_error(cxn, im, _("Failed to send message(%d): %s\n"),
+			 msg->status_code, msg->reason_phrase);
 	}
+	g_free(im->message);
+	g_free(im);
 }
 
+
+static int send_im(struct chime_connection *cxn, struct chime_conversation *conv,
+		   struct im_send_data *im)
+{
+	/* For idempotency of requests. Not that we retry. */
+	gchar *uuid = purple_uuid_random();
+
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "Content");
+	jb = json_builder_add_string_value(jb, im->message);
+	jb = json_builder_set_member_name(jb, "ClientRequestToken");
+	jb = json_builder_add_string_value(jb, uuid);
+	jb = json_builder_end_object(jb);
+
+	int ret;
+	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s/messages", conv->id);
+	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, send_im_cb, im))
+		ret = 1;
+	else {
+		ret = -1;
+		g_free(im->message);
+		g_free(im);
+	}
+
+	g_object_unref(jb);
+	return ret;
+}
+
+static void conv_create_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _im)
+{
+	struct im_send_data *im = _im;
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		JsonObject *obj = json_node_get_object(node);
+		node = json_object_get_member(obj, "Conversation");
+		if (!node)
+			goto bad;
+
+		one_conversation_cb(NULL, 0, node, cxn);
+		struct chime_conversation *conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
+								      im->contact->profile_id);
+		if (!conv)
+			goto bad;
+
+		send_im(cxn, conv, im);
+		return;
+	}
+ bad:
+	im_error(cxn, im, _("Failed to create IM conversation"));
+	g_free(im->message);
+	g_free(im);
+}
+
+static int create_im_conv(struct chime_connection *cxn, struct im_send_data *im)
+{
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "ProfileIds");
+	jb = json_builder_begin_array(jb);
+	jb = json_builder_add_string_value(jb, im->contact->profile_id);
+	jb = json_builder_end_array(jb);
+	jb = json_builder_end_object(jb);
+
+	int ret;
+	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations");
+	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, conv_create_cb, im))
+		ret = 1;
+	else {
+		ret = -1;
+		g_free(im->message);
+		g_free(im);
+	}
+
+	g_object_unref(jb);
+	return ret;
+}
 
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags)
 {
@@ -187,34 +290,16 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 		/* XXX: Send an invite? */
 		return -1;
 	}
+	struct im_send_data *im = g_new0(struct im_send_data, 1);
+	im->contact = contact;
+	im->message = g_strdup(message);
+	im->flags = flags;
+
 	struct chime_conversation *conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
 							      contact->profile_id);
-	if (!conv) {
-		/* XXX: Create one */
-		return -1;
-	}
-
-	/* XXX: Duplication with chime_purple_chat_send() */
-		/* For idempotency of requests. Not that we retry. */
-	gchar *uuid = purple_uuid_random();
-
-	JsonBuilder *jb = json_builder_new();
-	jb = json_builder_new();
-	jb = json_builder_begin_object(jb);
-	jb = json_builder_set_member_name(jb, "Content");
-	jb = json_builder_add_string_value(jb, message);
-	jb = json_builder_set_member_name(jb, "ClientRequestToken");
-	jb = json_builder_add_string_value(jb, uuid);
-	jb = json_builder_end_object(jb);
-
-	int ret;
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s/messages", conv->id);
-	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, send_im_cb, contact))
-		ret = 0;
+	if (conv)
+		return send_im(cxn, conv, im);
 	else
-		ret = -1;
-
-	g_object_unref(jb);
-	return ret;
+		return create_im_conv(cxn, im);
 }
 

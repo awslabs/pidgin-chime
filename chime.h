@@ -62,7 +62,8 @@ struct chime_connection {
 	GHashTable *subscriptions;
 
 	/* Buddies */
-	GHashTable *contacts;
+	GHashTable *contacts_by_id;
+	GHashTable *contacts_by_email;
 	GSList *contacts_needed;
 
 	/* Rooms */
@@ -74,9 +75,6 @@ struct chime_connection {
 	/* Conversations */
 	GHashTable *conversations_by_id;
 	GHashTable *conversations_by_name;
-
-	/* Contacts */
-	GHashTable *contacts_by_id;
 
 	/* Service config */
 	JsonNode *reg_node;
@@ -103,7 +101,12 @@ struct chime_contact
 	gchar *profile_id;
 	gchar *presence_channel;
 	gchar *profile_channel;
-	SoupMessage *add_msg;
+	gchar *email;
+	gchar *full_name;
+	gchar *display_name;
+
+	int availability;
+	gint64 avail_revision;
 
 	/* A given contact may be a Buddy, or may just be known because
 	 * they're in an active conversation */
@@ -172,6 +175,7 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
 void chime_init_buddies(struct chime_connection *cxn);
 void chime_destroy_buddies(struct chime_connection *cxn);
+struct chime_contact *chime_contact_new(struct chime_connection *cxn, JsonNode *node, gboolean conv);
 
 /* rooms.c */
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);

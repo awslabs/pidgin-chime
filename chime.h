@@ -190,6 +190,10 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data);
 void chime_purple_chat_leave(PurpleConnection *conn, int id);
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags);
 
+/* conversations.c */
+void chime_init_conversations(struct chime_connection *cxn);
+void chime_destroy_conversations(struct chime_connection *cxn);
+
 /* messages.c */
 typedef void (*chime_msg_cb)(struct chime_msgs *chat, JsonNode *node, time_t tm);
 void fetch_messages(struct chime_connection *cxn, struct chime_msgs *msgs, const gchar *next_token);

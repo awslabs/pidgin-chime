@@ -31,6 +31,7 @@ static void connect_jugg(struct chime_connection *cxn);
 struct jugg_subscription {
 	JuggernautCallback cb;
 	gpointer cb_data;
+	gchar *klass;
 };
 
 static void on_websocket_closed(SoupWebsocketConnection *ws,
@@ -51,31 +52,33 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 					       _("Failed to establish WebSocket connection"));
 
 }
-static void handle_callback_one(gpointer _sub, gpointer _node)
-{
-	struct jugg_subscription *sub = _sub;
-	JsonNode *node = _node;
 
-	sub->cb(sub->cb_data, node);
-}
 static void handle_callback(struct chime_connection *cxn, gchar *msg)
 {
 	JsonParser *parser = json_parser_new();
+	gboolean handled = FALSE;
 
 	if (json_parser_load_from_data(parser, msg, strlen(msg), NULL)) {
 		JsonNode *r = json_parser_get_root(parser);
 		JsonObject *obj = json_node_get_object(r);
 		JsonNode *chan_node = json_object_get_member(obj, "channel");
 		JsonNode *data_node = json_object_get_member(obj, "data");
+		const gchar *klass;
 
-		if (chan_node && data_node) {
+		if (chan_node && data_node && parse_string(data_node, "klass", &klass)) {
 			const gchar *chan = json_node_get_string(chan_node);
 			GList *l = g_hash_table_lookup(cxn->subscriptions, chan);
-			g_list_foreach(l, handle_callback_one, data_node);
+			while (l) {
+				struct jugg_subscription *sub = l->data;
+				if (!sub->klass || !strcmp(sub->klass, klass))
+					handled |= sub->cb(sub->cb_data, klass, data_node);
+				l = l->next;
+			}
 		}
 	}
 	g_object_unref(parser);
 }
+
 static void send_resubscribe_message(struct chime_connection *cxn);
 static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 				 GBytes *message, gpointer _cxn)
@@ -277,17 +280,19 @@ static gboolean compare_sub(gconstpointer _a, gconstpointer _b)
 	const struct jugg_subscription *a = _a;
 	const struct jugg_subscription *b = _b;
 
-	return !(a->cb == b->cb && a->cb_data == b->cb_data);
+	return !(a->cb == b->cb && a->cb_data == b->cb_data && !g_strcmp0(a->klass, b->klass));
 }
 
-void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, JuggernautCallback cb, gpointer cb_data)
+void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, const gchar *klass,
+			  JuggernautCallback cb, gpointer cb_data)
 {
 	struct jugg_subscription *sub = g_new0(struct jugg_subscription, 1);
 	GList *l;
 
 	sub->cb = cb;
 	sub->cb_data = cb_data;
-
+	if (klass)
+		sub->klass = g_strdup(klass);
 	if (!cxn->subscriptions)
 		cxn->subscriptions = g_hash_table_new_full(g_str_hash, g_str_equal,
 							   g_free, NULL);
@@ -305,7 +310,8 @@ void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, Ju
 	g_hash_table_replace(cxn->subscriptions, g_strdup(channel), l);
 }
 
-void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, JuggernautCallback cb, gpointer cb_data)
+void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, const gchar *klass,
+			    JuggernautCallback cb, gpointer cb_data)
 {
 	struct jugg_subscription sub;
 	GList *l, *item;
@@ -319,6 +325,7 @@ void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, 
 
 	sub.cb = cb;
 	sub.cb_data = cb_data;
+	sub.klass = (gchar *)klass;
 
 	item = g_list_find_custom(l, &sub, compare_sub);
 	if (item) {
@@ -332,16 +339,18 @@ void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, 
 	}
 }
 
-void jugg_dump_incoming(gpointer cb_data, JsonNode *node)
+int jugg_dump_incoming(gpointer cb_data, const gchar *klass, JsonNode *node)
 {
 	JsonGenerator *gen = json_generator_new();
 	gchar *msg;
 	json_generator_set_root(gen, node);
 	json_generator_set_pretty(gen, TRUE);
 	msg = json_generator_to_data(gen, NULL);
-	printf("incoming %s: %s\n", (gchar *)cb_data, msg);
+	printf("incoming %s %s: %s\n", (gchar *)cb_data, klass, msg);
 	g_free(msg);
 	g_object_unref(gen);
+
+	return TRUE;
 }
 
 void chime_purple_keepalive(PurpleConnection *conn)

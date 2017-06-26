@@ -359,9 +359,9 @@ static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
 
 	chime_init_juggernaut(cxn);
 
-	chime_jugg_subscribe(cxn, cxn->profile_channel, jugg_dump_incoming, (gpointer)"Profile");
-	chime_jugg_subscribe(cxn, cxn->presence_channel, jugg_dump_incoming, (gpointer)"Presence");
-	chime_jugg_subscribe(cxn, cxn->device_channel, jugg_dump_incoming, (gpointer)"Device");
+	chime_jugg_subscribe(cxn, cxn->profile_channel, NULL, jugg_dump_incoming, (gpointer)"Profile");
+	chime_jugg_subscribe(cxn, cxn->presence_channel, NULL, jugg_dump_incoming, (gpointer)"Presence");
+	chime_jugg_subscribe(cxn, cxn->device_channel, NULL, jugg_dump_incoming, (gpointer)"Device");
 
 	chime_init_buddies(cxn);
 	chime_init_rooms(cxn);

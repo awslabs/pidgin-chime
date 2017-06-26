@@ -29,25 +29,25 @@
 
 /* Called to signal presence to Pidgin, with a node obtained
  * either from Juggernaut or explicit request (at startup). */
-static void set_contact_presence(struct chime_connection *cxn, JsonNode *node)
+static gboolean set_contact_presence(struct chime_connection *cxn, JsonNode *node)
 {
 	const gchar *id;
 	gint64 availability, revision;
 
 	if (!cxn->contacts_by_id)
-		return;
+		return FALSE;
 
 	if (!parse_string(node, "ProfileId", &id) ||
 	    !parse_int(node, "Revision", &revision) ||
 	    !parse_int(node, "Availability", &availability))
-		return;
+		return FALSE;
 
 	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id, id);
 	if (!contact)
-		return;
+		return FALSE;
 
 	if (revision < contact->avail_revision)
-		return;
+		return FALSE;
 
 	contact->avail_revision = revision;
 	contact->availability = availability;
@@ -57,24 +57,20 @@ static void set_contact_presence(struct chime_connection *cxn, JsonNode *node)
 		if (contact->buddy)
 			purple_prpl_got_user_status(cxn->prpl_conn->account, contact->buddy->name, chime_statuses[availability], NULL);
 	}
+	return TRUE;
 }
 
 /* Callback for Juggernaut notifications about status */
-static void contact_presence_cb(gpointer _cxn, JsonNode *node)
+static int contact_presence_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 {
 	struct chime_connection *cxn = _cxn;
-	const gchar *str;
-
-	if (!parse_string(node, "klass", &str) ||
-	    strcmp(str, "Presence"))
-		return;
 
 	JsonObject *obj = json_node_get_object(node);
 	node = json_object_get_member(obj, "record");
 	if (!node)
-		return;
+		return FALSE;
 
-	set_contact_presence(cxn, node);
+	return set_contact_presence(cxn, node);
 }
 
 static void presence_cb(struct chime_connection *cxn, SoupMessage *msg,
@@ -145,10 +141,10 @@ struct chime_contact *chime_contact_new(struct chime_connection *cxn, JsonNode *
 		contact = g_new0(struct chime_contact, 1);
 		contact->profile_id = g_strdup(profile_id);
 		contact->presence_channel = g_strdup(presence_channel);
-		chime_jugg_subscribe(cxn, presence_channel, contact_presence_cb, cxn);
+		chime_jugg_subscribe(cxn, presence_channel, "Presence", contact_presence_cb, cxn);
 		if (!conv) {
 			contact->presence_channel = g_strdup(profile_channel);
-			chime_jugg_subscribe(cxn, profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
+			chime_jugg_subscribe(cxn, profile_channel, NULL, jugg_dump_incoming, (char *)"Buddy Profile");
 		}
 		g_hash_table_insert(cxn->contacts_by_id, contact->profile_id, contact);
 
@@ -227,12 +223,12 @@ void chime_purple_buddy_free(PurpleBuddy *buddy)
 		contact->profile_id = NULL;
 	}
 	if (contact->profile_channel) {
-		chime_jugg_unsubscribe(cxn, contact->profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
+		chime_jugg_unsubscribe(cxn, contact->profile_channel, NULL, jugg_dump_incoming, (char *)"Buddy Profile");
 		g_free(contact->profile_channel);
 		contact->profile_channel = NULL;
 	}
 	if (contact->presence_channel) {
-		chime_jugg_unsubscribe(cxn, contact->presence_channel, contact_presence_cb, cxn);
+		chime_jugg_unsubscribe(cxn, contact->presence_channel, "Presence", contact_presence_cb, cxn);
 		g_free(contact->presence_channel);
 		contact->presence_channel = NULL;
 	}
@@ -300,7 +296,7 @@ static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNod
 	}
 	if (!contact->presence_channel) {
 		contact->presence_channel = g_strdup_printf("profile_presence!%s", id);
-		chime_jugg_subscribe(cxn, contact->presence_channel, contact_presence_cb, cxn);
+		chime_jugg_subscribe(cxn, contact->presence_channel, "Presence", contact_presence_cb, cxn);
 	}
 #endif
 	/* XXX: Can we get only the one? */

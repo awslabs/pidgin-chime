@@ -164,10 +164,10 @@ SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *
 void chime_init_juggernaut(struct chime_connection *cxn);
 void chime_destroy_juggernaut(struct chime_connection *cxn);
 
-typedef void (*JuggernautCallback)(gpointer cb_data, JsonNode *node);
-void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, JuggernautCallback cb, gpointer cb_data);
-void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, JuggernautCallback cb, gpointer cb_data);
-void jugg_dump_incoming(gpointer cb_data, JsonNode *node);
+typedef gboolean (*JuggernautCallback)(gpointer cb_data, const gchar *klass, JsonNode *node);
+void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);
+void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);
+int jugg_dump_incoming(gpointer cb_data, const gchar *klass, JsonNode *node);
 void chime_purple_keepalive(PurpleConnection *conn);
 
 /* buddy.c */

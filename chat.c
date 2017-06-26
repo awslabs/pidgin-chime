@@ -213,6 +213,7 @@ static void kill_member(gpointer _member)
 
 	g_free(member->id);
 	g_free(member->full_name);
+	g_free(member);
 }
 
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
@@ -262,6 +263,7 @@ static void send_msg_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode
 		gchar *err_msg = g_strdup_printf(_("Failed to deliver message (%d): %s"),
 						 msg->status_code, msg->reason_phrase);
 		purple_conversation_write(chat->conv, NULL, err_msg, PURPLE_MESSAGE_ERROR, time(NULL));
+		g_free(err_msg);
        }
 }
 

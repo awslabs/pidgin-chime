@@ -34,7 +34,7 @@ struct chime_conversation {
 	gchar *id;
 	gchar *name;
 	gchar *visibility;
-	gchar *favourite;
+	gboolean favourite;
 
 	GHashTable *members;
 };
@@ -44,14 +44,15 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 {
 	struct chime_connection *cxn = _cxn;
 	struct chime_conversation *conv;
-	const gchar *channel, *id, *name, *visibility, *favourite;
+	const gchar *channel, *id, *name, *visibility;
+	gint64 favourite;
 	JsonNode *members_node;
 
 	if (!parse_string(node, "Channel", &channel) ||
 	    !parse_string(node, "ConversationId", &id) ||
 	    !parse_string(node, "Name", &name) ||
 	    !parse_string(node, "Visibility", &visibility) ||
-	    !parse_string(node, "Favorite", &favourite) ||
+	    !parse_int(node, "Favorite", &favourite) ||
 	    !(members_node = json_object_get_member(json_node_get_object(node), "Members")))
 		return;
 
@@ -61,7 +62,6 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 		g_free(conv->channel);
 		g_free(conv->name);
 		g_free(conv->visibility);
-		g_free(conv->favourite);
 	} else {
 		conv = g_new0(struct chime_conversation, 1);
 		conv->id = g_strdup(id);
@@ -70,18 +70,32 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 	conv->channel = g_strdup(channel);
 	conv->name = g_strdup(name);
 	conv->visibility = g_strdup(visibility);
-	conv->favourite = g_strdup(favourite);
+	conv->favourite = favourite;
 	conv->members = g_hash_table_new(g_str_hash, g_str_equal);
 
+	const gchar *im_member = NULL;
 	JsonArray *arr = json_node_get_array(members_node);
 	int i, len = json_array_get_length(arr);
 	for (i = 0; i < len; i++) {
 		struct chime_contact *member;
 
 		member = chime_contact_new(cxn, json_array_get_element(arr, i), TRUE);
-		if (member)
+		if (member) {
 			g_hash_table_insert(conv->members, member->profile_id, member);
+			if (strcmp(member->profile_id, cxn->profile_id)) {
+				if (im_member)
+					im_member = NULL;
+				else
+					im_member = member->profile_id;
+			}
+			printf("im_member %s\n", im_member);
+		}
 	}
+
+	/* Now im_member is set to the "other" member of any two-party conversations
+	 * which contains only us and one other. */
+	if (im_member)
+		g_hash_table_insert(cxn->im_conversations_by_peer_id, (void *)im_member, conv);
 
 	g_hash_table_insert(cxn->conversations_by_id, conv->id, conv);
 	g_hash_table_insert(cxn->conversations_by_name, conv->name, conv);
@@ -130,7 +144,6 @@ static void destroy_conversation(gpointer _conv)
 	g_free(conv->channel);
 	g_free(conv->name);
 	g_free(conv->visibility);
-	g_free(conv->favourite);
 	g_hash_table_destroy(conv->members);
 	conv->members = NULL;
 	g_free(conv);
@@ -138,6 +151,7 @@ static void destroy_conversation(gpointer _conv)
 
 void chime_init_conversations(struct chime_connection *cxn)
 {
+	cxn->im_conversations_by_peer_id = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->conversations_by_name = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->conversations_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_conversation);
 	fetch_conversations(cxn, NULL);
@@ -145,7 +159,62 @@ void chime_init_conversations(struct chime_connection *cxn)
 
 void chime_destroy_conversations(struct chime_connection *cxn)
 {
+	g_hash_table_destroy(cxn->im_conversations_by_peer_id);
 	g_hash_table_destroy(cxn->conversations_by_name);
 	g_hash_table_destroy(cxn->conversations_by_id);
 	cxn->conversations_by_name = cxn->conversations_by_id = NULL;
 }
+static void send_im_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _contact)
+{
+//	struct chime_contact *contact = _contact;
+
+	/* Nothing to do o nsuccess */
+	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+//		gchar *err_msg = g_strdup_printf(_("Failed to deliver message (%d): %s"),
+//						 msg->status_code, msg->reason_phrase);
+//		purple_conversation_write(chat->conv, NULL, err_msg, PURPLE_MESSAGE_ERROR, time(NULL));
+//		g_free(err_msg);
+	}
+}
+
+
+int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags)
+{
+	struct chime_connection *cxn = purple_connection_get_protocol_data(gc);
+
+	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email, who);
+	if (!contact) {
+		/* XXX: Send an invite? */
+		return -1;
+	}
+	struct chime_conversation *conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
+							      contact->profile_id);
+	if (!conv) {
+		/* XXX: Create one */
+		return -1;
+	}
+
+	/* XXX: Duplication with chime_purple_chat_send() */
+		/* For idempotency of requests. Not that we retry. */
+	gchar *uuid = purple_uuid_random();
+
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "Content");
+	jb = json_builder_add_string_value(jb, message);
+	jb = json_builder_set_member_name(jb, "ClientRequestToken");
+	jb = json_builder_add_string_value(jb, uuid);
+	jb = json_builder_end_object(jb);
+
+	int ret;
+	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s/messages", conv->id);
+	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, send_im_cb, contact))
+		ret = 0;
+	else
+		ret = -1;
+
+	g_object_unref(jb);
+	return ret;
+}
+

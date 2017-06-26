@@ -27,14 +27,6 @@
 
 #include <libsoup/soup.h>
 
-static gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val)
-{
-	node = json_object_get_member(json_node_get_object(node), member);
-	if (!node)
-		return FALSE;
-	*val = json_node_get_int(node);
-	return TRUE;
-}
 /* Called to signal presence to Pidgin, with a node obtained
  * either from Juggernaut or explicit request (at startup). */
 static void set_contact_presence(struct chime_connection *cxn, JsonNode *node)

@@ -73,6 +73,7 @@ struct chime_connection {
 	int chat_id;
 
 	/* Conversations */
+	GHashTable *im_conversations_by_peer_id;
 	GHashTable *conversations_by_id;
 	GHashTable *conversations_by_name;
 
@@ -150,6 +151,7 @@ enum {
 #define CONNECT_STEPS 3
 
 /* chime.c */
+gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
 SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
@@ -193,6 +195,7 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 /* conversations.c */
 void chime_init_conversations(struct chime_connection *cxn);
 void chime_destroy_conversations(struct chime_connection *cxn);
+int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags);
 
 /* messages.c */
 typedef void (*chime_msg_cb)(struct chime_msgs *chat, JsonNode *node, time_t tm);

@@ -55,6 +55,15 @@ SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...)
 	return uri;
 }
 
+gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val)
+{
+	node = json_object_get_member(json_node_get_object(node), member);
+	if (!node)
+		return FALSE;
+	*val = json_node_get_int(node);
+	return TRUE;
+}
+
 /* Helper function to get a string from a JSON child node */
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
 {
@@ -287,7 +296,8 @@ static gboolean parse_regnode(struct chime_connection *cxn, JsonNode *regnode)
 
 	node = json_object_get_member(obj, "Profile");
 	if (!parse_string(node, "profile_channel", &cxn->profile_channel) ||
-	    !parse_string(node, "presence_channel", &cxn->presence_channel))
+	    !parse_string(node, "presence_channel", &cxn->presence_channel) ||
+	    !parse_string(node, "id", &cxn->profile_id))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Device");
@@ -484,15 +494,7 @@ static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status
 	g_object_unref(builder);
 
 }
-static int chime_purple_send_im(PurpleConnection *gc,
-				const char *who,
-				const char *what,
-				PurpleMessageFlags flags)
-{
 
-	printf("send %s to %s\n", what, who);
-	return 1;
-}
 static PurplePluginProtocolInfo chime_prpl_info = {
 	.options = OPT_PROTO_NO_PASSWORD,
 	.list_icon = chime_purple_list_icon,

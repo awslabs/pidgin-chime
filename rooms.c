@@ -54,6 +54,7 @@ static void one_room_cb(JsonArray *array, guint index_,
 	} else {
 		room = g_new0(struct chime_room, 1);
 		room->id = g_strdup(id);
+		g_hash_table_insert(cxn->rooms_by_id, room->id, room);
 	}
 
 	room->channel = g_strdup(channel);
@@ -62,7 +63,6 @@ static void one_room_cb(JsonArray *array, guint index_,
 	room->privacy = g_strdup(privacy);
 	room->visibility = g_strdup(visibility);
 
-	g_hash_table_insert(cxn->rooms_by_id, room->id, room);
 	g_hash_table_insert(cxn->rooms_by_name, room->name, room);
 }
 
@@ -117,12 +117,24 @@ static void destroy_room(gpointer _room)
 	g_free(room);
 }
 
+static gboolean visible_rooms_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
+{
+	const gchar *typ;
+	if (!parse_string(node, "type", &typ))
+		return FALSE;
+	if (strcmp(typ, "update") != 0)
+		return FALSE;
+	fetch_rooms((struct chime_connection*) _cxn, NULL);
+	return TRUE;
+}
+
 void chime_init_rooms(struct chime_connection *cxn)
 {
 	cxn->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->rooms_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_room);
 	cxn->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
 	fetch_rooms(cxn, NULL);
+	chime_jugg_subscribe(cxn, cxn->profile_channel, "VisibleRooms", visible_rooms_cb, cxn);
 }
 
 void chime_destroy_rooms(struct chime_connection *cxn)

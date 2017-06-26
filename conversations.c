@@ -71,7 +71,8 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 	conv->name = g_strdup(name);
 	conv->visibility = g_strdup(visibility);
 	conv->favourite = favourite;
-	conv->members = g_hash_table_new(g_str_hash, g_str_equal);
+	if (!conv->members)
+		conv->members = g_hash_table_new(g_str_hash, g_str_equal);
 
 	const gchar *im_member = NULL;
 	JsonArray *arr = json_node_get_array(members_node);
@@ -149,6 +150,19 @@ static void destroy_conversation(gpointer _conv)
 	g_free(conv);
 }
 
+static gboolean conv_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
+{
+	struct chime_connection *cxn = _cxn;
+
+	JsonObject *obj = json_node_get_object(node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
+	one_conversation_cb(NULL, 0, record, cxn);
+	return TRUE;
+}
+
 static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 {
 	struct chime_connection *cxn = _cxn;
@@ -192,12 +206,14 @@ void chime_init_conversations(struct chime_connection *cxn)
 	cxn->conversations_by_name = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->conversations_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_conversation);
 	chime_jugg_subscribe(cxn, cxn->device_channel, "ConversationMessage", conv_msg_cb, cxn);
+	chime_jugg_subscribe(cxn, cxn->device_channel, "Conversation", conv_cb, cxn);
 	fetch_conversations(cxn, NULL);
 }
 
 void chime_destroy_conversations(struct chime_connection *cxn)
 {
 	chime_jugg_unsubscribe(cxn, cxn->device_channel, "ConversationMessage", conv_msg_cb, cxn);
+	chime_jugg_unsubscribe(cxn, cxn->device_channel, "Conversation", conv_cb, cxn);
 	g_hash_table_destroy(cxn->im_conversations_by_peer_id);
 	g_hash_table_destroy(cxn->conversations_by_name);
 	g_hash_table_destroy(cxn->conversations_by_id);

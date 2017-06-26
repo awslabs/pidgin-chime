@@ -197,6 +197,7 @@ void chime_init_conversations(struct chime_connection *cxn)
 
 void chime_destroy_conversations(struct chime_connection *cxn)
 {
+	chime_jugg_unsubscribe(cxn, cxn->device_channel, "ConversationMessage", conv_msg_cb, cxn);
 	g_hash_table_destroy(cxn->im_conversations_by_peer_id);
 	g_hash_table_destroy(cxn->conversations_by_name);
 	g_hash_table_destroy(cxn->conversations_by_id);

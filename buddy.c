@@ -205,6 +205,9 @@ static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _cx
 	/* ASSERT: there isn't already a *different* contact->buddy */
 	contact->buddy = buddy;
 	buddy->proto_data = contact;
+
+	if (g_strcmp0(contact->display_name, purple_buddy_get_name(buddy)))
+		purple_blist_alias_buddy(buddy, contact->display_name);
 }
 
 void chime_purple_buddy_free(PurpleBuddy *buddy)
@@ -313,7 +316,6 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 	if (contact) {
 		/* We already knew about this person (from a conversation) */
 		buddy->proto_data = contact;
-		return;
 	}
 
 	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/invites");

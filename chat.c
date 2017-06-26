@@ -294,3 +294,37 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	return ret;
 }
 
+static gboolean chat_demuxing_jugg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
+{
+	if (strcmp(klass, "RoomMessage") != 0)
+		return FALSE;
+
+	GHashTable *rooms_by_id = ((struct chime_connection*) _cxn)->rooms_by_id;
+
+	JsonObject *obj = json_node_get_object(node);
+	JsonNode *record = json_object_get_member(obj, "record");
+
+	if (!record)
+		return FALSE;
+
+	const gchar *room_id;
+	if (!parse_string(record, "RoomId", &room_id))
+		return FALSE;
+
+	struct chime_room *room = g_hash_table_lookup(rooms_by_id, room_id);
+	if (!room)
+		return FALSE;
+
+	return chat_jugg_cb(room->chat, klass, node);
+}
+
+
+void chime_init_chats(struct chime_connection *cxn)
+{
+	chime_jugg_subscribe(cxn, cxn->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
+}
+
+void chime_destroy_chats(struct chime_connection *cxn)
+{
+	chime_jugg_unsubscribe(cxn, cxn->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
+}

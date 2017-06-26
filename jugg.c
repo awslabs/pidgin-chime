@@ -266,7 +266,8 @@ static void send_subscription_message(struct chime_connection *cxn, const gchar 
 }
 
 /*
- * We allow multiple subscribers to a channel, as long as {cb, cb_data} is unique.
+ * We allow multiple subscribers to a channel, as long as {cb, cb_data, klass}
+ * is unique.
  *
  * cxn->subscriptions is a GHashTable with 'channel' as key.
  *

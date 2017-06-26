@@ -366,6 +366,7 @@ static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
 	chime_init_buddies(cxn);
 	chime_init_rooms(cxn);
 	chime_init_conversations(cxn);
+	chime_init_chats(cxn);
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
@@ -421,6 +422,7 @@ static void chime_purple_close(PurpleConnection *conn)
 		chime_destroy_buddies(cxn);
 		chime_destroy_rooms(cxn);
 		chime_destroy_conversations(cxn);
+		chime_destroy_chats(cxn);
 
 		if (cxn->reg_node) {
 			json_node_unref(cxn->reg_node);

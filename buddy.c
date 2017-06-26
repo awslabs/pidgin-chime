@@ -102,23 +102,33 @@ static void presence_cb(struct chime_connection *cxn, SoupMessage *msg,
 static gboolean fetch_presences(gpointer _cxn)
 {
 	struct chime_connection *cxn = _cxn;
-	int len = g_slist_length(cxn->contacts_needed);
+	int i, len = g_slist_length(cxn->contacts_needed);
 	if (!len)
 		return FALSE;
 
 	gchar **ids = g_new0(gchar *, len + 1);
+	i = 0;
 	while (cxn->contacts_needed) {
-		ids[--len] = cxn->contacts_needed->data;
+		struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
+								    cxn->contacts_needed->data);
 		cxn->contacts_needed = g_slist_remove(cxn->contacts_needed, cxn->contacts_needed->data);
+		if (!contact || contact->avail_revision)
+			continue;
+
+		ids[i++] = contact->profile_id;
 	}
-	gchar *query = g_strjoinv(",", ids);
+	/* We don't actually need any */
+	if (i) {
+		ids[i++] = NULL;
+		gchar *query = g_strjoinv(",", ids);
+
+		SoupURI *uri = soup_uri_new_printf(cxn->presence_url, "/presence");
+		soup_uri_set_query_from_fields(uri, "profile-ids", query, NULL);
+		g_free(query);
+
+		chime_queue_http_request(cxn, NULL, uri, presence_cb, NULL);
+	}
 	g_free(ids);
-
-	SoupURI *uri = soup_uri_new_printf(cxn->presence_url, "/presence");
-	soup_uri_set_query_from_fields(uri, "profile-ids", query, NULL);
-	g_free(query);
-
-	chime_queue_http_request(cxn, NULL, uri, presence_cb, NULL);
 	return FALSE;
 }
 

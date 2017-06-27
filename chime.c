@@ -91,6 +91,19 @@ gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
 	return TRUE;
 }
 
+gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv)
+{
+	const gchar *msg_time;
+
+	if (!parse_string(parent, name, &msg_time) ||
+	    !g_time_val_from_iso8601(msg_time, tv))
+		return FALSE;
+
+	if (time_str)
+		*time_str = msg_time;
+
+	return TRUE;
+}
 /* If we get an auth failure on a standard request, we automatically attempt
  * to renew the authentication token and resubmit the request. */
 static void renew_cb(struct chime_connection *cxn, SoupMessage *msg,
@@ -575,3 +588,21 @@ static void chime_purple_init_plugin(PurplePlugin *plugin)
 }
 
 PURPLE_INIT_PLUGIN(chime, chime_purple_init_plugin, chime_plugin_info);
+
+void chime_update_last_msg(struct chime_connection *cxn, gboolean is_room,
+			   const gchar *id, const gchar *msg_time)
+{
+	gchar *key = g_strdup_printf("last-%s-%s", is_room ? "room" : "conversation", id);
+
+	purple_account_set_string(cxn->prpl_conn->account, key, msg_time);
+	g_free(key);
+}
+
+gboolean chime_read_last_msg(struct chime_connection *cxn, gboolean is_room,
+			     const gchar *id, const gchar **msg_time)
+{
+	gchar *key = g_strdup_printf("last-%s-%s", is_room ? "room" : "conversation", id);
+	*msg_time = purple_account_get_string(cxn->prpl_conn->account, key, NULL);
+	g_free(key);
+	return !!*msg_time;
+}

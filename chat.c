@@ -45,11 +45,13 @@ struct chat_member {
 	gchar *full_name;
 };
 
-static void chat_deliver_msg(struct chime_msgs *msgs, JsonNode *node, time_t msg_time)
+static void chat_deliver_msg(struct chime_connection *cxn, struct chime_msgs *msgs,
+			     JsonNode *node, time_t msg_time)
 {
-	struct chime_chat *chat = (struct chime_chat *)msgs;
+	struct chime_chat *chat = (struct chime_chat *)msgs; /* Really */
 	struct chat_member *who = NULL;
 	const gchar *str, *content;
+
 	if (parse_string(node, "Content", &content)) {
 		PurpleConnection *conn = chat->conv->account->gc;
 		int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
@@ -105,7 +107,8 @@ static gboolean add_chat_member(struct chime_chat *chat, JsonNode *node)
 static gboolean chat_jugg_cb(gpointer _chat, const gchar *klass, JsonNode *node)
 {
 	struct chime_chat *chat = _chat;
-
+	PurpleConnection *conn = chat->conv->account->gc;
+	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
 	JsonObject *obj = json_node_get_object(node);
 	JsonNode *record = json_object_get_member(obj, "record");
 	if (!record)
@@ -120,17 +123,14 @@ static gboolean chat_jugg_cb(gpointer _chat, const gchar *klass, JsonNode *node)
 			return TRUE;
 		}
 
-		GTimeVal tv;
 		const gchar *msg_time;
-		if (!parse_string(record, "CreatedOn", &msg_time) ||
-		    !g_time_val_from_iso8601(msg_time, &tv))
+		GTimeVal tv;
+		if (!parse_time(record, "CreatedOn", &msg_time, &tv))
 			return FALSE;
 
-		gchar *last_msgs_key = g_strdup_printf("last-room-%s", chat->room->id);
-		purple_account_set_string(chat->conv->account, last_msgs_key, msg_time);
-		g_free(last_msgs_key);
+		chime_update_last_msg(cxn, TRUE, chat->room->id, msg_time);
 
-		chat_deliver_msg(&chat->msgs, record, tv.tv_sec);
+		chat_deliver_msg(cxn, &chat->msgs, record, tv.tv_sec);
 		return TRUE;
 	} else if (!strcmp(klass, "RoomMembership")) {
 		/* What abpout removal? */

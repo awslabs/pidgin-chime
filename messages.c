@@ -76,21 +76,15 @@ void chime_complete_messages(struct chime_connection *cxn, struct chime_msgs *ms
 	while (l) {
 		struct msg_sort *ms = l->data;
 		JsonNode *node = ms->node;
-		msgs->cb(msgs, node, ms->tm.tv_sec);
+		msgs->cb(cxn, msgs, node, ms->tm.tv_sec);
 		g_free(ms);
 		l = g_list_remove(l, ms);
 
 		/* Last message, note down the received time */
 		if (!l) {
 			const gchar *tm;
-			if (parse_string(node, "CreatedOn", &tm)){
-				gchar *last_msgs_key = g_strdup_printf("last-%s-%s",
-								       msgs->is_room ? "room" : "conversation",
-								       msgs->id);
-				purple_account_set_string(cxn->prpl_conn->account,
-							  last_msgs_key, tm);
-				g_free(last_msgs_key);
-			}
+			if (parse_string(node, "CreatedOn", &tm))
+				chime_update_last_msg(cxn, msgs->is_room, msgs->id, tm);
 		}
 		json_node_unref(node);
 	}
@@ -133,9 +127,8 @@ void fetch_messages(struct chime_connection *cxn, struct chime_msgs *msgs, const
 	const gchar *opts[4];
 	int i = 0;
 
-	gchar *last_msgs_key = g_strdup_printf("last-%s-%s", msgs->is_room ? "room" : "conversation", msgs->id);
-	const gchar *after = purple_account_get_string(cxn->prpl_conn->account, last_msgs_key, NULL);
-	g_free(last_msgs_key);
+	const gchar *after = NULL;
+	chime_read_last_msg(cxn, msgs->is_room, msgs->id, &after);
 
 	if (!msgs->messages)
 		msgs->messages = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);

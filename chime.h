@@ -116,7 +116,8 @@ struct chime_contact
 };
 
 struct chime_msgs;
-typedef void (*chime_msg_cb)(struct chime_msgs *chat, JsonNode *node, time_t tm);
+typedef void (*chime_msg_cb)(struct chime_connection *cxn, struct chime_msgs *msgs,
+			     JsonNode *node, time_t tm);
 
 struct chime_msgs {
 	gboolean is_room;
@@ -158,6 +159,7 @@ void chime_initial_login(struct chime_connection *cxn);
 /* chime.c */
 gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
+gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv);
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
 SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
 					SoupURI *uri, ChimeSoupMessageCallback callback,
@@ -165,6 +167,10 @@ SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *
 #define chime_queue_http_request(_c, _n, _u, _cb, _d)			\
 	__chime_queue_http_request((_c), (_n), (_u), (_cb), (_d), TRUE)
 void chime_register_device(struct chime_connection *cxn, const gchar *token);
+void chime_update_last_msg(struct chime_connection *cxn, gboolean is_room,
+			   const gchar *id, const gchar *msg_time);
+gboolean chime_read_last_msg(struct chime_connection *cxn, gboolean is_room,
+			     const gchar *id, const gchar **msg_time);
 
 /* jugg.c */
 void chime_init_juggernaut(struct chime_connection *cxn);
@@ -206,7 +212,6 @@ void chime_destroy_conversations(struct chime_connection *cxn);
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags);
 
 /* messages.c */
-typedef void (*chime_msg_cb)(struct chime_msgs *chat, JsonNode *node, time_t tm);
 void fetch_messages(struct chime_connection *cxn, struct chime_msgs *msgs, const gchar *next_token);
 void chime_complete_messages(struct chime_connection *cxn, struct chime_msgs *msgs);
 #endif /* __CHIME_H__ */

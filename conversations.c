@@ -28,7 +28,7 @@
 #include <libsoup/soup.h>
 
 struct chime_conversation {
-	struct chime_chat *chat;
+	struct chime_msgs *msgs;
 
 	gchar *channel;
 	gchar *id;
@@ -38,6 +38,57 @@ struct chime_conversation {
 
 	GHashTable *members;
 };
+
+/* Called for all deliveries of incoming conversation messages, at startup and later */
+static gboolean do_conv_deliver_msg(struct chime_connection *cxn, struct chime_conversation *conv,
+				    JsonNode *record, time_t msg_time)
+{
+	const gchar *sender, *message;
+	gint64 sys;
+
+	if (!parse_string(record, "Sender", &sender) ||
+	    !parse_string(record, "Content", &message) ||
+	    !parse_int(record, "IsSystemMessage", &sys))
+		return FALSE;
+
+	if (conv != g_hash_table_lookup(cxn->im_conversations_by_peer_id, sender)) {
+		/* Only 1:1 IM so far; representing multi-party conversations as chats comes later */
+		return FALSE;
+	}
+
+	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
+							    sender);
+	if (!contact)
+		return FALSE;
+
+	PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
+	if (sys)
+		flags |= PURPLE_MESSAGE_SYSTEM;
+
+	serv_got_im(cxn->prpl_conn, contact->email, message, flags, msg_time);
+
+	return TRUE;
+}
+
+/* Callback from message-gathering on startup */
+static void conv_deliver_msg(struct chime_connection *cxn, struct chime_msgs *msgs,
+			     JsonNode *node, time_t msg_time)
+{
+	struct chime_conversation *conv = g_hash_table_lookup(cxn->conversations_by_id, msgs->id);
+
+	do_conv_deliver_msg(cxn, conv, node, msg_time);
+}
+
+static void fetch_conversation_messages(struct chime_connection *cxn, struct chime_conversation *conv)
+{
+	conv->msgs = g_new0(struct chime_msgs, 1);
+	conv->msgs->id = conv->id;
+	conv->msgs->members_done =TRUE;
+	conv->msgs->cb = conv_deliver_msg;
+
+	printf("Fetch conv messages for %s\n", conv->id);
+	fetch_messages(cxn, conv->msgs, NULL);
+}
 
 static void one_conversation_cb(JsonArray *array, guint index_,
 			JsonNode *node, gpointer _cxn)
@@ -66,6 +117,7 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 		conv = g_new0(struct chime_conversation, 1);
 		conv->id = g_strdup(id);
 		g_hash_table_insert(cxn->conversations_by_id, conv->id, conv);
+		fetch_conversation_messages(cxn, conv);
 	}
 
 	conv->channel = g_strdup(channel);
@@ -224,36 +276,24 @@ static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 		}
 		return FALSE;
 	}
-
-	const gchar *sender, *message, *created;
-	gint64 sys;
-
-	if (!parse_string(record, "Sender", &sender) ||
-	    !parse_string(record, "Content", &message) ||
-	    !parse_string(record, "CreatedOn", &created) ||
-	    !parse_int(record, "IsSystemMessage", &sys))
-		return FALSE;
-
-	if (conv != g_hash_table_lookup(cxn->im_conversations_by_peer_id, sender)) {
-		/* Only 1:1 IM so far; representing multi-party conversations as chats comes later */
-		return FALSE;
+	if (conv->msgs->messages) {
+		/* Still gathering messages. Add to the table, to avoid dupes */
+		const gchar *id;
+		if (parse_string(record, "MessageId", &id))
+			g_hash_table_insert(conv->msgs->messages, (gchar *)id, json_node_ref(record));
+		return TRUE;
 	}
-
-	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
-							    sender);
-	if (!contact)
-		return FALSE;
-
 	GTimeVal tv;
-	if (!g_time_val_from_iso8601(created, &tv))
+	const gchar *created;
+	if (!parse_time(record, "CreatedOn", &created, &tv))
 		return FALSE;
 
-	PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
-	if (sys)
-		flags |= PURPLE_MESSAGE_SYSTEM;
-	serv_got_im(cxn->prpl_conn, contact->email, message, flags, tv.tv_sec);
-	return TRUE;
+	chime_update_last_msg(cxn, FALSE, conv->id, created);
+
+	return do_conv_deliver_msg(cxn, conv, record, tv.tv_sec);
 }
+
+
 
 void chime_init_conversations(struct chime_connection *cxn)
 {

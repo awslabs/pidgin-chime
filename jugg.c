@@ -168,11 +168,13 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	if (!cxn->ws_conn) {
 		gchar *reason = g_strdup_printf(_("Websocket connection error %s"),
 						error->message);
+		g_error_free(error);
 		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
 					       reason);
 		g_free(reason);
 		return;
 	}
+
 	printf("Got ws conn %p\n", cxn->ws_conn);
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "closed",
 			 G_CALLBACK(on_websocket_closed), cxn);

@@ -175,6 +175,11 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 		return;
 	}
 
+#if SOUP_CHECK_VERSION(2, 56, 0)
+	/* Remove limit on the payload size */
+	soup_websocket_connection_set_max_incoming_payload_size(transport->connection, 0);
+#endif
+
 	printf("Got ws conn %p\n", cxn->ws_conn);
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "closed",
 			 G_CALLBACK(on_websocket_closed), cxn);

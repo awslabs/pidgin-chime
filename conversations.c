@@ -117,7 +117,17 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 		conv = g_new0(struct chime_conversation, 1);
 		conv->id = g_strdup(id);
 		g_hash_table_insert(cxn->conversations_by_id, conv->id, conv);
-		fetch_conversation_messages(cxn, conv);
+
+		/* Do we need to fetch new messages? */
+		const gchar *last_seen, *last_sent;
+
+		if (!chime_read_last_msg(cxn, FALSE, conv->id, &last_seen, NULL))
+			last_seen = "1970-01-01T00:00:00.000Z";
+
+		if (!parse_string(node, "LastSent", &last_sent) ||
+		    strcmp(last_seen, last_sent))
+			fetch_conversation_messages(cxn, conv);
+
 	}
 
 	conv->channel = g_strdup(channel);

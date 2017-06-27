@@ -614,7 +614,7 @@ void chime_update_last_msg(struct chime_connection *cxn, gboolean is_room,
 	g_object_unref(jb);
 }
 
-/* WARE! msg_time is allocated, msg_id is const */
+/* WARE! msg_id is allocated, msg_time is const */
 gboolean chime_read_last_msg(struct chime_connection *cxn, gboolean is_room,
 			     const gchar *id, const gchar **msg_time,
 			     gchar **msg_id)
@@ -628,11 +628,13 @@ gboolean chime_read_last_msg(struct chime_connection *cxn, gboolean is_room,
 	if (!*msg_time) {
 		/* Only a date, no msgid */
 		*msg_time = val;
-		*msg_id = NULL;
+		if (msg_id)
+			*msg_id = NULL;
 		return TRUE;
 	}
 
-	*msg_id = g_strndup(val, *msg_time - val);
+	if (msg_id)
+		*msg_id = g_strndup(val, *msg_time - val);
 	(*msg_time)++; /* Past the | */
 
 	g_free(key);

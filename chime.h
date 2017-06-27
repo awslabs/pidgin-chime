@@ -150,6 +150,11 @@ enum {
 
 #define CONNECT_STEPS 3
 
+#define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
+
+/* login.c */
+void chime_initial_login(struct chime_connection *cxn);
+
 /* chime.c */
 gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
@@ -159,6 +164,7 @@ SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *
 					gpointer cb_data, gboolean auto_renew);
 #define chime_queue_http_request(_c, _n, _u, _cb, _d)			\
 	__chime_queue_http_request((_c), (_n), (_u), (_cb), (_d), TRUE)
+void chime_register_device(struct chime_connection *cxn, const gchar *token);
 
 /* jugg.c */
 void chime_init_juggernaut(struct chime_connection *cxn);

@@ -14,6 +14,20 @@ includes...
    messages.
 
 
+ • GObjectification
+
+   Make it look a bit more like a glib program, and turn things into
+   proper objects. Things like struct chime_contact should definitely
+   be a ChimeContact object, with signals that can be subscribed to
+   instead of the direct hacks in set_contact_presence(), for example.
+
+
+ • Initial login
+
+   Even if it has to be screen-scraping HTML and invoking
+   purple_request_fields()
+
+
  • Logging
 
    Somewhat ties into the above. We should emit decent application

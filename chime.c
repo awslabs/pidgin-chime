@@ -369,41 +369,44 @@ static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
+void chime_register_device(struct chime_connection *cxn, const gchar *token)
+{
+	const gchar *server = purple_account_get_string(cxn->prpl_conn->account, "server", NULL);
+	JsonNode *node = chime_device_register_req(cxn->prpl_conn->account);
+
+	if (!server || !server[0])
+		server = SIGNIN_DEFAULT;
+
+	SoupURI *uri = soup_uri_new_printf(server, "/sessions");
+	soup_uri_set_query_from_fields(uri, "Token", token, NULL);
+
+	purple_connection_update_progress(cxn->prpl_conn, _("Connecting..."), 1, CONNECT_STEPS);
+	chime_queue_http_request(cxn, node, uri, register_cb, NULL);
+}
+
 static void chime_purple_login(PurpleAccount *account)
 {
 	PurpleConnection *conn = purple_account_get_connection(account);
 	struct chime_connection *cxn;
-	const gchar *token = purple_account_get_string(account, "token",
-						       NULL);
-	JsonNode *node;
-	SoupURI *uri;
-
-	if (!token) {
-		purple_connection_error(conn,
-					_("No authentication token"));
-		return;
-	}
 
 	cxn = g_new0(struct chime_connection, 1);
 	purple_connection_set_protocol_data(conn, cxn);
 	cxn->prpl_conn = conn;
 	cxn->soup_sess = soup_session_new();
-	printf("conn %p cxn %p\n", conn, cxn);
+
 	if (getenv("CHIME_DEBUG") && atoi(getenv("CHIME_DEBUG")) > 0) {
 		SoupLogger *l = soup_logger_new(SOUP_LOGGER_LOG_BODY, -1);
 		soup_session_add_feature(cxn->soup_sess, SOUP_SESSION_FEATURE(l));
 		g_object_unref(l);
 		g_object_set(cxn->soup_sess, "ssl-strict", FALSE, NULL);
 	}
-	node = chime_device_register_req(account);
-	const gchar *server = purple_account_get_string(account, "server", NULL);
-	if (!server || !server[0])
-		server = SIGNIN_DEFAULT;
-	uri = soup_uri_new_printf(server, "/sessions");
-	soup_uri_set_query_from_fields(uri, "Token", token, NULL);
 
-	purple_connection_update_progress(conn, _("Connecting..."), 1, CONNECT_STEPS);
-	chime_queue_http_request(cxn, node, uri, register_cb, NULL);
+	const gchar *token = purple_account_get_string(account, "token",
+						       NULL);
+	if (token)
+		chime_register_device(cxn, token);
+	else
+		chime_initial_login(cxn);
 }
 
 static void chime_purple_close(PurpleConnection *conn)

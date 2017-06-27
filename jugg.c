@@ -180,6 +180,13 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	soup_websocket_connection_set_max_incoming_payload_size(transport->connection, 0);
 #endif
 
+#if SOUP_CHECK_VERSION(2, 58, 0)
+	/* NOTE: use 10 seconds for the interval but we might want to make it
+	 * a setting so it can be disabled for debugging purposes
+	 */
+	soup_websocket_connection_set_keepalive_interval(transport->connection, 10);
+#endif
+
 	printf("Got ws conn %p\n", cxn->ws_conn);
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "closed",
 			 G_CALLBACK(on_websocket_closed), cxn);

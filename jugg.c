@@ -56,23 +56,29 @@ static void handle_callback(struct chime_connection *cxn, gchar *msg)
 {
 	JsonParser *parser = json_parser_new();
 	gboolean handled = FALSE;
+	GError *error = NULL;
 
-	if (json_parser_load_from_data(parser, msg, strlen(msg), NULL)) {
-		JsonNode *r = json_parser_get_root(parser);
-		JsonObject *obj = json_node_get_object(r);
-		JsonNode *chan_node = json_object_get_member(obj, "channel");
-		JsonNode *data_node = json_object_get_member(obj, "data");
-		const gchar *klass;
+	if (!json_parser_load_from_data(parser, msg, strlen(msg), &error)) {
+		g_warning("Error loading data: %s", error->message);
+		g_error_free(error);
+		g_object_unref(parser);
+		return;
+	}
 
-		if (chan_node && data_node && parse_string(data_node, "klass", &klass)) {
-			const gchar *chan = json_node_get_string(chan_node);
-			GList *l = g_hash_table_lookup(cxn->subscriptions, chan);
-			while (l) {
-				struct jugg_subscription *sub = l->data;
-				if (!sub->klass || !strcmp(sub->klass, klass))
-					handled |= sub->cb(sub->cb_data, klass, data_node);
-				l = l->next;
-			}
+	JsonNode *r = json_parser_get_root(parser);
+	JsonObject *obj = json_node_get_object(r);
+	JsonNode *chan_node = json_object_get_member(obj, "channel");
+	JsonNode *data_node = json_object_get_member(obj, "data");
+	const gchar *klass;
+
+	if (chan_node && data_node && parse_string(data_node, "klass", &klass)) {
+		const gchar *chan = json_node_get_string(chan_node);
+		GList *l = g_hash_table_lookup(cxn->subscriptions, chan);
+		while (l) {
+			struct jugg_subscription *sub = l->data;
+			if (!sub->klass || !strcmp(sub->klass, klass))
+				handled |= sub->cb(sub->cb_data, klass, data_node);
+			l = l->next;
 		}
 	}
 	g_object_unref(parser);

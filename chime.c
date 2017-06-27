@@ -194,7 +194,8 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 		}
 	}
 
-	cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);
+	if (cmsg->cb)
+		cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);
 	g_clear_object(&parser);
 	g_free(cmsg);
 }
@@ -599,9 +600,21 @@ void chime_update_last_msg(struct chime_connection *cxn, gboolean is_room,
 	purple_account_set_string(cxn->prpl_conn->account, key, val);
 	g_free(key);
 	g_free(val);
+
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "LastReadMessageId");
+	jb = json_builder_add_string_value(jb, msg_id);
+	jb = json_builder_end_object(jb);
+
+	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url,
+					   "/%ss/%s", is_room ? "room" : "conversation",
+					   id);
+	chime_queue_http_request(cxn, json_builder_get_root(jb), uri, NULL, NULL);
+	g_object_unref(jb);
 }
 
-/* WARE! msg_time is alloceted, msg_id is const */
+/* WARE! msg_time is allocated, msg_id is const */
 gboolean chime_read_last_msg(struct chime_connection *cxn, gboolean is_room,
 			     const gchar *id, const gchar **msg_time,
 			     gchar **msg_id)

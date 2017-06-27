@@ -42,8 +42,7 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 	printf("websocket closed: %d %s (%d)!\n", soup_websocket_connection_get_close_code(ws),
 	       soup_websocket_connection_get_close_data(ws), cxn->jugg_connected);
 
-	g_object_unref(cxn->ws_conn);
-	cxn->ws_conn = NULL;
+	g_clear_object(&cxn->ws_conn);
 
 	if (cxn->jugg_connected)
 		connect_jugg(cxn);
@@ -232,19 +231,13 @@ static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer user_data
 
 void chime_destroy_juggernaut(struct chime_connection *cxn)
 {
-	if (cxn->ws_conn) {
-		g_object_unref(cxn->ws_conn);
-		cxn->ws_conn = NULL;
-	}
 	if (cxn->subscriptions) {
 		g_hash_table_foreach_remove(cxn->subscriptions, chime_sublist_destroy, NULL);
 		g_hash_table_destroy(cxn->subscriptions);
 		cxn->subscriptions = NULL;
 	}
-	if (cxn->ws_key) {
-		g_free(cxn->ws_key);
-		cxn->ws_key = NULL;
-	}
+	g_clear_object(&cxn->ws_conn);
+	g_clear_pointer(&cxn->ws_key, g_free);
 }
 
 void chime_init_juggernaut(struct chime_connection *cxn)

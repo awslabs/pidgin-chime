@@ -1,0 +1,78 @@
+
+We have a minimally functional client which can do chat rooms and 1:1 IM.
+The code is at "prototype" quality and needs improving, and there are
+features and corner cases which are still unhandled. What se need to do
+includes...
+
+
+ • Error handling
+
+   There is very little of this; a lot of silent "return" on failures.
+   That's all very well for a rapid prototype but crap for a piece of
+   software that people are actually going to use. Someone needs to do
+   the fun part of turning all those failures into coherent error
+   messages.
+
+
+ • Logging
+
+   Somewhat ties into the above. We should emit decent application
+   logs through purple_debug(), in addition to dumping the wire
+   traffic as we do when $CHIME_DEBUG is set. We should ensure we
+   log unhandled incoming messages — the juggernaut callback already
+   has a start at returning a 'handled' status.
+
+
+ • Multi-party conversations
+
+   These will need to be represented as chats in Pidgin.
+
+
+ • Message notifications / attachments
+
+   Handle the special cases in messages other than just plain text.
+
+
+ • IM history
+
+   Work out how we can make historical IM messages available without
+   having to present then *all* as new messages on first startup.
+
+
+ • Presence / availability
+
+   Investigate and properly implement the device availability workflow,
+   use the 'Automatic' status instead of 'Available', and ensure we
+   have coverage of the other states that a peer can be in.
+
+
+ • Login
+
+   Work out if there's a way we can actually handling the login from
+   within Pidgin.
+
+
+ • Pidgin 3.x
+
+   Port to Pidgin 3.x
+
+
+ • 'Typing' status
+
+   Send and show the 'is typing a message...' status
+
+
+ • Message receipts
+
+   As of Pidgin 3.x we can show when a message has been read:
+   https://developer.pidgin.im/ticket/6940#comment:34
+
+
+ • Valgrind testing
+
+   Keep running under 'valgrind --leak-check=full' and other testing
+
+
+ • Voice / video / meetings
+
+   Lots more fun here when we're ready...

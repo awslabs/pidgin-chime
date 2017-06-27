@@ -65,6 +65,7 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 	} else {
 		conv = g_new0(struct chime_conversation, 1);
 		conv->id = g_strdup(id);
+		g_hash_table_insert(cxn->conversations_by_id, conv->id, conv);
 	}
 
 	conv->channel = g_strdup(channel);
@@ -98,7 +99,6 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 	if (im_member)
 		g_hash_table_insert(cxn->im_conversations_by_peer_id, (void *)im_member, conv);
 
-	g_hash_table_insert(cxn->conversations_by_id, conv->id, conv);
 	g_hash_table_insert(cxn->conversations_by_name, conv->name, conv);
 }
 

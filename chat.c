@@ -48,6 +48,60 @@ struct chat_member {
 	gchar *display_name;
 };
 
+static GRegex *mention_regex = NULL;
+
+/*
+ * Examples:
+ *
+ * <@all|All members> becomes All members
+ * <@present|Present members> becomes Present members
+ * <@75f50e24-d59d-40e4-996b-6ba3ff3f371f|Surname, Name> becomes Surname, Name
+ */
+#define MENTION_PATTERN "<@([\\w\\-]+)\\|([^>]+)>"
+#define MENTION_REPLACEMENT "\\2"
+
+/*
+ * Returns whether `me` was mentioned in the Chime `message`, and allocates a
+ * new string in `*parsed`.
+ */
+static int parse_inbound_mentions(const char *me, const char *message, char **parsed)
+{
+        *parsed = g_regex_replace(mention_regex, message, -1, 0, MENTION_REPLACEMENT, 0, NULL);
+        return strstr(message, me) != NULL || strstr(message, "<@all|") != NULL || strstr(message, "<@present|") != NULL;
+}
+
+static void replace(gchar **dst, const gchar *a, const gchar *b)
+{
+       gchar **parts = g_strsplit(*dst, a, 0);
+       gchar *replaced = g_strjoinv(b, parts);
+       g_strfreev(parts);
+       g_free(*dst);
+       *dst = replaced;
+}
+
+static void expand_member_cb(gpointer _member_id, gpointer _member, gpointer _dest)
+{
+       gchar *member_id = _member_id;
+       struct chat_member *member = _member;
+       gchar *chime_mention = g_strdup_printf("<@%s|%s>", member_id, member->display_name);
+       replace((gchar **) _dest, member->display_name, chime_mention);
+       g_free(chime_mention);
+}
+
+/*
+ * This will simple look for all chat members mentions and replace them with
+ * the Chime format for mentioning. As a special case we expand "@all" and
+ * "@present".
+ */
+static gchar *parse_outbound_mentions(GHashTable *members, const gchar *message)
+{
+       gchar *parsed = g_strdup(message);
+       replace(&parsed, "@all", "<@all|All Members>");
+       replace(&parsed, "@present", "<@present|Present Members>");
+       g_hash_table_foreach(members, expand_member_cb, &parsed);
+       return parsed;
+}
+
 static void chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 			     JsonNode *node, time_t msg_time)
 {
@@ -66,12 +120,22 @@ static void chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 		if (parse_string(node, "Sender", &str))
 			who = g_hash_table_lookup(chat->members, str);
 
-		serv_got_chat_in(conn, id, who ? who->email : _("<unknown sender>"),
-				 PURPLE_MESSAGE_RECV, content, msg_time);
+		gchar *parsed = NULL;
+		int message_flag = PURPLE_MESSAGE_RECV;
+		if (parse_inbound_mentions(cxn->profile_id, content, &parsed)) {
+		       // Presumably this will trigger a notification.
+		       message_flag |= PURPLE_MESSAGE_NICK;
+		}
+
+		gchar *escaped = g_markup_escape_text(parsed, -1);
+		g_free(parsed);
+
+		serv_got_chat_in(conn, id, who ? who->display_name : _("<unknown sender>"),
+				 message_flag, escaped, msg_time);
+		g_free(escaped);
 	}
 
 }
-
 
 static gboolean add_chat_member(struct chime_chat *chat, JsonNode *node)
 {
@@ -233,7 +297,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 
 	printf("join_chat %p %s %s\n", data, roomid, (gchar *)g_hash_table_lookup(data, "Name"));
 	room = g_hash_table_lookup(cxn->rooms_by_id, roomid);
-	if (!room || room->chat)
+        if (!room || room->chat)
 		return;
 
 	chat = g_new0(struct chime_chat, 1);
@@ -295,11 +359,17 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	/* For idempotency of requests. Not that we retry. */
 	gchar *uuid = purple_uuid_random();
 
+	/* Chime does not understand HTML. */
+	gchar *unescaped = purple_unescape_html(message);
+
+	/* Expand member names into the format Chime understands */
+        gchar *expanded = parse_outbound_mentions(chat->members, unescaped);
+	g_free(unescaped);
+
 	JsonBuilder *jb = json_builder_new();
-	jb = json_builder_new();
 	jb = json_builder_begin_object(jb);
 	jb = json_builder_set_member_name(jb, "Content");
-	jb = json_builder_add_string_value(jb, message);
+	jb = json_builder_add_string_value(jb, expanded);
 	jb = json_builder_set_member_name(jb, "ClientRequestToken");
 	jb = json_builder_add_string_value(jb, uuid);
 	jb = json_builder_end_object(jb);
@@ -312,6 +382,7 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	} else
 		ret = -1;
 
+	g_free(expanded);
 	g_object_unref(jb);
 	return ret;
 }
@@ -338,10 +409,12 @@ static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 
 void chime_init_chats(ChimeConnection *cxn)
 {
+        mention_regex = g_regex_new(MENTION_PATTERN, G_REGEX_EXTENDED, 0, NULL);
 	chime_jugg_subscribe(cxn, cxn->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
 }
 
 void chime_destroy_chats(ChimeConnection *cxn)
 {
+        g_regex_unref(mention_regex);
 	chime_jugg_unsubscribe(cxn, cxn->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
 }

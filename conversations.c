@@ -579,7 +579,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 	}
 	struct im_send_data *im = g_new0(struct im_send_data, 1);
 	im->contact = contact;
-	im->message = g_strdup(message);
+	im->message = purple_unescape_html(message);
 	im->flags = flags;
 	im->conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
 				       contact->profile_id);

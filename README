@@ -29,10 +29,16 @@ link from the installed plugin (e.g. /usr/lib64/purple-2/libchime.so) to
     AUTHENTICATION
     ==============
 
-Initial authentication to Chime is performed via a web browser. Start
-at https://signin.id.ue1.app.chime.aws/ and complete the authentication
-process until you end up at a URI that the browser cannot handle, which
-looks something like
+Use the setup-pidgin.py script to obtain an authentication token.  The
+script will automatically update the accounts configuration by adding
+the token, use the "-n" option if you want to add it by hand.  For more
+information use the "-h" option.
+
+Alternatively, initial authentication to Chime is performed via a web
+browser. Start at https://signin.id.ue1.app.chime.aws/ and complete the
+authentication process until you end up at a URI that the browser cannot
+handle, which looks something like
+
       chime://sso_sessions?Token=eyJyZ…
 
 The part after 'Token=' is your authentication token. Create an account

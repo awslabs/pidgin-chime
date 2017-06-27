@@ -289,7 +289,7 @@ static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 	const gchar *id;
 	if (!parse_string(record, "MessageId", &id))
 		return FALSE;
-	if (conv->msgs->messages) {
+	if (conv->msgs && conv->msgs->messages) {
 		/* Still gathering messages. Add to the table, to avoid dupes */
 		g_hash_table_insert(conv->msgs->messages, (gchar *)id, json_node_ref(record));
 		return TRUE;

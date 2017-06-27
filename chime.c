@@ -170,9 +170,15 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 
 	const gchar *content_type = soup_message_headers_get_content_type(msg->response_headers, NULL);
 	if (content_type && !strcmp(content_type, "application/json")) {
+		GError *error = NULL;
+
 		parser = json_parser_new();
-		if (json_parser_load_from_data(parser, msg->response_body->data, msg->response_body->length, NULL))
+		if (!json_parser_load_from_data(parser, msg->response_body->data, msg->response_body->length, &error)) {
+			g_warning("Error loading data: %s", error->message);
+			g_error_free(error);
+		} else {
 			node = json_parser_get_root(parser);
+		}
 	}
 
 	cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);

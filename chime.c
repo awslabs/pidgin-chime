@@ -176,8 +176,7 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 	}
 
 	cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);
-	if (parser)
-		g_object_unref(parser);
+	g_clear_object(&parser);
 	g_free(cmsg);
 }
 
@@ -415,19 +414,17 @@ static void chime_purple_close(PurpleConnection *conn)
 	if (cxn) {
 		if (cxn->soup_sess) {
 			soup_session_abort(cxn->soup_sess);
-			g_object_unref(cxn->soup_sess);
-			cxn->soup_sess = NULL;
 		}
+		g_clear_object(&cxn->soup_sess);
+
 		chime_destroy_juggernaut(cxn);
 		chime_destroy_buddies(cxn);
 		chime_destroy_rooms(cxn);
 		chime_destroy_conversations(cxn);
 		chime_destroy_chats(cxn);
 
-		if (cxn->reg_node) {
-			json_node_unref(cxn->reg_node);
-			cxn->reg_node = NULL;
-		}
+		g_clear_pointer(&cxn->reg_node, json_node_unref);
+
 		while ( (l = g_list_first(cxn->msg_queue)) ) {
 			struct chime_msg *cmsg = l->data;
 
@@ -436,10 +433,7 @@ static void chime_purple_close(PurpleConnection *conn)
 			cxn->msg_queue = g_list_remove(cxn->msg_queue, cmsg);
 		}
 		cxn->msg_queue = NULL;
-		if (cxn->session_token) {
-			g_free(cxn->session_token);
-			cxn->session_token = NULL;
-		}
+		g_clear_pointer(&cxn->session_token, g_free);
 		purple_connection_set_protocol_data(cxn->prpl_conn, NULL);
 		g_free(cxn);
 	}

@@ -58,7 +58,6 @@ static int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
 			return TRUE;
 		}
 		ms->node = json_node_ref(_node);
-		printf("Add %p to list at %p\n", ms, l);
 		*l = g_list_insert_sorted(*l, ms, compare_ms);
 	}
 	return TRUE;
@@ -71,6 +70,7 @@ void chime_complete_messages(struct chime_connection *cxn, struct chime_msgs *ms
 	/* Sort messages by time */
 	g_hash_table_foreach_remove(msgs->messages, insert_queued_msg, &l);
 	g_hash_table_destroy(msgs->messages);
+	g_clear_pointer(&msgs->last_msg, g_free);
 	msgs->messages = NULL;
 
 	while (l) {
@@ -82,21 +82,31 @@ void chime_complete_messages(struct chime_connection *cxn, struct chime_msgs *ms
 
 		/* Last message, note down the received time */
 		if (!l) {
-			const gchar *tm;
-			if (parse_string(node, "CreatedOn", &tm))
-				chime_update_last_msg(cxn, msgs->is_room, msgs->id, tm);
+			const gchar *tm, *id;
+			if (parse_string(node, "CreatedOn", &tm) &&
+			    parse_string(node, "MessageId", &id))
+				chime_update_last_msg(cxn, msgs->is_room, msgs->id, tm, id);
 		}
 		json_node_unref(node);
 	}
 }
 
 static void one_msg_cb(JsonArray *array, guint index_,
-		       JsonNode *node, gpointer _hash)
+		       JsonNode *node, gpointer _msgs)
 {
+	struct chime_msgs *msgs = _msgs;
 	const char *id;
 
-	if (parse_string(node, "MessageId", &id))
-		g_hash_table_insert(_hash, (gpointer)id, json_node_ref(node));
+	if (!parse_string(node, "MessageId", &id))
+		return;
+
+	/* Drop if it it's the last of the messages we'd already seen */
+	if (msgs->last_msg && !strcmp(id, msgs->last_msg)) {
+		g_clear_pointer(&msgs->last_msg, g_free);
+		return;
+	}
+
+	g_hash_table_insert(msgs->messages, (gpointer)id, json_node_ref(node));
 }
 
 static void fetch_msgs_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _msgs)
@@ -109,7 +119,7 @@ static void fetch_msgs_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNo
 	JsonArray *msgs_array = json_node_get_array(msgs_node);
 
 	msgs->soup_msg = NULL;
-	json_array_foreach_element(msgs_array, one_msg_cb, msgs->messages);
+	json_array_foreach_element(msgs_array, one_msg_cb, msgs);
 
 	if (parse_string(node, "NextToken", &next_token))
 		fetch_messages(cxn, _msgs, next_token);
@@ -128,7 +138,7 @@ void fetch_messages(struct chime_connection *cxn, struct chime_msgs *msgs, const
 	int i = 0;
 
 	const gchar *after = NULL;
-	chime_read_last_msg(cxn, msgs->is_room, msgs->id, &after);
+	chime_read_last_msg(cxn, msgs->is_room, msgs->id, &after, &msgs->last_msg);
 
 	if (!msgs->messages)
 		msgs->messages = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);

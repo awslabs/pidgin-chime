@@ -115,11 +115,13 @@ static gboolean chat_jugg_cb(gpointer _chat, const gchar *klass, JsonNode *node)
 		return FALSE;
 
 	if (!strcmp(klass, "RoomMessage")) {
+		const gchar *msg_id;
+		if (!parse_string(record, "MessageId", &msg_id))
+			return FALSE;
+
 		if (chat->msgs.messages) {
 			/* Still gathering messages. Add to the table, to avoid dupes */
-			const gchar *id;
-			if (parse_string(record, "MessageId", &id))
-				g_hash_table_insert(chat->msgs.messages, (gchar *)id, json_node_ref(node));
+			g_hash_table_insert(chat->msgs.messages, (gchar *)msg_id, json_node_ref(node));
 			return TRUE;
 		}
 
@@ -128,7 +130,7 @@ static gboolean chat_jugg_cb(gpointer _chat, const gchar *klass, JsonNode *node)
 		if (!parse_time(record, "CreatedOn", &msg_time, &tv))
 			return FALSE;
 
-		chime_update_last_msg(cxn, TRUE, chat->room->id, msg_time);
+		chime_update_last_msg(cxn, TRUE, chat->room->id, msg_time, msg_id);
 
 		chat_deliver_msg(cxn, &chat->msgs, record, tv.tv_sec);
 		return TRUE;

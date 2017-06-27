@@ -121,7 +121,8 @@ typedef void (*chime_msg_cb)(struct chime_connection *cxn, struct chime_msgs *ms
 
 struct chime_msgs {
 	gboolean is_room;
-	const char *id;
+	const gchar *id; /* of the conversation or room */
+	gchar *last_msg; /* MessageId of last known message */
 	GHashTable *messages; /* While fetching */
 	SoupMessage *soup_msg; /* For cancellation */
 	gboolean members_done, msgs_done;
@@ -167,10 +168,15 @@ SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *
 #define chime_queue_http_request(_c, _n, _u, _cb, _d)			\
 	__chime_queue_http_request((_c), (_n), (_u), (_cb), (_d), TRUE)
 void chime_register_device(struct chime_connection *cxn, const gchar *token);
+
 void chime_update_last_msg(struct chime_connection *cxn, gboolean is_room,
-			   const gchar *id, const gchar *msg_time);
+			   const gchar *id, const gchar *msg_time,
+			   const gchar *msg_id);
+/* BEWARE: msg_id is allocated, msg_time is const. I am going to hate myself
+   for that one day, but it's convenient for now... */
 gboolean chime_read_last_msg(struct chime_connection *cxn, gboolean is_room,
-			     const gchar *id, const gchar **msg_time);
+			     const gchar *id, const gchar **msg_time,
+			     gchar **msg_id);
 
 /* jugg.c */
 void chime_init_juggernaut(struct chime_connection *cxn);

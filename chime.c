@@ -590,19 +590,38 @@ static void chime_purple_init_plugin(PurplePlugin *plugin)
 PURPLE_INIT_PLUGIN(chime, chime_purple_init_plugin, chime_plugin_info);
 
 void chime_update_last_msg(struct chime_connection *cxn, gboolean is_room,
-			   const gchar *id, const gchar *msg_time)
+			   const gchar *id, const gchar *msg_time,
+			   const gchar *msg_id)
 {
 	gchar *key = g_strdup_printf("last-%s-%s", is_room ? "room" : "conversation", id);
+	gchar *val = g_strdup_printf("%s|%s", msg_id, msg_time);
 
-	purple_account_set_string(cxn->prpl_conn->account, key, msg_time);
+	purple_account_set_string(cxn->prpl_conn->account, key, val);
 	g_free(key);
+	g_free(val);
 }
 
+/* WARE! msg_time is alloceted, msg_id is const */
 gboolean chime_read_last_msg(struct chime_connection *cxn, gboolean is_room,
-			     const gchar *id, const gchar **msg_time)
+			     const gchar *id, const gchar **msg_time,
+			     gchar **msg_id)
 {
 	gchar *key = g_strdup_printf("last-%s-%s", is_room ? "room" : "conversation", id);
-	*msg_time = purple_account_get_string(cxn->prpl_conn->account, key, NULL);
+	const gchar *val = purple_account_get_string(cxn->prpl_conn->account, key, NULL);
+	if (!val || !val[0])
+		return FALSE;
+
+	*msg_time = strrchr(val, '|');
+	if (!*msg_time) {
+		/* Only a date, no msgid */
+		*msg_time = val;
+		*msg_id = NULL;
+		return TRUE;
+	}
+
+	*msg_id = g_strndup(val, *msg_time - val);
+	(*msg_time)++; /* Past the | */
+
 	g_free(key);
-	return !!*msg_time;
+	return TRUE;
 }

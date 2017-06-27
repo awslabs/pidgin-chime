@@ -276,11 +276,12 @@ static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 		}
 		return FALSE;
 	}
+	const gchar *id;
+	if (!parse_string(record, "MessageId", &id))
+		return FALSE;
 	if (conv->msgs->messages) {
 		/* Still gathering messages. Add to the table, to avoid dupes */
-		const gchar *id;
-		if (parse_string(record, "MessageId", &id))
-			g_hash_table_insert(conv->msgs->messages, (gchar *)id, json_node_ref(record));
+		g_hash_table_insert(conv->msgs->messages, (gchar *)id, json_node_ref(record));
 		return TRUE;
 	}
 	GTimeVal tv;
@@ -288,7 +289,7 @@ static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 	if (!parse_time(record, "CreatedOn", &created, &tv))
 		return FALSE;
 
-	chime_update_last_msg(cxn, FALSE, conv->id, created);
+	chime_update_last_msg(cxn, FALSE, conv->id, created, id);
 
 	return do_conv_deliver_msg(cxn, conv, record, tv.tv_sec);
 }

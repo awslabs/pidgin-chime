@@ -361,7 +361,6 @@ static int send_im(struct chime_connection *cxn, struct chime_conversation *conv
 	gchar *uuid = purple_uuid_random();
 
 	JsonBuilder *jb = json_builder_new();
-	jb = json_builder_new();
 	jb = json_builder_begin_object(jb);
 	jb = json_builder_set_member_name(jb, "Content");
 	jb = json_builder_add_string_value(jb, im->message);

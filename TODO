@@ -28,6 +28,13 @@ includes...
    purple_request_fields()
 
 
+ • Code documentation
+
+   Now that the APIs for the internal functions are no longer evolving
+   quite so rapidly, document them. Especially the subtle parts about
+   object ownership.
+
+
  • Logging
 
    Somewhat ties into the above. We should emit decent application

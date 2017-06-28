@@ -38,6 +38,8 @@ struct chime_chat {
 	SoupMessage *members_msg;
 	gboolean got_members;
 	GHashTable *members;
+
+	GHashTable *sent_msgs;
 };
 
 struct chat_member {
@@ -50,7 +52,11 @@ static void chat_deliver_msg(struct chime_connection *cxn, struct chime_msgs *ms
 {
 	struct chime_chat *chat = (struct chime_chat *)msgs; /* Really */
 	struct chat_member *who = NULL;
-	const gchar *str, *content;
+	const gchar *str, *content, *msg_id;
+
+	if (parse_string(node, "MessageId", &msg_id) &&
+	    g_hash_table_remove(chat->sent_msgs, msg_id))
+		return;
 
 	if (parse_string(node, "Content", &content)) {
 		PurpleConnection *conn = chat->conv->account->gc;
@@ -161,7 +167,8 @@ void chime_destroy_chat(struct chime_chat *chat)
 		g_hash_table_destroy(chat->msgs.messages);
 	if (chat->members)
 		g_hash_table_destroy(chat->members);
-
+	if (chat->sent_msgs)
+		g_hash_table_destroy(chat->sent_msgs);
 	g_free(chat);
 	room->chat = NULL;
 	printf("Destroyed chat %p\n", chat);
@@ -222,7 +229,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 
 	printf("join_chat %p %s %s\n", data, roomid, (gchar *)g_hash_table_lookup(data, "Name"));
 	room = g_hash_table_lookup(cxn->rooms_by_id, roomid);
-if (!room || room->chat)
+	if (!room || room->chat)
 		return;
 
 	chat = g_new0(struct chime_chat, 1);
@@ -232,6 +239,8 @@ if (!room || room->chat)
 	int chat_id = ++cxn->chat_id;
 	chat->conv = serv_got_joined_chat(conn, chat_id, room->name);
 	g_hash_table_insert(cxn->live_chats, GUINT_TO_POINTER(chat_id), chat);
+
+	chat->sent_msgs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 
 	chat->members = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, kill_member);
 	chime_jugg_subscribe(cxn, room->channel, NULL, chat_jugg_cb, chat);
@@ -261,6 +270,15 @@ static void send_msg_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode
 						 msg->status_code, msg->reason_phrase);
 		purple_conversation_write(chat->conv, NULL, err_msg, PURPLE_MESSAGE_ERROR, time(NULL));
 		g_free(err_msg);
+		return;
+       }
+       JsonObject *obj = json_node_get_object(node);
+       JsonNode *msgnode = json_object_get_member(obj, "Message");
+       if (msgnode) {
+	       const gchar *msg_id;
+
+	       if (parse_string(msgnode, "MessageId", &msg_id))
+		       g_hash_table_add(chat->sent_msgs, g_strdup(msg_id));
        }
 }
 
@@ -283,9 +301,11 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	jb = json_builder_end_object(jb);
 
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages", chat->room->id);
-	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, send_msg_cb, chat))
+	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, send_msg_cb, chat)) {
 		ret = 0;
-	else
+		serv_got_chat_in(conn, id, purple_connection_get_display_name(conn),
+				 flags, message, time(NULL));
+	} else
 		ret = -1;
 
 	g_object_unref(jb);

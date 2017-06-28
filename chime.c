@@ -300,6 +300,7 @@ static gboolean parse_regnode(struct chime_connection *cxn, JsonNode *regnode)
 	JsonObject *obj = json_node_get_object(cxn->reg_node);
 	JsonNode *node, *sess_node = json_object_get_member(obj, "Session");
 	const gchar *sess_tok;
+	const gchar *display_name;
 
 	if (!sess_node)
 		return FALSE;
@@ -316,8 +317,11 @@ static gboolean parse_regnode(struct chime_connection *cxn, JsonNode *regnode)
 	node = json_object_get_member(obj, "Profile");
 	if (!parse_string(node, "profile_channel", &cxn->profile_channel) ||
 	    !parse_string(node, "presence_channel", &cxn->presence_channel) ||
-	    !parse_string(node, "id", &cxn->profile_id))
+	    !parse_string(node, "id", &cxn->profile_id) ||
+	    !parse_string(node, "display_name", &display_name))
 		return FALSE;
+
+	purple_connection_set_display_name(cxn->prpl_conn, display_name);
 
 	node = json_object_get_member(obj, "Device");
 	if (!parse_string(node, "DeviceId", &cxn->device_id) ||

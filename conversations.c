@@ -97,8 +97,13 @@ static gboolean do_conv_deliver_msg(struct chime_connection *cxn, struct chime_c
 										  contact->email,
 										  cxn->prpl_conn->account);
 		if (!pconv) {
-			printf("\n***** NO CONV FOR %s\n", contact->email);
-			return FALSE; /*XX: Create one! */
+			pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM, cxn->prpl_conn->account,
+							contact->email);
+			if (!pconv) {
+				printf("\n***** NO CONV FOR %s\n", contact->email);
+
+				return FALSE;
+			}
 		}
 
 		purple_conversation_write(pconv, NULL, message, PURPLE_MESSAGE_SEND, msg_time);

@@ -151,7 +151,7 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 				g_hash_table_insert(cxn->im_conversations_by_peer_id,
 						    (void *)member->profile_id, conv);
 
-				printf("im_member %s\n", member->profile_id);
+				printf("im_member for %s (%d) %s\n", conv->id, len, member->profile_id);
 			}
 		}
 	}

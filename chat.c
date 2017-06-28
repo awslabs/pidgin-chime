@@ -44,7 +44,8 @@ struct chime_chat {
 
 struct chat_member {
 	gchar *id;
-	gchar *full_name;
+	gchar *email;
+	gchar *display_name;
 };
 
 static void chat_deliver_msg(struct chime_connection *cxn, struct chime_msgs *msgs,
@@ -65,7 +66,7 @@ static void chat_deliver_msg(struct chime_connection *cxn, struct chime_msgs *ms
 		if (parse_string(node, "Sender", &str))
 			who = g_hash_table_lookup(chat->members, str);
 
-		serv_got_chat_in(conn, id, who ? who->full_name : _("<unknown sender>"),
+		serv_got_chat_in(conn, id, who ? who->email : _("<unknown sender>"),
 				 PURPLE_MESSAGE_RECV, content, msg_time);
 	}
 
@@ -74,7 +75,7 @@ static void chat_deliver_msg(struct chime_connection *cxn, struct chime_msgs *ms
 
 static gboolean add_chat_member(struct chime_chat *chat, JsonNode *node)
 {
-	const char *id, *full_name;
+	const char *id, *email, *display_name;
 	PurpleConvChatBuddyFlags flags;
 	JsonObject *obj = json_node_get_object(node);
 	JsonNode *member = json_object_get_member(obj, "Member");
@@ -93,19 +94,21 @@ static gboolean add_chat_member(struct chime_chat *chat, JsonNode *node)
 		return FALSE;
 	}
 	if (!parse_string(member, "ProfileId", &id) ||
-	    !parse_string(member, "FullName", &full_name))
+	    !parse_string(member, "Email", &email) ||
+	    !parse_string(member, "DisplayName", &display_name))
 		return FALSE;
 
 	if (!g_hash_table_lookup(chat->members, id)) {
 		struct chat_member *m = g_new0(struct chat_member, 1);
 		m->id = g_strdup(id);
-		m->full_name = g_strdup(full_name);
+		m->email = g_strdup(email);
+		m->display_name = g_strdup(display_name);
 		g_hash_table_insert(chat->members, m->id, m);
 
-		purple_conv_chat_add_user(PURPLE_CONV_CHAT(chat->conv), m->full_name,
+		purple_conv_chat_add_user(PURPLE_CONV_CHAT(chat->conv), m->email,
 					  NULL, flags, chat->msgs.members_done);
 	} else {
-		purple_conv_chat_user_set_flags(PURPLE_CONV_CHAT(chat->conv), full_name, flags);
+		purple_conv_chat_user_set_flags(PURPLE_CONV_CHAT(chat->conv), email, flags);
 	}
 	return TRUE;
 }
@@ -216,7 +219,8 @@ static void kill_member(gpointer _member)
 	struct chat_member *member = _member;
 
 	g_free(member->id);
-	g_free(member->full_name);
+	g_free(member->email);
+	g_free(member->display_name);
 	g_free(member);
 }
 

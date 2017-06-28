@@ -303,6 +303,11 @@ static gboolean chat_demuxing_jugg_cb(struct chime_connection *cxn, gpointer _un
 	if (!room)
 		return FALSE;
 
+	if (!room->chat) {
+		/* XXXX: Create it! */
+		return FALSE;
+	}
+
 	return chat_jugg_cb(cxn, room->chat, klass, type, record);
 }
 

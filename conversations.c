@@ -123,13 +123,16 @@ static void conv_deliver_msg(struct chime_connection *cxn, struct chime_msgs *ms
 
 static void fetch_conversation_messages(struct chime_connection *cxn, struct chime_conversation *conv)
 {
-	conv->msgs = g_new0(struct chime_msgs, 1);
-	conv->msgs->id = conv->id;
-	conv->msgs->members_done =TRUE;
-	conv->msgs->cb = conv_deliver_msg;
-
-	printf("Fetch conv messages for %s\n", conv->id);
-	fetch_messages(cxn, conv->msgs, NULL);
+	if (!conv->msgs) {
+		conv->msgs = g_new0(struct chime_msgs, 1);
+		conv->msgs->id = conv->id;
+		conv->msgs->members_done = TRUE;
+		conv->msgs->cb = conv_deliver_msg;
+	}
+	if (conv->msgs->msgs_done) {
+		printf("Fetch conv messages for %s\n", conv->id);
+		fetch_messages(cxn, conv->msgs, NULL);
+	}
 }
 
 static void one_conversation_cb(JsonArray *array, guint index_,
@@ -405,7 +408,7 @@ static gboolean conv_membership_jugg_cb(struct chime_connection *cxn, gpointer _
 	    strcmp(last_seen, last_delivered)) {
 		printf("WTF refetching messages for ConversationMembership update\n");
 		fetch_conversation_messages(cxn, conv);
-	}
+	} else printf("no fetch last %s\n", last_seen);
 
 	return TRUE;
 }

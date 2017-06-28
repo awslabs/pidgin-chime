@@ -46,7 +46,7 @@ in Pidgin, providing this token in the 'Advanced' tab of the settings.
 
 
     =========
-    DENUGGING
+    DEBUGGING
     =========
 
 Run from a terminal with the CHIME_DEBUG environment variable set.

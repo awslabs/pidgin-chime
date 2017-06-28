@@ -123,16 +123,19 @@ static void conv_deliver_msg(struct chime_connection *cxn, struct chime_msgs *ms
 
 static void fetch_conversation_messages(struct chime_connection *cxn, struct chime_conversation *conv)
 {
-	if (!conv->msgs) {
+	if (conv->msgs) {
+		if (conv->msgs->msgs_done)
+			conv->msgs->msgs_done = FALSE;
+		else
+			return; /* Already in progress */
+	} else {
 		conv->msgs = g_new0(struct chime_msgs, 1);
 		conv->msgs->id = conv->id;
 		conv->msgs->members_done = TRUE;
 		conv->msgs->cb = conv_deliver_msg;
 	}
-	if (conv->msgs->msgs_done) {
-		printf("Fetch conv messages for %s\n", conv->id);
-		fetch_messages(cxn, conv->msgs, NULL);
-	}
+	printf("Fetch conv messages for %s\n", conv->id);
+	fetch_messages(cxn, conv->msgs, NULL);
 }
 
 static void one_conversation_cb(JsonArray *array, guint index_,

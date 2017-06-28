@@ -212,10 +212,9 @@ static void destroy_conversation(gpointer _conv)
 	g_free(conv);
 }
 
-static gboolean conv_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
+static gboolean conv_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+			     const gchar *klass, JsonNode *node)
 {
-	struct chime_connection *cxn = _cxn;
-
 	JsonObject *obj = json_node_get_object(node);
 	JsonNode *record = json_object_get_member(obj, "record");
 	if (!record)
@@ -225,7 +224,8 @@ static gboolean conv_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
 	return TRUE;
 }
 
-static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node);
+static gboolean conv_msg_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+				 const gchar *klass, JsonNode *node);
 static void fetch_new_conv_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node,
 			      gpointer _msgnode)
 {
@@ -250,7 +250,7 @@ static void fetch_new_conv_cb(struct chime_connection *cxn, SoupMessage *msg, Js
 			goto bad;
 
 		/* OK, now we know about the new conversation we can play the msg node */
-		conv_msg_cb(cxn, "ConversationMessage", msgnode);
+		conv_msg_jugg_cb(cxn, NULL, "ConversationMessage", msgnode);
 		json_node_unref(msgnode);
 		return;
 	}
@@ -258,10 +258,9 @@ static void fetch_new_conv_cb(struct chime_connection *cxn, SoupMessage *msg, Js
 	json_node_unref(msgnode);
 }
 
-static gboolean conv_msg_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
+static gboolean conv_msg_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+				 const gchar *klass, JsonNode *node)
 {
-	struct chime_connection *cxn = _cxn;
-
 	JsonObject *obj = json_node_get_object(node);
 	JsonNode *record = json_object_get_member(obj, "record");
 	if (!record)
@@ -311,15 +310,15 @@ void chime_init_conversations(struct chime_connection *cxn)
 	cxn->im_conversations_by_peer_id = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->conversations_by_name = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->conversations_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_conversation);
-	chime_jugg_subscribe(cxn, cxn->device_channel, "ConversationMessage", conv_msg_cb, cxn);
-	chime_jugg_subscribe(cxn, cxn->device_channel, "Conversation", conv_cb, cxn);
+	chime_jugg_subscribe(cxn, cxn->device_channel, "ConversationMessage", conv_msg_jugg_cb, NULL);
+	chime_jugg_subscribe(cxn, cxn->device_channel, "Conversation", conv_jugg_cb, NULL);
 	fetch_conversations(cxn, NULL);
 }
 
 void chime_destroy_conversations(struct chime_connection *cxn)
 {
-	chime_jugg_unsubscribe(cxn, cxn->device_channel, "ConversationMessage", conv_msg_cb, cxn);
-	chime_jugg_unsubscribe(cxn, cxn->device_channel, "Conversation", conv_cb, cxn);
+	chime_jugg_unsubscribe(cxn, cxn->device_channel, "ConversationMessage", conv_msg_jugg_cb, NULL);
+	chime_jugg_unsubscribe(cxn, cxn->device_channel, "Conversation", conv_jugg_cb, NULL);
 	g_hash_table_destroy(cxn->im_conversations_by_peer_id);
 	g_hash_table_destroy(cxn->conversations_by_name);
 	g_hash_table_destroy(cxn->conversations_by_id);

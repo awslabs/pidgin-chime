@@ -77,7 +77,7 @@ static void handle_callback(struct chime_connection *cxn, gchar *msg)
 		while (l) {
 			struct jugg_subscription *sub = l->data;
 			if (!sub->klass || !strcmp(sub->klass, klass))
-				handled |= sub->cb(sub->cb_data, klass, data_node);
+				handled |= sub->cb(cxn, sub->cb_data, klass, data_node);
 			l = l->next;
 		}
 	}
@@ -353,7 +353,7 @@ void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, 
 	}
 }
 
-int jugg_dump_incoming(gpointer cb_data, const gchar *klass, JsonNode *node)
+int jugg_dump_incoming(struct chime_connection *cxn, gpointer cb_data, const gchar *klass, JsonNode *node)
 {
 	JsonGenerator *gen = json_generator_new();
 	gchar *msg;

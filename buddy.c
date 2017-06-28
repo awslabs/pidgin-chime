@@ -61,10 +61,9 @@ static gboolean set_contact_presence(struct chime_connection *cxn, JsonNode *nod
 }
 
 /* Callback for Juggernaut notifications about status */
-static int contact_presence_cb(gpointer _cxn, const gchar *klass, JsonNode *node)
+static gboolean contact_presence_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+					 const gchar *klass, JsonNode *node)
 {
-	struct chime_connection *cxn = _cxn;
-
 	JsonObject *obj = json_node_get_object(node);
 	node = json_object_get_member(obj, "record");
 	if (!node)
@@ -142,10 +141,12 @@ struct chime_contact *chime_contact_new(struct chime_connection *cxn, JsonNode *
 		contact->cxn = cxn;
 		contact->profile_id = g_strdup(profile_id);
 		contact->presence_channel = g_strdup(presence_channel);
-		chime_jugg_subscribe(cxn, presence_channel, "Presence", contact_presence_cb, cxn);
+		chime_jugg_subscribe(cxn, presence_channel, "Presence", contact_presence_jugg_cb,
+				     contact);
 		if (!conv) {
 			contact->profile_channel = g_strdup(profile_channel);
-			chime_jugg_subscribe(cxn, profile_channel, NULL, jugg_dump_incoming, (char *)"Buddy Profile");
+			chime_jugg_subscribe(cxn, profile_channel, NULL, jugg_dump_incoming,
+					     (char *)"Buddy Profile");
 		}
 		g_hash_table_insert(cxn->contacts_by_id, contact->profile_id, contact);
 
@@ -278,11 +279,13 @@ static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNod
 	   predictable... */
 	if (!contact->profile_channel) {
 		contact->profile_channel = g_strdup_printf("profile!%s", id);
-		chime_jugg_subscribe(cxn, contact->profile_channel, jugg_dump_incoming, (char *)"Buddy Profile");
+		chime_jugg_subscribe(cxn, contact->profile_channel, jugg_dump_incoming,
+				     (char *)"Buddy Profile");
 	}
 	if (!contact->presence_channel) {
 		contact->presence_channel = g_strdup_printf("profile_presence!%s", id);
-		chime_jugg_subscribe(cxn, contact->presence_channel, "Presence", contact_presence_cb, cxn);
+		chime_jugg_subscribe(cxn, contact->presence_channel, "Presence",
+				     contact_presence_jugg_cb, contact);
 	}
 #endif
 	/* XXX: Can we get only the one? */
@@ -330,11 +333,13 @@ static void destroy_contact(gpointer _contact)
 	struct chime_contact *contact = _contact;
 
 	if (contact->profile_channel) {
-		chime_jugg_unsubscribe(contact->cxn, contact->profile_channel, NULL, jugg_dump_incoming, (char *)"Buddy Profile");
+		chime_jugg_unsubscribe(contact->cxn, contact->profile_channel, NULL,
+				       jugg_dump_incoming, (char *)"Buddy Profile");
 		g_free(contact->profile_channel);
 	}
 	if (contact->presence_channel) {
-		chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence", contact_presence_cb, contact->cxn);
+		chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence",
+				       contact_presence_jugg_cb, contact);
 		g_free(contact->presence_channel);
 	}
 

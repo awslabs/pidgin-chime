@@ -177,14 +177,14 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 
 #if SOUP_CHECK_VERSION(2, 56, 0)
 	/* Remove limit on the payload size */
-	soup_websocket_connection_set_max_incoming_payload_size(transport->connection, 0);
+	soup_websocket_connection_set_max_incoming_payload_size(cxn->ws_conn, 0);
 #endif
 
 #if SOUP_CHECK_VERSION(2, 58, 0)
 	/* NOTE: use 10 seconds for the interval but we might want to make it
 	 * a setting so it can be disabled for debugging purposes
 	 */
-	soup_websocket_connection_set_keepalive_interval(transport->connection, 10);
+	soup_websocket_connection_set_keepalive_interval(cxn->Ws_conn, 10);
 #endif
 
 	printf("Got ws conn %p\n", cxn->ws_conn);

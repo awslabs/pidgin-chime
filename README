@@ -42,7 +42,9 @@ handle, which looks something like
       chime://sso_sessions?Token=eyJyZ…
 
 The part after 'Token=' is your authentication token. Create an account
-in Pidgin, providing this token in the 'Advanced' tab of the settings.
+in Pidgin, select 'Amazon Chime' as the protocol in the 'Basic' tab then
+go to the 'Advanced' tab and paste the token in the 'Token' field. Leave
+the 'Signin URL' field empty.
 
 
     =========

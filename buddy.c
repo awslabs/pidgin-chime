@@ -139,6 +139,7 @@ struct chime_contact *chime_contact_new(struct chime_connection *cxn, JsonNode *
 	contact = g_hash_table_lookup(cxn->contacts_by_id, profile_id);
 	if (!contact) {
 		contact = g_new0(struct chime_contact, 1);
+		contact->cxn = cxn;
 		contact->profile_id = g_strdup(profile_id);
 		contact->presence_channel = g_strdup(presence_channel);
 		chime_jugg_subscribe(cxn, presence_channel, "Presence", contact_presence_cb, cxn);
@@ -208,7 +209,6 @@ static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _cx
 
 void chime_purple_buddy_free(PurpleBuddy *buddy)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(buddy->account->gc);
 	struct chime_contact *contact = buddy->proto_data;
 
 	printf("buddy_free %s\n", purple_buddy_get_name(buddy));
@@ -216,24 +216,10 @@ void chime_purple_buddy_free(PurpleBuddy *buddy)
 	if (!contact)
 		return;
 
-	if (contact->profile_id) {
-		g_hash_table_remove(cxn->contacts_by_email, contact->email);
-		g_hash_table_remove(cxn->contacts_by_id, contact->profile_id);
-		g_free(contact->profile_id);
-		contact->profile_id = NULL;
-	}
-	if (contact->profile_channel) {
-		chime_jugg_unsubscribe(cxn, contact->profile_channel, NULL, jugg_dump_incoming, (char *)"Buddy Profile");
-		g_free(contact->profile_channel);
-		contact->profile_channel = NULL;
-	}
-	if (contact->presence_channel) {
-		chime_jugg_unsubscribe(cxn, contact->presence_channel, "Presence", contact_presence_cb, cxn);
-		g_free(contact->presence_channel);
-		contact->presence_channel = NULL;
-	}
-	g_free(contact);
+	contact->buddy = NULL;
 	buddy->proto_data = NULL;
+
+	/* We actually leave the internal struct chime_contact alone */
 }
 
 
@@ -342,9 +328,17 @@ void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, Purpl
 static void destroy_contact(gpointer _contact)
 {
 	struct chime_contact *contact = _contact;
+
+	if (contact->profile_channel) {
+		chime_jugg_unsubscribe(contact->cxn, contact->profile_channel, NULL, jugg_dump_incoming, (char *)"Buddy Profile");
+		g_free(contact->profile_channel);
+	}
+	if (contact->presence_channel) {
+		chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence", contact_presence_cb, contact->cxn);
+		g_free(contact->presence_channel);
+	}
+
 	g_free(contact->profile_id);
-	g_free(contact->presence_channel);
-	g_free(contact->profile_channel);
 	g_free(contact->email);
 	g_free(contact->full_name);
 	g_free(contact->display_name);

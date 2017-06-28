@@ -99,6 +99,8 @@ struct chime_connection {
 
 struct chime_contact
 {
+	struct chime_connection *cxn;
+
 	gchar *profile_id;
 	gchar *presence_channel;
 	gchar *profile_channel;
@@ -112,7 +114,7 @@ struct chime_contact
 	/* A given contact may be a Buddy, or may just be known because
 	 * they're in an active conversation */
 	PurpleBuddy *buddy;
-	GList *conversations;
+	//	GList *conversations;
 };
 
 struct chime_msgs;

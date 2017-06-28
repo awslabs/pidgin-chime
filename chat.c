@@ -105,13 +105,9 @@ static gboolean add_chat_member(struct chime_chat *chat, JsonNode *node)
 }
 
 static gboolean chat_jugg_cb(struct chime_connection *cxn, gpointer _chat,
-			     const gchar *klass, JsonNode *node)
+			     const gchar *klass, const gchar *type, JsonNode *record)
 {
 	struct chime_chat *chat = _chat;
-	JsonObject *obj = json_node_get_object(node);
-	JsonNode *record = json_object_get_member(obj, "record");
-	if (!record)
-		return FALSE;
 
 	if (!strcmp(klass, "RoomMessage")) {
 		const gchar *msg_id;
@@ -120,7 +116,8 @@ static gboolean chat_jugg_cb(struct chime_connection *cxn, gpointer _chat,
 
 		if (chat->msgs.messages) {
 			/* Still gathering messages. Add to the table, to avoid dupes */
-			g_hash_table_insert(chat->msgs.messages, (gchar *)msg_id, json_node_ref(node));
+			g_hash_table_insert(chat->msgs.messages, (gchar *)msg_id,
+					    json_node_ref(record));
 			return TRUE;
 		}
 
@@ -296,14 +293,8 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 }
 
 static gboolean chat_demuxing_jugg_cb(struct chime_connection *cxn, gpointer _unused,
-				      const gchar *klass, JsonNode *node)
+				      const gchar *klass, const gchar *type, JsonNode *record)
 {
-	JsonObject *obj = json_node_get_object(node);
-	JsonNode *record = json_object_get_member(obj, "record");
-
-	if (!record)
-		return FALSE;
-
 	const gchar *room_id;
 	if (!parse_string(record, "RoomId", &room_id))
 		return FALSE;
@@ -312,7 +303,7 @@ static gboolean chat_demuxing_jugg_cb(struct chime_connection *cxn, gpointer _un
 	if (!room)
 		return FALSE;
 
-	return chat_jugg_cb(cxn, room->chat, klass, node);
+	return chat_jugg_cb(cxn, room->chat, klass, type, record);
 }
 
 

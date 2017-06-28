@@ -118,13 +118,11 @@ static void destroy_room(gpointer _room)
 }
 
 static gboolean visible_rooms_jugg_cb(struct chime_connection *cxn, gpointer _unused,
-				      const gchar *klass, JsonNode *node)
+				      const gchar *klass, const gchar *type, JsonNode *node)
 {
-	const gchar *typ;
-	if (!parse_string(node, "type", &typ))
+	if (strcmp(type, "update"))
 		return FALSE;
-	if (strcmp(typ, "update") != 0)
-		return FALSE;
+
 	fetch_rooms(cxn, NULL);
 	return TRUE;
 }

@@ -82,7 +82,7 @@ static void handle_callback(struct chime_connection *cxn, gchar *msg)
 			    while (l) {
 				    struct jugg_subscription *sub = l->data;
 				    if (!sub->klass || !strcmp(sub->klass, klass))
-					    handled |= sub->cb(cxn, sub->cb_data, klass, data_node);
+					    handled |= sub->cb(cxn, sub->cb_data, klass, type, record_node);
 				    l = l->next;
 			    }
 		}
@@ -359,14 +359,15 @@ void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, 
 	}
 }
 
-int jugg_dump_incoming(struct chime_connection *cxn, gpointer cb_data, const gchar *klass, JsonNode *node)
+int jugg_dump_incoming(struct chime_connection *cxn, gpointer cb_data, const gchar *klass,
+		       const gchar *type, JsonNode *node)
 {
 	JsonGenerator *gen = json_generator_new();
 	gchar *msg;
 	json_generator_set_root(gen, node);
 	json_generator_set_pretty(gen, TRUE);
 	msg = json_generator_to_data(gen, NULL);
-	printf("incoming %s %s: %s\n", (gchar *)cb_data, klass, msg);
+	printf("incoming %s %s %s: %s\n", (gchar *)cb_data, klass, type, msg);
 	g_free(msg);
 	g_object_unref(gen);
 

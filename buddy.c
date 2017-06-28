@@ -143,7 +143,7 @@ struct chime_contact *chime_contact_new(struct chime_connection *cxn, JsonNode *
 		contact->presence_channel = g_strdup(presence_channel);
 		chime_jugg_subscribe(cxn, presence_channel, "Presence", contact_presence_cb, cxn);
 		if (!conv) {
-			contact->presence_channel = g_strdup(profile_channel);
+			contact->profile_channel = g_strdup(profile_channel);
 			chime_jugg_subscribe(cxn, profile_channel, NULL, jugg_dump_incoming, (char *)"Buddy Profile");
 		}
 		g_hash_table_insert(cxn->contacts_by_id, contact->profile_id, contact);

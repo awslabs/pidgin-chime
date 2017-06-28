@@ -137,7 +137,6 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 	if (!conv->members)
 		conv->members = g_hash_table_new(g_str_hash, g_str_equal);
 
-	const gchar *im_member = NULL;
 	JsonArray *arr = json_node_get_array(members_node);
 	int i, len = json_array_get_length(arr);
 	for (i = 0; i < len; i++) {

@@ -190,7 +190,7 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	/* NOTE: use 10 seconds for the interval but we might want to make it
 	 * a setting so it can be disabled for debugging purposes
 	 */
-	soup_websocket_connection_set_keepalive_interval(cxn->Ws_conn, 10);
+	soup_websocket_connection_set_keepalive_interval(cxn->ws_conn, 10);
 #endif
 
 	printf("Got ws conn %p\n", cxn->ws_conn);

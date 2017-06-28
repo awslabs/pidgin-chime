@@ -65,20 +65,26 @@ static void handle_callback(struct chime_connection *cxn, gchar *msg)
 		return;
 	}
 
+	const gchar *klass, *type, *channel;
 	JsonNode *r = json_parser_get_root(parser);
-	JsonObject *obj = json_node_get_object(r);
-	JsonNode *chan_node = json_object_get_member(obj, "channel");
-	JsonNode *data_node = json_object_get_member(obj, "data");
-	const gchar *klass;
+	if (parse_string(r, "channel", &channel)) {
+		JsonObject *obj = json_node_get_object(r);
+		JsonNode *data_node = json_object_get_member(obj, "data");
+		JsonNode *record_node = NULL;
+		if (data_node) {
+			obj = json_node_get_object(data_node);
+			record_node = json_object_get_member(obj, "record");
+		}
 
-	if (chan_node && data_node && parse_string(data_node, "klass", &klass)) {
-		const gchar *chan = json_node_get_string(chan_node);
-		GList *l = g_hash_table_lookup(cxn->subscriptions, chan);
-		while (l) {
-			struct jugg_subscription *sub = l->data;
-			if (!sub->klass || !strcmp(sub->klass, klass))
-				handled |= sub->cb(cxn, sub->cb_data, klass, data_node);
-			l = l->next;
+		if (record_node && parse_string(data_node, "klass", &klass) &&
+		    parse_string(data_node, "type", &type)) {
+			    GList *l = g_hash_table_lookup(cxn->subscriptions, channel);
+			    while (l) {
+				    struct jugg_subscription *sub = l->data;
+				    if (!sub->klass || !strcmp(sub->klass, klass))
+					    handled |= sub->cb(cxn, sub->cb_data, klass, data_node);
+				    l = l->next;
+			    }
 		}
 	}
 	g_object_unref(parser);

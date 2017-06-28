@@ -39,6 +39,7 @@ struct chime_conversation {
 	gboolean favourite;
 
 	GHashTable *members;
+	GHashTable *sent_msgs;
 };
 static gboolean conv_membership_jugg_cb(struct chime_connection *cxn, gpointer _unused,
 					const gchar *klass, const gchar *type, JsonNode *record);
@@ -55,21 +56,53 @@ static gboolean do_conv_deliver_msg(struct chime_connection *cxn, struct chime_c
 	    !parse_int(record, "IsSystemMessage", &sys))
 		return FALSE;
 
-	if (conv != g_hash_table_lookup(cxn->im_conversations_by_peer_id, sender)) {
-		/* Only 1:1 IM so far; representing multi-party conversations as chats comes later */
-		return FALSE;
-	}
-
-	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
-							    sender);
-	if (!contact)
-		return FALSE;
-
 	PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
 	if (sys)
 		flags |= PURPLE_MESSAGE_SYSTEM;
 
-	serv_got_im(cxn->prpl_conn, contact->email, message, flags, msg_time);
+
+	if (g_hash_table_size(conv->members) != 2) {
+		/* Only 1:1 IM so far; representing multi-party conversations as chats comes later */
+		return FALSE;
+	}
+
+	if (strcmp(sender, cxn->profile_id)) {
+		struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
+								    sender);
+		if (!contact)
+			return FALSE;
+
+		serv_got_im(cxn->prpl_conn, contact->email, message, flags, msg_time);
+	} else {
+		const gchar *msg_id;
+		if (parse_string(record, "MessageId", &msg_id) &&
+		    g_hash_table_remove(conv->sent_msgs, msg_id)) {
+			/* This was a message sent from this client. No need to display it. */
+			return TRUE;
+		}
+		const gchar **member_ids;
+		int peer;
+
+		member_ids = (const gchar **)g_hash_table_get_keys_as_array(conv->members, NULL);
+		if (!strcmp(member_ids[0], cxn->profile_id))
+			peer = 1;
+		else
+			peer = 0;
+
+		struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
+								    member_ids[peer]);
+		g_free(member_ids);
+		/* Ick, how do we inject a message from ourselves? */
+		PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
+										  contact->email,
+										  cxn->prpl_conn->account);
+		if (!pconv) {
+			printf("\n***** NO CONV FOR %s\n", contact->email);
+			return FALSE; /*XX: Create one! */
+		}
+
+		purple_conversation_write(pconv, NULL, message, PURPLE_MESSAGE_SEND, msg_time);
+	}
 
 	return TRUE;
 }
@@ -145,6 +178,8 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 	conv->favourite = favourite;
 	if (!conv->members)
 		conv->members = g_hash_table_new(g_str_hash, g_str_equal);
+	if (!conv->sent_msgs)
+		conv->sent_msgs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 
 	JsonArray *arr = json_node_get_array(members_node);
 	int i, len = json_array_get_length(arr);
@@ -216,6 +251,7 @@ static void destroy_conversation(gpointer _conv)
 	g_free(conv->name);
 	g_free(conv->visibility);
 	g_hash_table_destroy(conv->members);
+	g_hash_table_destroy(conv->sent_msgs);
 	conv->members = NULL;
 	g_free(conv);
 }
@@ -399,6 +435,7 @@ void chime_destroy_conversations(struct chime_connection *cxn)
 
 struct im_send_data {
 	struct chime_contact *contact;
+	struct chime_conversation *conv;
 	gchar *message;
 	PurpleMessageFlags flags;
 };
@@ -429,14 +466,20 @@ static void send_im_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode 
 	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
 		im_error(cxn, im, _("Failed to send message(%d): %s\n"),
 			 msg->status_code, msg->reason_phrase);
+	} else {
+		JsonObject *obj = json_node_get_object(node);
+		JsonNode *node = json_object_get_member(obj, "Message");
+		const gchar *msg_id;
+		if (node && parse_string(node, "MessageId", &msg_id)) {
+			g_hash_table_add(im->conv->sent_msgs, g_strdup(msg_id));
+		}
 	}
 	g_free(im->message);
 	g_free(im);
 }
 
 
-static int send_im(struct chime_connection *cxn, struct chime_conversation *conv,
-		   struct im_send_data *im)
+static int send_im(struct chime_connection *cxn, struct im_send_data *im)
 {
 	/* For idempotency of requests. Not that we retry. */
 	gchar *uuid = purple_uuid_random();
@@ -450,7 +493,8 @@ static int send_im(struct chime_connection *cxn, struct chime_conversation *conv
 	jb = json_builder_end_object(jb);
 
 	int ret;
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s/messages", conv->id);
+	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s/messages",
+					   im->conv->id);
 	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, send_im_cb, im))
 		ret = 1;
 	else {
@@ -474,12 +518,12 @@ static void conv_create_cb(struct chime_connection *cxn, SoupMessage *msg, JsonN
 			goto bad;
 
 		one_conversation_cb(NULL, 0, node, cxn);
-		struct chime_conversation *conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
-								      im->contact->profile_id);
-		if (!conv)
+		im->conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
+					       im->contact->profile_id);
+		if (!im->conv)
 			goto bad;
 
-		send_im(cxn, conv, im);
+		send_im(cxn, im);
 		return;
 	}
  bad:
@@ -526,11 +570,10 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 	im->contact = contact;
 	im->message = g_strdup(message);
 	im->flags = flags;
-
-	struct chime_conversation *conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
-							      contact->profile_id);
-	if (conv)
-		return send_im(cxn, conv, im);
+	im->conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
+				       contact->profile_id);
+	if (im->conv)
+		return send_im(cxn, im);
 	else
 		return create_im_conv(cxn, im);
 }

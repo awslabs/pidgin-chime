@@ -146,20 +146,16 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 		member = chime_contact_new(cxn, json_array_get_element(arr, i), TRUE);
 		if (member) {
 			g_hash_table_insert(conv->members, member->profile_id, member);
-			if (strcmp(member->profile_id, cxn->profile_id)) {
-				if (im_member)
-					im_member = NULL;
-				else
-					im_member = member->profile_id;
+			if (len == 2 && strcmp(member->profile_id, cxn->profile_id)) {
+				/* A two-party conversation contains only us (presumably!)
+				 * and one other. Index 1:1 conversations on that "other" */
+				g_hash_table_insert(cxn->im_conversations_by_peer_id,
+						    (void *)member->profile_id, conv);
+
+				printf("im_member %s\n", member->profile_id);
 			}
-			printf("im_member %s\n", im_member);
 		}
 	}
-
-	/* Now im_member is set to the "other" member of any two-party conversations
-	 * which contains only us and one other. */
-	if (im_member)
-		g_hash_table_insert(cxn->im_conversations_by_peer_id, (void *)im_member, conv);
 
 	g_hash_table_insert(cxn->conversations_by_name, conv->name, conv);
 }

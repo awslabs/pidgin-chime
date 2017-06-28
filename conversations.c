@@ -30,6 +30,8 @@
 struct chime_conversation {
 	struct chime_msgs *msgs;
 
+	struct chime_connection *cxn;
+
 	gchar *channel;
 	gchar *id;
 	gchar *name;
@@ -115,8 +117,10 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 		g_free(conv->visibility);
 	} else {
 		conv = g_new0(struct chime_conversation, 1);
+		conv->cxn = cxn;
 		conv->id = g_strdup(id);
 		g_hash_table_insert(cxn->conversations_by_id, conv->id, conv);
+		chime_jugg_subscribe(cxn, channel, NULL, jugg_dump_incoming, (void *)"Channel");
 
 		/* Do we need to fetch new messages? */
 		const gchar *last_seen, *last_sent;
@@ -198,6 +202,7 @@ static void destroy_conversation(gpointer _conv)
 {
 	struct chime_conversation *conv = _conv;
 
+	chime_jugg_unsubscribe(conv->cxn, conv->channel, NULL, jugg_dump_incoming, (void *)"Channel");
 	g_free(conv->id);
 	g_free(conv->channel);
 	g_free(conv->name);

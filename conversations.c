@@ -42,6 +42,7 @@ struct chime_conversation {
 	GHashTable *sent_msgs;
 };
 static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *record);
+static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *record);
 
 /* Called for all deliveries of incoming conversation messages, at startup and later */
 static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversation *conv,
@@ -168,6 +169,8 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 		chime_jugg_subscribe(cxn, channel, NULL, NULL, NULL);
 		chime_jugg_subscribe(cxn, channel, "ConversationMembership",
 				     conv_membership_jugg_cb, conv);
+		chime_jugg_subscribe(cxn, channel, "TypingIndicator",
+				     conv_typing_jugg_cb, conv);
 
 		/* Do we need to fetch new messages? */
 		const gchar *last_seen, *last_sent;
@@ -254,6 +257,8 @@ static void destroy_conversation(gpointer _conv)
 	chime_jugg_unsubscribe(conv->cxn, conv->channel, NULL, NULL, NULL);
 	chime_jugg_unsubscribe(conv->cxn, conv->channel, "ConversationMembership",
 			       conv_membership_jugg_cb, conv);
+	chime_jugg_unsubscribe(conv->cxn, conv->channel, "TypingIndicator",
+			       conv_typing_jugg_cb, conv);
 	g_free(conv->id);
 	g_free(conv->channel);
 	g_free(conv->name);
@@ -410,6 +415,40 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, 
 		fetch_conversation_messages(cxn, conv);
 	} else printf("no fetch last %s\n", last_seen);
 
+	return TRUE;
+}
+
+static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNode *data_node)
+{
+	struct chime_conversation *conv = _conv;
+
+	gint64 state;
+	if (!parse_int(data_node, "state", &state))
+		return FALSE;
+
+	JsonNode *node = json_node_get_parent(data_node);
+	if (!node)
+		return FALSE;
+
+	JsonObject *obj = json_node_get_object(node);
+	node = json_object_get_member(obj, "from");
+
+	const gchar *from;
+	if (!node || !parse_string(node, "id", &from))
+		return FALSE;
+
+	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id, from);
+	if (!contact)
+		return FALSE;
+
+	if (g_hash_table_size(conv->members) != 2) {
+		/* Only 1:1 so far */
+		return FALSE;
+	}
+	if (state)
+		serv_got_typing(cxn->prpl_conn, contact->email, 0, PURPLE_TYPING);
+	else
+		serv_got_typing_stopped(cxn->prpl_conn, contact->email);
 	return TRUE;
 }
 

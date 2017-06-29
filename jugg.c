@@ -96,6 +96,15 @@ static void handle_callback(ChimeConnection *cxn, gchar *msg)
 	g_object_unref(parser);
 }
 
+static void send_subscription_message(ChimeConnection *cxn, const gchar *type, const gchar *channel)
+{
+	gchar *msg = g_strdup_printf("3:::{\"type\":\"%s\",\"channel\":\"%s\"}", type, channel);
+	printf("sub: %s\n", msg);
+	soup_websocket_connection_send_text(cxn->ws_conn, msg);
+	g_free(msg);
+}
+
+
 static void send_resubscribe_message(ChimeConnection *cxn);
 static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 				 GBytes *message, gpointer _cxn)
@@ -114,6 +123,19 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 	/* Ack */
 	if (!strcmp(data, "1::")) {
 		/* If we go this far, allow reconnect */
+		if (!cxn->jugg_connected && cxn->subscriptions) {
+			if (cxn->jugg_resubscribe)
+				send_resubscribe_message(cxn);
+			else {
+				guint i, len;
+				const gchar **channels = (const gchar **)g_hash_table_get_keys_as_array(cxn->subscriptions, &len);
+				for (i = 0;  i < len; i++)
+					send_subscription_message(cxn, "subscribe", channels[i]);
+				g_free(channels);
+			}
+		}
+		purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
+		cxn->jugg_resubscribe = TRUE;
 		cxn->jugg_connected = TRUE;
 		return;
 	}
@@ -158,14 +180,6 @@ static void send_resubscribe_message(ChimeConnection *cxn)
 	g_object_unref(builder);
 }
 
-static void send_subscription_message(ChimeConnection *cxn, const gchar *type, const gchar *channel)
-{
-	gchar *msg = g_strdup_printf("3:::{\"type\":\"%s\",\"channel\":\"%s\"}", type, channel);
-	printf("sub: %s\n", msg);
-	soup_websocket_connection_send_text(cxn->ws_conn, msg);
-	g_free(msg);
-}
-
 static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
@@ -201,20 +215,6 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "message",
 			 G_CALLBACK(on_websocket_message), cxn);
 
-	if (cxn->subscriptions) {
-		if (cxn->jugg_resubscribe)
-			send_resubscribe_message(cxn);
-		else {
-			guint i, len;
-			const gchar **channels = (const gchar **)g_hash_table_get_keys_as_array(cxn->subscriptions, &len);
-			for (i = 0;  i < len; i++)
-				send_subscription_message(cxn, "subscribe", channels[i]);
-			g_free(channels);
-			cxn->jugg_resubscribe = TRUE;
-		}
-	}
-
-	purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
 }
 
 static void connect_jugg(ChimeConnection *cxn)

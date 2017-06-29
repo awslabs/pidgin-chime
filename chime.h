@@ -108,9 +108,12 @@ gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
 gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv);
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
+
+/* NB: This consumes the uri passed to it. But not the node. */
 SoupMessage *chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
-					SoupURI *uri, ChimeSoupMessageCallback callback,
-					gpointer cb_data);
+				      SoupURI *uri, const gchar *method,
+				      ChimeSoupMessageCallback callback,
+				      gpointer cb_data);
 
 void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 			   const gchar *id, const gchar *msg_time,

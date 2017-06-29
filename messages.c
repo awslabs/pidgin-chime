@@ -155,7 +155,7 @@ void fetch_messages(ChimeConnection *cxn, struct chime_msgs *msgs, const gchar *
 		opts[i++] = NULL;
 
 	soup_uri_set_query_from_fields(uri, "max-results", "50", opts[0], opts[1], opts[2], opts[3], NULL);
-	msgs->soup_msg = chime_queue_http_request(cxn, NULL, uri, fetch_msgs_cb, msgs);
+	msgs->soup_msg = chime_queue_http_request(cxn, NULL, uri, "GET", fetch_msgs_cb, msgs);
 }
 
 

@@ -153,7 +153,7 @@ static void chime_renew_token(ChimeConnection *cxn)
 
 	uri = soup_uri_new_printf(cxn->profile_url, "/tokens");
 	soup_uri_set_query_from_fields(uri, "Token", cxn->session_token, NULL);
-	chime_queue_http_request(cxn, node, uri, renew_cb, NULL);
+	chime_queue_http_request(cxn, node, uri, "POST", renew_cb, NULL);
 
 	g_object_unref(builder);
 }
@@ -203,7 +203,8 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 
 
 SoupMessage *chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
-				      SoupURI *uri, ChimeSoupMessageCallback callback,
+				      SoupURI *uri, const gchar *method,
+				      ChimeSoupMessageCallback callback,
 				      gpointer cb_data)
 {
 	struct chime_msg *cmsg = g_new0(struct chime_msg, 1);
@@ -358,7 +359,7 @@ static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status
 	JsonNode *node = json_builder_get_root(builder);
 
 	SoupURI *uri = soup_uri_new_printf(cxn->presence_url, "/presencesettings");
-	chime_queue_http_request(cxn, node, uri, sts_cb, NULL);
+	chime_queue_http_request(cxn, node, uri, "POST", sts_cb, NULL);
 
 	g_object_unref(builder);
 }
@@ -460,7 +461,7 @@ void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url,
 					   "/%ss/%s", is_room ? "room" : "conversation",
 					   id);
-	chime_queue_http_request(cxn, json_builder_get_root(jb), uri, NULL, NULL);
+	chime_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", NULL, NULL);
 	g_object_unref(jb);
 }
 

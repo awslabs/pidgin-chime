@@ -98,7 +98,7 @@ static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token)
 	soup_uri_set_query_from_fields(uri, "max-results", "50",
 				       next_token ? "next-token" : NULL, next_token,
 				       NULL);
-	chime_queue_http_request(cxn, NULL, uri, roomlist_cb, NULL);
+	chime_queue_http_request(cxn, NULL, uri, "GET", roomlist_cb, NULL);
 }
 
 static void destroy_room(gpointer _room)

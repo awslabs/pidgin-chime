@@ -300,7 +300,7 @@ void fetch_chat_memberships(ChimeConnection *cxn, struct chime_chat *chat, const
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/memberships", room->id);
 
 	soup_uri_set_query_from_fields(uri, "max-results", "50", next_token ? "next-token" : NULL, next_token, NULL);
-	chat->members_msg = chime_queue_http_request(cxn, NULL, uri, fetch_members_cb, chat);
+	chat->members_msg = chime_queue_http_request(cxn, NULL, uri, "GET", fetch_members_cb, chat);
 }
 
 static void kill_member(gpointer _member)
@@ -418,7 +418,7 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	jb = json_builder_end_object(jb);
 
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages", chat->room->id);
-	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, send_msg_cb, chat)) {
+	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", send_msg_cb, chat)) {
 		ret = 0;
 	} else
 		ret = -1;

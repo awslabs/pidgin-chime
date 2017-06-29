@@ -307,7 +307,7 @@ chime_connection_register_device_async(ChimeConnection    *self,
 	SoupURI *uri = soup_uri_new_printf(server, "/sessions");
 	soup_uri_set_query_from_fields(uri, "Token", token, NULL);
 
-	chime_queue_http_request(self, node, uri, register_cb, task);
+	chime_queue_http_request(self, node, uri, "POST", register_cb, task);
 }
 
 gboolean

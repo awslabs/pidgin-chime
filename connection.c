@@ -240,9 +240,9 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 
 	chime_init_juggernaut(self);
 
-	chime_jugg_subscribe(self, self->profile_channel, NULL, jugg_dump_incoming, (gpointer)"Profile");
-	chime_jugg_subscribe(self, self->presence_channel, NULL, jugg_dump_incoming, (gpointer)"Presence");
-	chime_jugg_subscribe(self, self->device_channel, NULL, jugg_dump_incoming, (gpointer)"Device");
+	chime_jugg_subscribe(self, self->profile_channel, NULL, NULL, NULL);
+	chime_jugg_subscribe(self, self->presence_channel, NULL, NULL, NULL);
+	chime_jugg_subscribe(self, self->device_channel, NULL, NULL, NULL);
 
 	chime_init_buddies(self);
 	chime_init_rooms(self);

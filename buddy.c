@@ -149,8 +149,7 @@ struct chime_contact *chime_contact_new(ChimeConnection *cxn, JsonNode *node, gb
 				     contact);
 		if (!conv) {
 			contact->profile_channel = g_strdup(profile_channel);
-			chime_jugg_subscribe(cxn, profile_channel, NULL, jugg_dump_incoming,
-					     (char *)"Buddy Profile");
+			chime_jugg_subscribe(cxn, profile_channel, NULL, NULL, NULL);
 		}
 		g_hash_table_insert(cxn->contacts_by_id, contact->profile_id, contact);
 
@@ -320,8 +319,7 @@ static void destroy_contact(gpointer _contact)
 	struct chime_contact *contact = _contact;
 
 	if (contact->profile_channel) {
-		chime_jugg_unsubscribe(contact->cxn, contact->profile_channel, NULL,
-				       jugg_dump_incoming, (char *)"Buddy Profile");
+		chime_jugg_unsubscribe(contact->cxn, contact->profile_channel, NULL, NULL, NULL);
 		g_free(contact->profile_channel);
 	}
 	if (contact->presence_channel) {

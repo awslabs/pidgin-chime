@@ -165,8 +165,7 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 		conv->cxn = cxn;
 		conv->id = g_strdup(id);
 		g_hash_table_insert(cxn->conversations_by_id, conv->id, conv);
-		chime_jugg_subscribe(cxn, channel, NULL, jugg_dump_incoming,
-				     (void *)"Channel");
+		chime_jugg_subscribe(cxn, channel, NULL, NULL, NULL);
 		chime_jugg_subscribe(cxn, channel, "ConversationMembership",
 				     conv_membership_jugg_cb, conv);
 
@@ -252,8 +251,7 @@ static void destroy_conversation(gpointer _conv)
 {
 	struct chime_conversation *conv = _conv;
 
-	chime_jugg_unsubscribe(conv->cxn, conv->channel, NULL, jugg_dump_incoming,
-			       (void *)"Channel");
+	chime_jugg_unsubscribe(conv->cxn, conv->channel, NULL, NULL, NULL);
 	chime_jugg_unsubscribe(conv->cxn, conv->channel, "ConversationMembership",
 			       conv_membership_jugg_cb, conv);
 	g_free(conv->id);

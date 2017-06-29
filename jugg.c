@@ -65,7 +65,7 @@ static void handle_callback(ChimeConnection *cxn, gchar *msg)
 		return;
 	}
 
-	const gchar *channel;
+	const gchar *channel = NULL;
 	JsonNode *r = json_parser_get_root(parser);
 	if (parse_string(r, "channel", &channel)) {
 		JsonObject *obj = json_node_get_object(r);
@@ -76,11 +76,22 @@ static void handle_callback(ChimeConnection *cxn, gchar *msg)
 			    GList *l = g_hash_table_lookup(cxn->subscriptions, channel);
 			    while (l) {
 				    struct jugg_subscription *sub = l->data;
-				    if (!sub->klass || !strcmp(sub->klass, klass))
+				    if (sub->cb && (!sub->klass || !strcmp(sub->klass, klass)))
 					    handled |= sub->cb(cxn, sub->cb_data, data_node);
 				    l = l->next;
 			    }
 		}
+	}
+	if (!handled) {
+		JsonGenerator *gen = json_generator_new();
+		json_generator_set_root(gen, r);
+		json_generator_set_pretty(gen, TRUE);
+
+		gchar *msg = json_generator_to_data(gen, NULL);
+		printf("incoming %s : %s\n", channel, msg);
+
+		g_free(msg);
+		g_object_unref(gen);
 	}
 	g_object_unref(parser);
 }
@@ -352,20 +363,6 @@ void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gc
 		} else
 			g_hash_table_replace(cxn->subscriptions, g_strdup(channel), l);
 	}
-}
-
-int jugg_dump_incoming(ChimeConnection *cxn, gpointer cb_data, JsonNode *node)
-{
-	JsonGenerator *gen = json_generator_new();
-	gchar *msg;
-	json_generator_set_root(gen, node);
-	json_generator_set_pretty(gen, TRUE);
-	msg = json_generator_to_data(gen, NULL);
-	printf("incoming %s : %s\n", (gchar *)cb_data, msg);
-	g_free(msg);
-	g_object_unref(gen);
-
-	return TRUE;
 }
 
 void chime_purple_keepalive(PurpleConnection *conn)

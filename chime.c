@@ -153,7 +153,7 @@ static void chime_renew_token(ChimeConnection *cxn)
 
 	uri = soup_uri_new_printf(cxn->profile_url, "/tokens");
 	soup_uri_set_query_from_fields(uri, "Token", cxn->session_token, NULL);
-	__chime_queue_http_request(cxn, node, uri, renew_cb, NULL, FALSE);
+	chime_queue_http_request(cxn, node, uri, renew_cb, NULL);
 
 	g_object_unref(builder);
 }
@@ -168,7 +168,8 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 	JsonParser *parser = NULL;
 	JsonNode *node = NULL;
 
-	if (cmsg->auto_renew && msg->status_code == 401) {
+	/* Special case for renew_cb itself, which mustn't recurse! */
+	if ((cmsg->cb != renew_cb) && msg->status_code == 401) {
 		g_object_ref(msg);
 		if (cxn->msg_queue) {
 			/* Already renewing; just add to the list */
@@ -201,16 +202,15 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 }
 
 
-SoupMessage *__chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
+SoupMessage *chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
 				      SoupURI *uri, ChimeSoupMessageCallback callback,
-				      gpointer cb_data, gboolean auto_renew)
+				      gpointer cb_data)
 {
 	struct chime_msg *cmsg = g_new0(struct chime_msg, 1);
 
 	cmsg->cxn = cxn;
 	cmsg->cb = callback;
 	cmsg->cb_data = cb_data;
-	cmsg->auto_renew = auto_renew;
 	cmsg->msg = soup_message_new_from_uri(node?"POST":"GET", uri);
 	soup_uri_free(uri);
 

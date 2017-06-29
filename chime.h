@@ -108,11 +108,9 @@ gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
 gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv);
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
-SoupMessage *__chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
+SoupMessage *chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
 					SoupURI *uri, ChimeSoupMessageCallback callback,
-					gpointer cb_data, gboolean auto_renew);
-#define chime_queue_http_request(_c, _n, _u, _cb, _d)			\
-	__chime_queue_http_request((_c), (_n), (_u), (_cb), (_d), TRUE)
+					gpointer cb_data);
 
 void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 			   const gchar *id, const gchar *msg_time,

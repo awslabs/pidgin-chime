@@ -238,7 +238,7 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 
 	cxn->ws_key = g_strdup(ws_opts[0]);
 	purple_connection_update_progress(cxn->prpl_conn, _("Establishing WebSocket connection..."),
-					  4, CONNECT_STEPS);
+					  3, CONNECT_STEPS);
 	g_strfreev(ws_opts);
 
 	connect_jugg(cxn);

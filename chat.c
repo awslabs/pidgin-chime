@@ -370,7 +370,7 @@ static void send_msg_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, 
 		if (chime_read_last_msg(cxn, TRUE, chat->room->id, &last_seen, NULL) &&
 		    g_time_val_from_iso8601(last_seen, &seen_tv) &&
 		    (seen_tv.tv_sec > tv.tv_sec ||
-		     (seen_tv.tv_sec == tv.tv_sec && seen_tv.tv_usec > tv.tv_usec)))
+		     (seen_tv.tv_sec == tv.tv_sec && seen_tv.tv_usec >= tv.tv_usec)))
 			return;
 
 		/* If we're doing it, then stick it into the hash table so that

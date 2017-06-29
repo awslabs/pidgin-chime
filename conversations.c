@@ -525,6 +525,45 @@ static void send_im_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, g
 	g_free(im);
 }
 
+unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleTypingState state)
+{
+	/* We can't get to PURPLE_TYPED unless we've already sent PURPLE_TYPING... */
+	if (state == PURPLE_TYPED)
+		return 0;
+
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+
+	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email, name);
+	if (!contact)
+		return 0;
+
+	struct chime_conversation *conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
+							      contact->profile_id);
+
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "channel");
+	jb = json_builder_add_string_value(jb, conv->channel);
+	jb = json_builder_set_member_name(jb, "data");
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "klass");
+	jb = json_builder_add_string_value(jb, "TypingIndicator");
+	jb = json_builder_set_member_name(jb, "state");
+	jb = json_builder_add_boolean_value(jb, state == PURPLE_TYPING);
+	jb = json_builder_end_object(jb);
+	jb = json_builder_set_member_name(jb, "except");
+	jb = json_builder_begin_array(jb);
+	jb = json_builder_add_string_value(jb, cxn->ws_key);
+	jb = json_builder_end_array(jb);
+	jb = json_builder_set_member_name(jb, "type");
+	jb = json_builder_add_string_value(jb, "publish");
+	jb = json_builder_end_object(jb);
+
+	chime_jugg_send(cxn, json_builder_get_root(jb));
+	g_object_unref(jb);
+
+	return 0;
+}
 
 static int send_im(ChimeConnection *cxn, struct im_send_data *im)
 {

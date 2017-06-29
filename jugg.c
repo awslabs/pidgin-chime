@@ -145,9 +145,6 @@ static void each_chan(gpointer _chan, gpointer _sub, gpointer _builder)
 static void send_resubscribe_message(ChimeConnection *cxn)
 {
 	JsonBuilder *builder = json_builder_new();
-	JsonGenerator *gen;
-	gchar *msg, *msg2;
-
 	builder = json_builder_begin_object(builder);
 	builder = json_builder_set_member_name(builder, "type");
 	builder = json_builder_add_string_value(builder, "resubscribe");
@@ -157,16 +154,7 @@ static void send_resubscribe_message(ChimeConnection *cxn)
 	builder = json_builder_end_array(builder);
 	builder = json_builder_end_object(builder);
 
-	gen = json_generator_new();
-	json_generator_set_root(gen, json_builder_get_root(builder));
-	msg = json_generator_to_data(gen, NULL);
-
-	msg2 = g_strdup_printf("3:::%s", msg);
-	soup_websocket_connection_send_text(cxn->ws_conn, msg2);
-	printf("resub msg: %s\n", msg2);
-	g_free(msg2);
-	g_free(msg);
-	g_object_unref(gen);
+	chime_jugg_send(cxn, json_builder_get_root(builder));
 	g_object_unref(builder);
 }
 
@@ -282,6 +270,24 @@ void chime_init_juggernaut(ChimeConnection *cxn)
 	chime_queue_http_request(cxn, NULL, uri, ws_cb, NULL);
 }
 
+gboolean chime_jugg_send(ChimeConnection *cxn, JsonNode *node)
+{
+	if (!cxn->ws_conn)
+		return FALSE;
+
+	JsonGenerator *jg = json_generator_new();
+	json_generator_set_root(jg, node);
+	gchar *msg = json_generator_to_data(jg, NULL);
+	gchar *msg2 = g_strdup_printf("3:::%s", msg);
+
+	soup_websocket_connection_send_text(cxn->ws_conn, msg2);
+	printf("jugg send: %s\n", msg2);
+	g_free(msg2);
+	g_free(msg);
+	g_object_unref(jg);
+
+	return TRUE;
+}
 static void send_subscription_message(ChimeConnection *cxn, const gchar *type, const gchar *channel)
 {
 	gchar *msg = g_strdup_printf("3:::{\"type\":\"%s\",\"channel\":\"%s\"}", type, channel);

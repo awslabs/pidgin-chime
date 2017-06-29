@@ -42,7 +42,8 @@ struct _ChimeConnection {
 
 	/* Juggernaut */
 	SoupWebsocketConnection *ws_conn;
-	gboolean jugg_connected;
+	gboolean jugg_connected;	/* For reconnecting, to abort on failed reconnect */
+	gboolean jugg_resubscribe;	/* After reconnect we should use 'resubscribe' */
 	gchar *ws_key;
 	GHashTable *subscriptions;
 

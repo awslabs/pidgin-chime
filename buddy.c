@@ -306,12 +306,40 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 	g_object_unref(builder);
 }
 
+static void remove_buddy_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _contact)
+{
+	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		const gchar *reason = msg->reason_phrase;
+		gchar *err_str;
+
+		parse_string(node, "error", &reason);
+		err_str = g_strdup_printf(_("Failed to remove buddy: %s"), reason);
+		purple_notify_error(cxn->prpl_conn, NULL, err_str, NULL);
+		g_free(err_str);
+
+		fetch_buddies(cxn);
+	}
+}
+
 void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group)
 {
+	/* If this buddy still exists elsewhere, don't kill it! */
+	GSList *buddies = purple_find_buddies(conn->account, buddy->name);
+	while (buddies) {
+		PurpleBuddy *b = buddies->data;
+		if (b != buddy) {
+			g_slist_free(buddies);
+			return;
+		}
+		buddies = g_slist_remove(buddies, b);
+	}
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
-	purple_notify_error(conn, NULL, _("Cannot remove buddies yet"), NULL);
-	/* Put it back :) */
-	fetch_buddies(cxn);
+	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email, buddy->name);
+	if (!contact)
+		return;
+
+	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/contacts/%s", contact->profile_id);
+	chime_queue_http_request(cxn, NULL, uri, "DELETE", remove_buddy_cb, NULL);
 }
 
 static void destroy_contact(gpointer _contact)

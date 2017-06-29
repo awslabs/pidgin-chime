@@ -212,7 +212,7 @@ SoupMessage *chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
 	cmsg->cxn = cxn;
 	cmsg->cb = callback;
 	cmsg->cb_data = cb_data;
-	cmsg->msg = soup_message_new_from_uri(node?"POST":"GET", uri);
+	cmsg->msg = soup_message_new_from_uri(method, uri);
 	soup_uri_free(uri);
 
 	if (cxn->session_token) {

@@ -30,7 +30,7 @@
 struct chime_conversation {
 	struct chime_msgs *msgs;
 
-	struct chime_connection *cxn;
+	ChimeConnection *cxn;
 
 	gchar *channel;
 	gchar *id;
@@ -41,11 +41,11 @@ struct chime_conversation {
 	GHashTable *members;
 	GHashTable *sent_msgs;
 };
-static gboolean conv_membership_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 					const gchar *klass, const gchar *type, JsonNode *record);
 
 /* Called for all deliveries of incoming conversation messages, at startup and later */
-static gboolean do_conv_deliver_msg(struct chime_connection *cxn, struct chime_conversation *conv,
+static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversation *conv,
 				    JsonNode *record, time_t msg_time)
 {
 	const gchar *sender, *message;
@@ -113,7 +113,7 @@ static gboolean do_conv_deliver_msg(struct chime_connection *cxn, struct chime_c
 }
 
 /* Callback from message-gathering on startup */
-static void conv_deliver_msg(struct chime_connection *cxn, struct chime_msgs *msgs,
+static void conv_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 			     JsonNode *node, time_t msg_time)
 {
 	struct chime_conversation *conv = g_hash_table_lookup(cxn->conversations_by_id, msgs->id);
@@ -121,7 +121,7 @@ static void conv_deliver_msg(struct chime_connection *cxn, struct chime_msgs *ms
 	do_conv_deliver_msg(cxn, conv, node, msg_time);
 }
 
-static void fetch_conversation_messages(struct chime_connection *cxn, struct chime_conversation *conv)
+static void fetch_conversation_messages(ChimeConnection *cxn, struct chime_conversation *conv)
 {
 	if (conv->msgs) {
 		if (conv->msgs->msgs_done)
@@ -141,7 +141,7 @@ static void fetch_conversation_messages(struct chime_connection *cxn, struct chi
 static void one_conversation_cb(JsonArray *array, guint index_,
 			JsonNode *node, gpointer _cxn)
 {
-	struct chime_connection *cxn = _cxn;
+	ChimeConnection *cxn = _cxn;
 	struct chime_conversation *conv;
 	const gchar *channel, *id, *name, *visibility;
 	gint64 favourite;
@@ -214,8 +214,8 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 	g_hash_table_insert(cxn->conversations_by_name, conv->name, conv);
 }
 
-static void fetch_conversations(struct chime_connection *cxn, const gchar *next_token);
-static void conversationlist_cb(struct chime_connection *cxn, SoupMessage *msg,
+static void fetch_conversations(ChimeConnection *cxn, const gchar *next_token);
+static void conversationlist_cb(ChimeConnection *cxn, SoupMessage *msg,
 			JsonNode *node, gpointer convlist)
 {
 	const gchar *next_token;
@@ -239,7 +239,7 @@ static void conversationlist_cb(struct chime_connection *cxn, SoupMessage *msg,
 	}
 }
 
-static void fetch_conversations(struct chime_connection *cxn, const gchar *next_token)
+static void fetch_conversations(ChimeConnection *cxn, const gchar *next_token)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations");
 
@@ -267,7 +267,7 @@ static void destroy_conversation(gpointer _conv)
 	g_free(conv);
 }
 
-static gboolean conv_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+static gboolean conv_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 			     const gchar *klass, const gchar *type, JsonNode *record)
 {
 	one_conversation_cb(NULL, 0, record, cxn);
@@ -280,7 +280,7 @@ struct deferred_conv_jugg {
 	gchar *type;
 	JsonNode *node;
 };
-static void fetch_new_conv_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node,
+static void fetch_new_conv_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 			      gpointer _defer)
 {
 	struct deferred_conv_jugg *defer = _defer;
@@ -316,7 +316,7 @@ static void fetch_new_conv_cb(struct chime_connection *cxn, SoupMessage *msg, Js
 	g_free(defer);
 }
 
-static gboolean conv_msg_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 				 const gchar *klass, const gchar *type, JsonNode *record)
 {
 	const gchar *conv_id;
@@ -364,7 +364,7 @@ static gboolean conv_msg_jugg_cb(struct chime_connection *cxn, gpointer _unused,
 	return do_conv_deliver_msg(cxn, conv, record, tv.tv_sec);
 }
 
-static gboolean conv_membership_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 					const gchar *klass, const gchar *type, JsonNode *record)
 {
 	const gchar *conv_id;
@@ -416,7 +416,7 @@ static gboolean conv_membership_jugg_cb(struct chime_connection *cxn, gpointer _
 	return TRUE;
 }
 
-void chime_init_conversations(struct chime_connection *cxn)
+void chime_init_conversations(ChimeConnection *cxn)
 {
 	cxn->im_conversations_by_peer_id = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->conversations_by_name = g_hash_table_new(g_str_hash, g_str_equal);
@@ -430,7 +430,7 @@ void chime_init_conversations(struct chime_connection *cxn)
 	fetch_conversations(cxn, NULL);
 }
 
-void chime_destroy_conversations(struct chime_connection *cxn)
+void chime_destroy_conversations(ChimeConnection *cxn)
 {
 	chime_jugg_unsubscribe(cxn, cxn->device_channel, "ConversationMembership",
 			       conv_membership_jugg_cb, NULL);
@@ -451,7 +451,7 @@ struct im_send_data {
 	PurpleMessageFlags flags;
 };
 
-static void im_error(struct chime_connection *cxn, struct im_send_data *im,
+static void im_error(ChimeConnection *cxn, struct im_send_data *im,
 		     const gchar *format, ...)
 {
 	va_list args;
@@ -469,7 +469,7 @@ static void im_error(struct chime_connection *cxn, struct im_send_data *im,
 	g_free(msg);
 }
 
-static void send_im_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _im)
+static void send_im_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _im)
 {
 	struct im_send_data *im = _im;
 
@@ -490,7 +490,7 @@ static void send_im_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode 
 }
 
 
-static int send_im(struct chime_connection *cxn, struct im_send_data *im)
+static int send_im(ChimeConnection *cxn, struct im_send_data *im)
 {
 	/* For idempotency of requests. Not that we retry. */
 	gchar *uuid = purple_uuid_random();
@@ -518,7 +518,7 @@ static int send_im(struct chime_connection *cxn, struct im_send_data *im)
 	return ret;
 }
 
-static void conv_create_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _im)
+static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _im)
 {
 	struct im_send_data *im = _im;
 
@@ -543,7 +543,7 @@ static void conv_create_cb(struct chime_connection *cxn, SoupMessage *msg, JsonN
 	g_free(im);
 }
 
-static int create_im_conv(struct chime_connection *cxn, struct im_send_data *im)
+static int create_im_conv(ChimeConnection *cxn, struct im_send_data *im)
 {
 	JsonBuilder *jb = json_builder_new();
 	jb = json_builder_new();
@@ -570,7 +570,7 @@ static int create_im_conv(struct chime_connection *cxn, struct im_send_data *im)
 
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(gc);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(gc);
 
 	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email, who);
 	if (!contact) {

@@ -26,7 +26,7 @@
 
 #include <libsoup/soup.h>
 
-static void connect_jugg(struct chime_connection *cxn);
+static void connect_jugg(ChimeConnection *cxn);
 
 struct jugg_subscription {
 	JuggernautCallback cb;
@@ -37,7 +37,7 @@ struct jugg_subscription {
 static void on_websocket_closed(SoupWebsocketConnection *ws,
 				gpointer _cxn)
 {
-	struct chime_connection *cxn = _cxn;
+	ChimeConnection *cxn = _cxn;
 
 	printf("websocket closed: %d %s (%d)!\n", soup_websocket_connection_get_close_code(ws),
 	       soup_websocket_connection_get_close_data(ws), cxn->jugg_connected);
@@ -52,7 +52,7 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 
 }
 
-static void handle_callback(struct chime_connection *cxn, gchar *msg)
+static void handle_callback(ChimeConnection *cxn, gchar *msg)
 {
 	JsonParser *parser = json_parser_new();
 	gboolean handled = FALSE;
@@ -90,11 +90,11 @@ static void handle_callback(struct chime_connection *cxn, gchar *msg)
 	g_object_unref(parser);
 }
 
-static void send_resubscribe_message(struct chime_connection *cxn);
+static void send_resubscribe_message(ChimeConnection *cxn);
 static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 				 GBytes *message, gpointer _cxn)
 {
-	struct chime_connection *cxn = _cxn;
+	ChimeConnection *cxn = _cxn;
 	gchar **parms;
 	gconstpointer data;
 
@@ -136,7 +136,7 @@ static void each_chan(gpointer _chan, gpointer _sub, gpointer _builder)
 	*builder = json_builder_add_string_value(*builder, _chan);
 }
 
-static void send_resubscribe_message(struct chime_connection *cxn)
+static void send_resubscribe_message(ChimeConnection *cxn)
 {
 	JsonBuilder *builder = json_builder_new();
 	JsonGenerator *gen;
@@ -166,7 +166,7 @@ static void send_resubscribe_message(struct chime_connection *cxn)
 
 static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 {
-	struct chime_connection *cxn = _cxn;
+	ChimeConnection *cxn = _cxn;
 	GError *error = NULL;
 
 	cxn->ws_conn = soup_session_websocket_connect_finish(SOUP_SESSION(obj),
@@ -205,7 +205,7 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
 }
 
-static void connect_jugg(struct chime_connection *cxn)
+static void connect_jugg(ChimeConnection *cxn)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1/websocket/%s", cxn->ws_key);
 	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
@@ -219,7 +219,7 @@ static void connect_jugg(struct chime_connection *cxn)
 }
 
 
-static void ws_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
+static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
 {
 	gchar **ws_opts = NULL;
 
@@ -255,7 +255,7 @@ static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer user_data
 	return TRUE;
 }
 
-void chime_destroy_juggernaut(struct chime_connection *cxn)
+void chime_destroy_juggernaut(ChimeConnection *cxn)
 {
 	if (cxn->subscriptions) {
 		g_hash_table_foreach_remove(cxn->subscriptions, chime_sublist_destroy, NULL);
@@ -266,7 +266,7 @@ void chime_destroy_juggernaut(struct chime_connection *cxn)
 	g_clear_pointer(&cxn->ws_key, g_free);
 }
 
-void chime_init_juggernaut(struct chime_connection *cxn)
+void chime_init_juggernaut(ChimeConnection *cxn)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1");
 	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
@@ -276,7 +276,7 @@ void chime_init_juggernaut(struct chime_connection *cxn)
 	chime_queue_http_request(cxn, NULL, uri, ws_cb, NULL);
 }
 
-static void send_subscription_message(struct chime_connection *cxn, const gchar *type, const gchar *channel)
+static void send_subscription_message(ChimeConnection *cxn, const gchar *type, const gchar *channel)
 {
 	gchar *msg = g_strdup_printf("3:::{\"type\":\"%s\",\"channel\":\"%s\"}", type, channel);
 	printf("sub: %s\n", msg);
@@ -303,7 +303,7 @@ static gboolean compare_sub(gconstpointer _a, gconstpointer _b)
 	return !(a->cb == b->cb && a->cb_data == b->cb_data && !g_strcmp0(a->klass, b->klass));
 }
 
-void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, const gchar *klass,
+void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass,
 			  JuggernautCallback cb, gpointer cb_data)
 {
 	struct jugg_subscription *sub = g_new0(struct jugg_subscription, 1);
@@ -330,7 +330,7 @@ void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, co
 	g_hash_table_replace(cxn->subscriptions, g_strdup(channel), l);
 }
 
-void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, const gchar *klass,
+void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass,
 			    JuggernautCallback cb, gpointer cb_data)
 {
 	struct jugg_subscription sub;
@@ -359,7 +359,7 @@ void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, 
 	}
 }
 
-int jugg_dump_incoming(struct chime_connection *cxn, gpointer cb_data, const gchar *klass,
+int jugg_dump_incoming(ChimeConnection *cxn, gpointer cb_data, const gchar *klass,
 		       const gchar *type, JsonNode *node)
 {
 	JsonGenerator *gen = json_generator_new();
@@ -376,7 +376,7 @@ int jugg_dump_incoming(struct chime_connection *cxn, gpointer cb_data, const gch
 
 void chime_purple_keepalive(PurpleConnection *conn)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 
 	/* XX: Check for response. But at least this will trigger a disconnect
 	   in some cases which we otherwise wouldn't have noticed. */

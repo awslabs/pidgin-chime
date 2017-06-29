@@ -63,7 +63,7 @@ static int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
 	return TRUE;
 }
 
-void chime_complete_messages(struct chime_connection *cxn, struct chime_msgs *msgs)
+void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 {
 	GList *l = NULL;
 	printf("List at %p\n", &l);
@@ -109,7 +109,7 @@ static void one_msg_cb(JsonArray *array, guint index_,
 	g_hash_table_insert(msgs->messages, (gpointer)id, json_node_ref(node));
 }
 
-static void fetch_msgs_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _msgs)
+static void fetch_msgs_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _msgs)
 {
 	struct chime_msgs *msgs = _msgs;
 	const gchar *next_token;
@@ -130,7 +130,7 @@ static void fetch_msgs_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNo
 	}
 }
 
-void fetch_messages(struct chime_connection *cxn, struct chime_msgs *msgs, const gchar *next_token)
+void fetch_messages(ChimeConnection *cxn, struct chime_msgs *msgs, const gchar *next_token)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/%ss/%s/messages",
 					   msgs->is_room ? "room" : "conversation", msgs->id);

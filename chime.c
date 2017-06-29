@@ -106,7 +106,7 @@ gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str,
 }
 /* If we get an auth failure on a standard request, we automatically attempt
  * to renew the authentication token and resubmit the request. */
-static void renew_cb(struct chime_connection *cxn, SoupMessage *msg,
+static void renew_cb(ChimeConnection *cxn, SoupMessage *msg,
 		     JsonNode *node, gpointer _unused)
 {
 	GList *l;
@@ -138,7 +138,7 @@ static void renew_cb(struct chime_connection *cxn, SoupMessage *msg,
 	g_free(cookie_hdr);
 }
 
-static void chime_renew_token(struct chime_connection *cxn)
+static void chime_renew_token(ChimeConnection *cxn)
 {
 	SoupURI *uri;
 	JsonBuilder *builder;
@@ -164,7 +164,7 @@ static void chime_renew_token(struct chime_connection *cxn)
 static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg)
 {
 	struct chime_msg *cmsg = _cmsg;
-	struct chime_connection *cxn = cmsg->cxn;
+	ChimeConnection *cxn = cmsg->cxn;
 	JsonParser *parser = NULL;
 	JsonNode *node = NULL;
 
@@ -201,7 +201,7 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 }
 
 
-SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
+SoupMessage *__chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
 				      SoupURI *uri, ChimeSoupMessageCallback callback,
 				      gpointer cb_data, gboolean auto_renew)
 {
@@ -262,208 +262,20 @@ static const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
         return "chime";
 }
 
-static JsonNode *chime_device_register_req(PurpleAccount *account)
-{
-	JsonBuilder *jb;
-	JsonNode *jn;
-	const gchar *devtoken = purple_account_get_string(account, "devtoken", NULL);
-
-	if (!devtoken || !devtoken[0]) {
-		gchar *uuid = purple_uuid_random();
-		purple_account_set_string(account, "devtoken", uuid);
-		g_free(uuid);
-		devtoken = purple_account_get_string(account, "devtoken", NULL);
-	}
-
-	jb = json_builder_new();
-	jb = json_builder_begin_object(jb);
-	jb = json_builder_set_member_name(jb, "Device");
-	jb = json_builder_begin_object(jb);
-	jb = json_builder_set_member_name(jb, "Platform");
-	jb = json_builder_add_string_value(jb, "osx");
-	jb = json_builder_set_member_name(jb, "DeviceToken");
-	jb = json_builder_add_string_value(jb, devtoken);
-	jb = json_builder_set_member_name(jb, "Capabilities");
-	jb = json_builder_add_int_value(jb, CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS |
-					CHIME_DEVICE_CAP_PRESENCE_PUSH |
-					CHIME_DEVICE_CAP_PRESENCE_SUBSCRIPTION);
-	jb = json_builder_end_object(jb);
-	jb = json_builder_end_object(jb);
-	jn = json_builder_get_root(jb);
-	g_object_unref(jb);
-
-	return jn;
-}
-
-static gboolean parse_regnode(struct chime_connection *cxn, JsonNode *regnode)
-{
-	JsonObject *obj = json_node_get_object(cxn->reg_node);
-	JsonNode *node, *sess_node = json_object_get_member(obj, "Session");
-	const gchar *sess_tok;
-	const gchar *display_name;
-
-	if (!sess_node)
-		return FALSE;
-	if (!parse_string(sess_node, "SessionToken", &sess_tok))
-		return FALSE;
-	purple_account_set_string(cxn->prpl_conn->account, "token", sess_tok);
-	cxn->session_token = g_strdup(sess_tok);
-
-	if (!parse_string(sess_node, "SessionId", &cxn->session_id))
-		return FALSE;
-
-	obj = json_node_get_object(sess_node);
-
-	node = json_object_get_member(obj, "Profile");
-	if (!parse_string(node, "profile_channel", &cxn->profile_channel) ||
-	    !parse_string(node, "presence_channel", &cxn->presence_channel) ||
-	    !parse_string(node, "id", &cxn->profile_id) ||
-	    !parse_string(node, "display_name", &display_name))
-		return FALSE;
-
-	purple_connection_set_display_name(cxn->prpl_conn, display_name);
-
-	node = json_object_get_member(obj, "Device");
-	if (!parse_string(node, "DeviceId", &cxn->device_id) ||
-	    !parse_string(node, "Channel", &cxn->device_channel))
-		return FALSE;
-
-	node = json_object_get_member(obj, "ServiceConfig");
-	if (!node)
-		return FALSE;
-	obj = json_node_get_object(node);
-
-	node = json_object_get_member(obj, "Presence");
-	if (!parse_string(node, "RestUrl", &cxn->presence_url))
-		return FALSE;
-
-	node = json_object_get_member(obj, "Push");
-	if (!parse_string(node, "ReachabilityUrl", &cxn->reachability_url) ||
-	    !parse_string(node, "WebsocketUrl", &cxn->websocket_url))
-		return FALSE;
-
-	node = json_object_get_member(obj, "Profile");
-	if (!parse_string(node, "RestUrl", &cxn->profile_url))
-		return FALSE;
-
-	node = json_object_get_member(obj, "Contacts");
-	if (!parse_string(node, "RestUrl", &cxn->contacts_url))
-		return FALSE;
-
-	node = json_object_get_member(obj, "Messaging");
-	if (!parse_string(node, "RestUrl", &cxn->messaging_url))
-		return FALSE;
-
-	node = json_object_get_member(obj, "Presence");
-	if (!parse_string(node, "RestUrl", &cxn->presence_url))
-		return FALSE;
-
-	node = json_object_get_member(obj, "Conference");
-	if (!parse_string(node, "RestUrl", &cxn->conference_url))
-		return FALSE;
-
-	return TRUE;
-}
-
-static void register_cb(struct chime_connection *cxn, SoupMessage *msg,
-			JsonNode *node, gpointer _unused)
-{
-	if (!node) {
-		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Device registration failed"));
-		return;
-	}
-
-	cxn->reg_node = json_node_ref(node);
-	if (!parse_regnode(cxn, cxn->reg_node)) {
-		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
-					       _("Failed to process registration response"));
-		return;
-	}
-
-	chime_init_juggernaut(cxn);
-
-	chime_jugg_subscribe(cxn, cxn->profile_channel, NULL, jugg_dump_incoming, (gpointer)"Profile");
-	chime_jugg_subscribe(cxn, cxn->presence_channel, NULL, jugg_dump_incoming, (gpointer)"Presence");
-	chime_jugg_subscribe(cxn, cxn->device_channel, NULL, jugg_dump_incoming, (gpointer)"Device");
-
-	chime_init_buddies(cxn);
-	chime_init_rooms(cxn);
-	chime_init_conversations(cxn);
-	chime_init_chats(cxn);
-}
-
-#define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
-void chime_register_device(struct chime_connection *cxn, const gchar *token)
-{
-	const gchar *server = purple_account_get_string(cxn->prpl_conn->account, "server", NULL);
-	JsonNode *node = chime_device_register_req(cxn->prpl_conn->account);
-
-	if (!server || !server[0])
-		server = SIGNIN_DEFAULT;
-
-	SoupURI *uri = soup_uri_new_printf(server, "/sessions");
-	soup_uri_set_query_from_fields(uri, "Token", token, NULL);
-
-	purple_connection_update_progress(cxn->prpl_conn, _("Connecting..."), 1, CONNECT_STEPS);
-	chime_queue_http_request(cxn, node, uri, register_cb, NULL);
-}
-
 static void chime_purple_login(PurpleAccount *account)
 {
 	PurpleConnection *conn = purple_account_get_connection(account);
-	struct chime_connection *cxn;
-
-	cxn = g_new0(struct chime_connection, 1);
-	purple_connection_set_protocol_data(conn, cxn);
-	cxn->prpl_conn = conn;
-	cxn->soup_sess = soup_session_new();
-
-	if (getenv("CHIME_DEBUG") && atoi(getenv("CHIME_DEBUG")) > 0) {
-		SoupLogger *l = soup_logger_new(SOUP_LOGGER_LOG_BODY, -1);
-		soup_session_add_feature(cxn->soup_sess, SOUP_SESSION_FEATURE(l));
-		g_object_unref(l);
-		g_object_set(cxn->soup_sess, "ssl-strict", FALSE, NULL);
-	}
-
 	const gchar *token = purple_account_get_string(account, "token",
 						       NULL);
-	if (token)
-		chime_register_device(cxn, token);
-	else
-		chime_initial_login(cxn);
+	ChimeConnection *cxn = chime_connection_new(conn, token);
+	purple_connection_set_protocol_data(conn, cxn);
 }
 
 static void chime_purple_close(PurpleConnection *conn)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
-	GList *l;
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	g_clear_object(&cxn);
 
-	if (cxn) {
-		if (cxn->soup_sess) {
-			soup_session_abort(cxn->soup_sess);
-		}
-		g_clear_object(&cxn->soup_sess);
-
-		chime_destroy_juggernaut(cxn);
-		chime_destroy_buddies(cxn);
-		chime_destroy_rooms(cxn);
-		chime_destroy_conversations(cxn);
-		chime_destroy_chats(cxn);
-
-		g_clear_pointer(&cxn->reg_node, json_node_unref);
-
-		while ( (l = g_list_first(cxn->msg_queue)) ) {
-			struct chime_msg *cmsg = l->data;
-
-			g_object_unref(cmsg->msg);
-			g_free(cmsg);
-			cxn->msg_queue = g_list_remove(cxn->msg_queue, cmsg);
-		}
-		cxn->msg_queue = NULL;
-		g_clear_pointer(&cxn->session_token, g_free);
-		purple_connection_set_protocol_data(cxn->prpl_conn, NULL);
-		g_free(cxn);
-	}
 	printf("Chime close\n");
 }
 
@@ -495,13 +307,15 @@ static GList *chime_purple_status_types(PurpleAccount *account)
 
 	return types;
 }
-static void sts_cb(struct chime_connection *cxn, SoupMessage *msg,
+
+static void sts_cb(ChimeConnection *cxn, SoupMessage *msg,
 		   JsonNode *node, gpointer _roomlist)
 {
 }
+
 static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(account->gc);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(account->gc);
 	printf("set status %s\n", purple_status_get_id(status));
 
 	JsonBuilder *builder = json_builder_new();
@@ -515,7 +329,6 @@ static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status
 	chime_queue_http_request(cxn, node, uri, sts_cb, NULL);
 
 	g_object_unref(builder);
-
 }
 
 static PurplePluginProtocolInfo chime_prpl_info = {
@@ -594,7 +407,7 @@ static void chime_purple_init_plugin(PurplePlugin *plugin)
 
 PURPLE_INIT_PLUGIN(chime, chime_purple_init_plugin, chime_plugin_info);
 
-void chime_update_last_msg(struct chime_connection *cxn, gboolean is_room,
+void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 			   const gchar *id, const gchar *msg_time,
 			   const gchar *msg_id)
 {
@@ -619,7 +432,7 @@ void chime_update_last_msg(struct chime_connection *cxn, gboolean is_room,
 }
 
 /* WARE! msg_id is allocated, msg_time is const */
-gboolean chime_read_last_msg(struct chime_connection *cxn, gboolean is_room,
+gboolean chime_read_last_msg(ChimeConnection *cxn, gboolean is_room,
 			     const gchar *id, const gchar **msg_time,
 			     gchar **msg_id)
 {

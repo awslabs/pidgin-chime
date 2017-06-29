@@ -21,17 +21,17 @@
 #include <libsoup/soup.h>
 #include <json-glib/json-glib.h>
 
+#include "connection.h"
+
 #define CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS		(1<<1)
 #define CHIME_DEVICE_CAP_PRESENCE_PUSH			(1<<2)
 #define CHIME_DEVICE_CAP_WEBINAR			(1<<3)
 #define CHIME_DEVICE_CAP_PRESENCE_SUBSCRIPTION		(1<<4)
 
-struct chime_connection;
-
 #define CHIME_MAX_STATUS 6
 const gchar *chime_statuses[CHIME_MAX_STATUS];
 
-typedef void (*ChimeSoupMessageCallback)(struct chime_connection *cxn,
+typedef void (*ChimeSoupMessageCallback)(ChimeConnection *cxn,
 					 SoupMessage *msg,
 					 JsonNode *node,
 					 gpointer cb_data);
@@ -39,67 +39,16 @@ typedef void (*ChimeSoupMessageCallback)(struct chime_connection *cxn,
 /* SoupMessage handling for Chime communication, with retry on re-auth
  * and JSON parsing. XX: MAke this a proper superclass of SoupMessage */
 struct chime_msg {
-	struct chime_connection *cxn;
+	ChimeConnection *cxn;
 	ChimeSoupMessageCallback cb;
 	gpointer cb_data;
 	SoupMessage *msg;
 	gboolean auto_renew;
 };
 
-struct chime_connection {
-	PurpleConnection *prpl_conn;
-
-	SoupSession *soup_sess;
-	gchar *session_token;
-
-	/* Messages queued for resubmission */
-	GList *msg_queue;
-
-	/* Juggernaut */
-	SoupWebsocketConnection *ws_conn;
-	gboolean jugg_connected;
-	gchar *ws_key;
-	GHashTable *subscriptions;
-
-	/* Buddies */
-	GHashTable *contacts_by_id;
-	GHashTable *contacts_by_email;
-	GSList *contacts_needed;
-
-	/* Rooms */
-	GHashTable *rooms_by_id;
-	GHashTable *rooms_by_name;
-	GHashTable *live_chats;
-	int chat_id;
-
-	/* Conversations */
-	GHashTable *im_conversations_by_peer_id;
-	GHashTable *conversations_by_id;
-	GHashTable *conversations_by_name;
-
-	/* Service config */
-	JsonNode *reg_node;
-	const gchar *session_id;
-	const gchar *profile_id;
-	const gchar *profile_channel;
-	const gchar *presence_channel;
-
-	const gchar *device_id;
-	const gchar *device_channel;
-
-	const gchar *presence_url;
-	const gchar *websocket_url;
-	const gchar *reachability_url;
-	const gchar *profile_url;
-	const gchar *contacts_url;
-	const gchar *messaging_url;
-	const gchar *conference_url;
-};
-
-
 struct chime_contact
 {
-	struct chime_connection *cxn;
+	ChimeConnection *cxn;
 
 	gchar *profile_id;
 	gchar *presence_channel;
@@ -118,7 +67,7 @@ struct chime_contact
 };
 
 struct chime_msgs;
-typedef void (*chime_msg_cb)(struct chime_connection *cxn, struct chime_msgs *msgs,
+typedef void (*chime_msg_cb)(ChimeConnection *cxn, struct chime_msgs *msgs,
 			     JsonNode *node, time_t tm);
 
 struct chime_msgs {
@@ -157,70 +106,69 @@ enum {
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
 
 /* login.c */
-void chime_initial_login(struct chime_connection *cxn);
+void chime_initial_login(ChimeConnection *cxn);
 
 /* chime.c */
 gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
 gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv);
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
-SoupMessage *__chime_queue_http_request(struct chime_connection *cxn, JsonNode *node,
+SoupMessage *__chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
 					SoupURI *uri, ChimeSoupMessageCallback callback,
 					gpointer cb_data, gboolean auto_renew);
 #define chime_queue_http_request(_c, _n, _u, _cb, _d)			\
 	__chime_queue_http_request((_c), (_n), (_u), (_cb), (_d), TRUE)
-void chime_register_device(struct chime_connection *cxn, const gchar *token);
 
-void chime_update_last_msg(struct chime_connection *cxn, gboolean is_room,
+void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 			   const gchar *id, const gchar *msg_time,
 			   const gchar *msg_id);
 /* BEWARE: msg_id is allocated, msg_time is const. I am going to hate myself
    for that one day, but it's convenient for now... */
-gboolean chime_read_last_msg(struct chime_connection *cxn, gboolean is_room,
+gboolean chime_read_last_msg(ChimeConnection *cxn, gboolean is_room,
 			     const gchar *id, const gchar **msg_time,
 			     gchar **msg_id);
 
 /* jugg.c */
-void chime_init_juggernaut(struct chime_connection *cxn);
-void chime_destroy_juggernaut(struct chime_connection *cxn);
+void chime_init_juggernaut(ChimeConnection *cxn);
+void chime_destroy_juggernaut(ChimeConnection *cxn);
 
-typedef gboolean (*JuggernautCallback)(struct chime_connection *cxn, gpointer cb_data,
+typedef gboolean (*JuggernautCallback)(ChimeConnection *cxn, gpointer cb_data,
 				       const gchar *klass, const gchar *type, JsonNode *record);
-void chime_jugg_subscribe(struct chime_connection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);
-void chime_jugg_unsubscribe(struct chime_connection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);
-int jugg_dump_incoming(struct chime_connection *cxn, gpointer cb_data, const gchar *klass, const gchar *type, JsonNode *node);
+void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);
+void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);
+int jugg_dump_incoming(ChimeConnection *cxn, gpointer cb_data, const gchar *klass, const gchar *type, JsonNode *node);
 void chime_purple_keepalive(PurpleConnection *conn);
 
 /* buddy.c */
-void fetch_buddies(struct chime_connection *cxn);
+void fetch_buddies(ChimeConnection *cxn);
 void chime_purple_buddy_free(PurpleBuddy *buddy);
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
 void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
-void chime_init_buddies(struct chime_connection *cxn);
-void chime_destroy_buddies(struct chime_connection *cxn);
-struct chime_contact *chime_contact_new(struct chime_connection *cxn, JsonNode *node, gboolean conv);
+void chime_init_buddies(ChimeConnection *cxn);
+void chime_destroy_buddies(ChimeConnection *cxn);
+struct chime_contact *chime_contact_new(ChimeConnection *cxn, JsonNode *node, gboolean conv);
 
 /* rooms.c */
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);
-void chime_init_rooms(struct chime_connection *cxn);
-void chime_destroy_rooms(struct chime_connection *cxn);
+void chime_init_rooms(ChimeConnection *cxn);
+void chime_destroy_rooms(ChimeConnection *cxn);
 GList *chime_purple_chat_info(PurpleConnection *conn);
 GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name);
 
 /* chat.c */
-void chime_init_chats(struct chime_connection *cxn);
-void chime_destroy_chats(struct chime_connection *cxn);
+void chime_init_chats(ChimeConnection *cxn);
+void chime_destroy_chats(ChimeConnection *cxn);
 void chime_destroy_chat(struct chime_chat *chat);
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data);
 void chime_purple_chat_leave(PurpleConnection *conn, int id);
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags);
 
 /* conversations.c */
-void chime_init_conversations(struct chime_connection *cxn);
-void chime_destroy_conversations(struct chime_connection *cxn);
+void chime_init_conversations(ChimeConnection *cxn);
+void chime_destroy_conversations(ChimeConnection *cxn);
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags);
 
 /* messages.c */
-void fetch_messages(struct chime_connection *cxn, struct chime_msgs *msgs, const gchar *next_token);
-void chime_complete_messages(struct chime_connection *cxn, struct chime_msgs *msgs);
+void fetch_messages(ChimeConnection *cxn, struct chime_msgs *msgs, const gchar *next_token);
+void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs);
 #endif /* __CHIME_H__ */

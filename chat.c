@@ -313,24 +313,17 @@ static void kill_member(gpointer _member)
 	g_free(member);
 }
 
-void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
+static void do_join_chat(ChimeConnection *cxn, struct chime_room *room)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
-	struct chime_room *room;
-	struct chime_chat *chat;
-	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
-
-	printf("join_chat %p %s %s\n", data, roomid, (gchar *)g_hash_table_lookup(data, "Name"));
-	room = g_hash_table_lookup(cxn->rooms_by_id, roomid);
 	if (!room || room->chat)
 		return;
 
-	chat = g_new0(struct chime_chat, 1);
+	struct chime_chat *chat = g_new0(struct chime_chat, 1);
 	room->chat = chat;
 	chat->room = room;
 
 	int chat_id = ++cxn->chat_id;
-	chat->conv = serv_got_joined_chat(conn, chat_id, room->name);
+	chat->conv = serv_got_joined_chat(cxn->prpl_conn, chat_id, room->name);
 	g_hash_table_insert(cxn->live_chats, GUINT_TO_POINTER(chat_id), chat);
 
 	chat->sent_msgs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
@@ -344,6 +337,17 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 	chat->msgs.cb = chat_deliver_msg;
 	fetch_messages(cxn, &chat->msgs, NULL);
 	fetch_chat_memberships(cxn, chat, NULL);
+}
+
+void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
+{
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
+
+	printf("join_chat %p %s %s\n", data, roomid, (gchar *)g_hash_table_lookup(data, "Name"));
+
+	struct chime_room *room = g_hash_table_lookup(cxn->rooms_by_id, roomid);
+	do_join_chat(cxn, room);
 }
 
 void chime_purple_chat_leave(PurpleConnection *conn, int id)
@@ -443,10 +447,8 @@ static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _unused, Js
 	if (!room)
 		return FALSE;
 
-	if (!room->chat) {
-		/* XXXX: Create it! */
-		return FALSE;
-	}
+	if (!room->chat)
+		do_join_chat(cxn, room);
 
 	return chat_msg_jugg_cb(cxn, room->chat, record);
 }

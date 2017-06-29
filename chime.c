@@ -262,13 +262,45 @@ static const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
         return "chime";
 }
 
+static void on_device_registered(GObject *source, GAsyncResult *result, gpointer data)
+{
+	PurpleConnection *conn = (PurpleConnection *)data;
+	GError *error = NULL;
+
+	if (!chime_connection_register_device_finish(CHIME_CONNECTION(source), result, &error)) {
+		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, error->message);
+		g_error_free(error);
+		return;
+	}
+
+	printf("Device registered\n");
+}
+
+#define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
 static void chime_purple_login(PurpleAccount *account)
 {
 	PurpleConnection *conn = purple_account_get_connection(account);
-	const gchar *token = purple_account_get_string(account, "token",
-						       NULL);
-	ChimeConnection *cxn = chime_connection_new(conn, token);
+	ChimeConnection *cxn = chime_connection_new(conn);
 	purple_connection_set_protocol_data(conn, cxn);
+
+	const gchar *devtoken = purple_account_get_string(account, "devtoken", NULL);
+
+	if (!devtoken || !devtoken[0]) {
+		gchar *uuid = purple_uuid_random();
+		purple_account_set_string(account, "devtoken", uuid);
+		g_free(uuid);
+		devtoken = purple_account_get_string(account, "devtoken", NULL);
+	}
+
+	const gchar *server = purple_account_get_string(account, "server", NULL);
+	if (!server || !server[0])
+		server = SIGNIN_DEFAULT;
+
+	const gchar *token = purple_account_get_string(account, "token", NULL);
+
+	chime_connection_register_device_async(cxn, server, token, devtoken,
+	                                       NULL, on_device_registered, conn);
+	purple_connection_update_progress(conn, _("Connecting..."), 1, CONNECT_STEPS);
 }
 
 static void chime_purple_close(PurpleConnection *conn)

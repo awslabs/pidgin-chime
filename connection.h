@@ -33,7 +33,6 @@ struct _ChimeConnection {
 	GObject parent_instance;
 
 	PurpleConnection *prpl_conn;
-	gchar *token;
 
 	SoupSession *soup_sess;
 	gchar *session_token;
@@ -83,8 +82,27 @@ struct _ChimeConnection {
 	const gchar *conference_url;
 };
 
-ChimeConnection *chime_connection_new (PurpleConnection *connection,
-                                       const gchar      *token);
+typedef enum
+{
+	CHIME_CONNECTION_ERROR_NETWORK
+} ChimeConnectionErrorEnum;
+
+#define CHIME_CONNECTION_ERROR (chime_connection_error_quark())
+GQuark chime_connection_error_quark (void);
+
+ChimeConnection *chime_connection_new                        (PurpleConnection *connection);
+
+void             chime_connection_register_device_async      (ChimeConnection    *self,
+                                                              const gchar        *server,
+                                                              const gchar        *token,
+                                                              const gchar        *devtoken,
+                                                              GCancellable       *cancellable,
+                                                              GAsyncReadyCallback callback,
+                                                              gpointer            user_data);
+
+gboolean         chime_connection_register_device_finish     (ChimeConnection  *self,
+                                                              GAsyncResult     *result,
+                                                              GError          **error);
 
 G_END_DECLS
 

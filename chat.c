@@ -55,7 +55,7 @@ struct chat_member {
  * <@present|Present members> becomes Present members
  * <@75f50e24-d59d-40e4-996b-6ba3ff3f371f|Surname, Name> becomes Surname, Name
  */
-#define MENTION_PATTERN "&lt;@([\\w\\-]+)\\|([^>]+)&gt;"
+#define MENTION_PATTERN "&lt;@([\\w\\-]+)\\|(.*?)&gt;"
 #define MENTION_REPLACEMENT "<b>\\2</b>"
 
 /*

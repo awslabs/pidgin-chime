@@ -396,6 +396,7 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, 
 		return FALSE;
 	}
 
+#if 0 /* We think we fixed this by reregistering the device as OSX not Android */
 	/* WTF? Some users get only ConversationMembership updates when a new message
 	   comes in? */
 	obj = json_node_get_object(record);
@@ -414,7 +415,7 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, 
 		printf("WTF refetching messages for ConversationMembership update\n");
 		fetch_conversation_messages(cxn, conv);
 	} else printf("no fetch last %s\n", last_seen);
-
+#endif
 	return TRUE;
 }
 

@@ -31,7 +31,7 @@
 static void one_room_cb(JsonArray *array, guint index_,
 			JsonNode *node, gpointer _cxn)
 {
-	struct chime_connection *cxn = _cxn;
+	ChimeConnection *cxn = _cxn;
 	struct chime_room *room;
 	const gchar *channel, *id, *type, *name, *privacy, *visibility;
 
@@ -66,8 +66,8 @@ static void one_room_cb(JsonArray *array, guint index_,
 	g_hash_table_insert(cxn->rooms_by_name, room->name, room);
 }
 
-static void fetch_rooms(struct chime_connection *cxn, const gchar *next_token);
-static void roomlist_cb(struct chime_connection *cxn, SoupMessage *msg,
+static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token);
+static void roomlist_cb(ChimeConnection *cxn, SoupMessage *msg,
 			JsonNode *node, gpointer _roomlist)
 {
 	const gchar *next_token;
@@ -91,7 +91,7 @@ static void roomlist_cb(struct chime_connection *cxn, SoupMessage *msg,
 	}
 }
 
-static void fetch_rooms(struct chime_connection *cxn, const gchar *next_token)
+static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms");
 
@@ -117,7 +117,7 @@ static void destroy_room(gpointer _room)
 	g_free(room);
 }
 
-static gboolean visible_rooms_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+static gboolean visible_rooms_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 				      const gchar *klass, const gchar *type, JsonNode *node)
 {
 	if (strcmp(type, "update"))
@@ -127,7 +127,7 @@ static gboolean visible_rooms_jugg_cb(struct chime_connection *cxn, gpointer _un
 	return TRUE;
 }
 
-void chime_init_rooms(struct chime_connection *cxn)
+void chime_init_rooms(ChimeConnection *cxn)
 {
 	cxn->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
 	cxn->rooms_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_room);
@@ -136,7 +136,7 @@ void chime_init_rooms(struct chime_connection *cxn)
 	chime_jugg_subscribe(cxn, cxn->profile_channel, "VisibleRooms", visible_rooms_jugg_cb, NULL);
 }
 
-void chime_destroy_rooms(struct chime_connection *cxn)
+void chime_destroy_rooms(ChimeConnection *cxn)
 {
 	g_hash_table_destroy(cxn->rooms_by_name);
 	g_hash_table_destroy(cxn->rooms_by_id);
@@ -160,7 +160,7 @@ static void get_room(gpointer _id, gpointer _room, gpointer _roomlist)
 
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 	PurpleRoomlist *roomlist;
 	GList *fields = NULL;
 
@@ -203,7 +203,7 @@ GList *chime_purple_chat_info(PurpleConnection *conn)
 
 GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 	struct chime_room *room = NULL;
 	GHashTable *hash;
 

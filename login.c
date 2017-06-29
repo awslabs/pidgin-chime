@@ -25,7 +25,7 @@
 
 #include "chime.h"
 
-void chime_initial_login(struct chime_connection *cxn)
+void chime_initial_login(ChimeConnection *cxn)
 {
 	purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_OTHER_ERROR,
 				       _("No authentication token"));

@@ -48,7 +48,7 @@ struct chat_member {
 	gchar *display_name;
 };
 
-static void chat_deliver_msg(struct chime_connection *cxn, struct chime_msgs *msgs,
+static void chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 			     JsonNode *node, time_t msg_time)
 {
 	struct chime_chat *chat = (struct chime_chat *)msgs; /* Really */
@@ -113,7 +113,7 @@ static gboolean add_chat_member(struct chime_chat *chat, JsonNode *node)
 	return TRUE;
 }
 
-static gboolean chat_jugg_cb(struct chime_connection *cxn, gpointer _chat,
+static gboolean chat_jugg_cb(ChimeConnection *cxn, gpointer _chat,
 			     const gchar *klass, const gchar *type, JsonNode *record)
 {
 	struct chime_chat *chat = _chat;
@@ -149,7 +149,7 @@ static gboolean chat_jugg_cb(struct chime_connection *cxn, gpointer _chat,
 void chime_destroy_chat(struct chime_chat *chat)
 {
 	PurpleConnection *conn = chat->conv->account->gc;
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 	struct chime_room *room = chat->room;
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(room->chat->conv));
 
@@ -183,8 +183,8 @@ static void one_member_cb(JsonArray *array, guint index_,
 	add_chat_member(_chat, node);
 }
 
-void fetch_chat_memberships(struct chime_connection *cxn, struct chime_chat *chat, const gchar *next_token);
-static void fetch_members_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _chat)
+void fetch_chat_memberships(ChimeConnection *cxn, struct chime_chat *chat, const gchar *next_token);
+static void fetch_members_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _chat)
 {
 	struct chime_chat *chat = _chat;
 	const gchar *next_token;
@@ -205,7 +205,7 @@ static void fetch_members_cb(struct chime_connection *cxn, SoupMessage *msg, Jso
 	}
 }
 
-void fetch_chat_memberships(struct chime_connection *cxn, struct chime_chat *chat, const gchar *next_token)
+void fetch_chat_memberships(ChimeConnection *cxn, struct chime_chat *chat, const gchar *next_token)
 {
 	struct chime_room *room = chat->room;
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/memberships", room->id);
@@ -226,7 +226,7 @@ static void kill_member(gpointer _member)
 
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 	struct chime_room *room;
 	struct chime_chat *chat;
 	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
@@ -258,13 +258,13 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 
 void chime_purple_chat_leave(PurpleConnection *conn, int id)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 	struct chime_chat *chat = g_hash_table_lookup(cxn->live_chats, GUINT_TO_POINTER(id));
 
 	chime_destroy_chat(chat);
 }
 
-static void send_msg_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _chat)
+static void send_msg_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _chat)
 {
        struct chime_chat *chat = _chat;
 
@@ -288,7 +288,7 @@ static void send_msg_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode
 
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 	struct chime_chat *chat = g_hash_table_lookup(cxn->live_chats, GUINT_TO_POINTER(id));
 	int ret;
 
@@ -316,7 +316,7 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	return ret;
 }
 
-static gboolean chat_demuxing_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 				      const gchar *klass, const gchar *type, JsonNode *record)
 {
 	const gchar *room_id;
@@ -336,12 +336,12 @@ static gboolean chat_demuxing_jugg_cb(struct chime_connection *cxn, gpointer _un
 }
 
 
-void chime_init_chats(struct chime_connection *cxn)
+void chime_init_chats(ChimeConnection *cxn)
 {
 	chime_jugg_subscribe(cxn, cxn->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
 }
 
-void chime_destroy_chats(struct chime_connection *cxn)
+void chime_destroy_chats(ChimeConnection *cxn)
 {
 	chime_jugg_unsubscribe(cxn, cxn->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
 }

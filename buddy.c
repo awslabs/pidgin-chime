@@ -29,7 +29,7 @@
 
 /* Called to signal presence to Pidgin, with a node obtained
  * either from Juggernaut or explicit request (at startup). */
-static gboolean set_contact_presence(struct chime_connection *cxn, JsonNode *node)
+static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node)
 {
 	const gchar *id;
 	gint64 availability, revision;
@@ -61,14 +61,14 @@ static gboolean set_contact_presence(struct chime_connection *cxn, JsonNode *nod
 }
 
 /* Callback for Juggernaut notifications about status */
-static gboolean contact_presence_jugg_cb(struct chime_connection *cxn, gpointer _unused,
+static gboolean contact_presence_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 					 const gchar *klass, const gchar *type,
 					 JsonNode *record)
 {
 	return set_contact_presence(cxn, record);
 }
 
-static void presence_cb(struct chime_connection *cxn, SoupMessage *msg,
+static void presence_cb(ChimeConnection *cxn, SoupMessage *msg,
 			 JsonNode *node, gpointer _unused)
 {
 	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code))
@@ -84,7 +84,7 @@ static void presence_cb(struct chime_connection *cxn, SoupMessage *msg,
 
 static gboolean fetch_presences(gpointer _cxn)
 {
-	struct chime_connection *cxn = _cxn;
+	ChimeConnection *cxn = _cxn;
 	int i, len = g_slist_length(cxn->contacts_needed);
 	if (!len)
 		return FALSE;
@@ -116,7 +116,7 @@ static gboolean fetch_presences(gpointer _cxn)
 }
 
 /* Add or update a contact, from contacts list or conversation */
-struct chime_contact *chime_contact_new(struct chime_connection *cxn, JsonNode *node, gboolean conv)
+struct chime_contact *chime_contact_new(ChimeConnection *cxn, JsonNode *node, gboolean conv)
 {
 	const gchar *email, *full_name, *presence_channel, *display_name, *profile_id;
 	const gchar *profile_channel = NULL;
@@ -177,7 +177,7 @@ struct chime_contact *chime_contact_new(struct chime_connection *cxn, JsonNode *
 /* Temporary struct for iterating over a JsonArray of presences */
 static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _cxn)
 {
-	struct chime_connection *cxn = _cxn;
+	ChimeConnection *cxn = _cxn;
 	struct chime_contact *contact;
 
 	contact = chime_contact_new(cxn, elem, FALSE);
@@ -220,7 +220,7 @@ void chime_purple_buddy_free(PurpleBuddy *buddy)
 }
 
 
-static void buddies_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
+static void buddies_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
 {
 	if (node) {
 		JsonArray *arr= json_node_get_array(node);
@@ -240,14 +240,14 @@ static void buddies_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode 
 	}
 }
 
-void fetch_buddies(struct chime_connection *cxn)
+void fetch_buddies(ChimeConnection *cxn)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/contacts");
 	chime_queue_http_request(cxn, NULL, uri, buddies_cb, NULL);
 }
 
 
-static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNode *node, gpointer _buddy)
+static void add_buddy_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _buddy)
 {
 	PurpleBuddy *buddy = _buddy;
 
@@ -290,7 +290,7 @@ static void add_buddy_cb(struct chime_connection *cxn, SoupMessage *msg, JsonNod
 
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 
 	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email,
 							    purple_buddy_get_name(buddy));
@@ -318,7 +318,7 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 
 void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group)
 {
-	struct chime_connection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 	purple_notify_error(conn, NULL, _("Cannot remove buddies yet"), NULL);
 	/* Put it back :) */
 	fetch_buddies(cxn);
@@ -349,7 +349,7 @@ static void destroy_contact(gpointer _contact)
 	g_free(contact);
 }
 
-void chime_init_buddies(struct chime_connection *cxn)
+void chime_init_buddies(ChimeConnection *cxn)
 {
 	cxn->contacts_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_contact);
 	cxn->contacts_by_email = g_hash_table_new(g_str_hash, g_str_equal);
@@ -357,7 +357,7 @@ void chime_init_buddies(struct chime_connection *cxn)
 	fetch_buddies(cxn);
 }
 
-void chime_destroy_buddies(struct chime_connection *cxn)
+void chime_destroy_buddies(ChimeConnection *cxn)
 {
 	g_hash_table_destroy(cxn->contacts_by_email);
 	g_hash_table_destroy(cxn->contacts_by_id);

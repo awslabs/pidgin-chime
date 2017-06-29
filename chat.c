@@ -65,7 +65,8 @@ struct chat_member {
 static int parse_inbound_mentions(ChimeConnection *cxn, const char *message, char **parsed)
 {
 	*parsed = g_regex_replace(cxn->mention_regex, message, -1, 0, MENTION_REPLACEMENT, 0, NULL);
-	return strstr(message, cxn->profile_id) != NULL || strstr(message, "&lt;@all|") != NULL || strstr(message, "&lt@present|") != NULL;
+	return strstr(message, cxn->profile_id) || strstr(message, "&lt;@all|") ||
+		strstr(message, "&lt;@present|");
 }
 
 static void replace(gchar **dst, const gchar *a, const gchar *b)

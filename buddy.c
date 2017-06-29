@@ -261,30 +261,19 @@ static void add_buddy_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 		purple_blist_remove_buddy(buddy);
 		return;
 	}
-#if 0
+
 	const gchar *id;
-	if (parse_string(node, "id", &id)) {
-		printf("new buddy id %s\n", id);
-		contact->profile_id = g_strdup(id);
-		g_hash_table_insert(cxn->contacts_by_id, contact->profile_id, contact);
-		g_hash_table_insert(cxn->contacts_by_name, contact->email, contact);
+	if (!parse_string(node, "id", &id) ||
+	    !g_hash_table_lookup(cxn->contacts_by_id, id)) {
+
+		/* There is weirdness here. If this is a known person, then we can
+		 * *immediately* fetch their full name and other information by
+		 * refetching *all* buddies. So why in $DEITY's name does it not
+		 * get returned to us in the reply? I can't even see any way to
+		 * fetch just this single buddy, either; we have to refetch them
+		 * all. */
+		fetch_buddies(cxn);
 	}
-	/* XXX: Don't know how to correctly get the presence/profile
-	   channels without refetching all contacts, but they *are*
-	   predictable... */
-	if (!contact->profile_channel) {
-		contact->profile_channel = g_strdup_printf("profile!%s", id);
-		chime_jugg_subscribe(cxn, contact->profile_channel, jugg_dump_incoming,
-				     (char *)"Buddy Profile");
-	}
-	if (!contact->presence_channel) {
-		contact->presence_channel = g_strdup_printf("profile_presence!%s", id);
-		chime_jugg_subscribe(cxn, contact->presence_channel, "Presence",
-				     contact_presence_jugg_cb, contact);
-	}
-#endif
-	/* XXX: Can we get only the one? */
-	fetch_buddies(cxn);
 }
 
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group)

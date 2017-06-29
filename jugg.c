@@ -65,24 +65,19 @@ static void handle_callback(ChimeConnection *cxn, gchar *msg)
 		return;
 	}
 
-	const gchar *klass, *type, *channel;
+	const gchar *channel;
 	JsonNode *r = json_parser_get_root(parser);
 	if (parse_string(r, "channel", &channel)) {
 		JsonObject *obj = json_node_get_object(r);
 		JsonNode *data_node = json_object_get_member(obj, "data");
-		JsonNode *record_node = NULL;
-		if (data_node) {
-			obj = json_node_get_object(data_node);
-			record_node = json_object_get_member(obj, "record");
-		}
 
-		if (record_node && parse_string(data_node, "klass", &klass) &&
-		    parse_string(data_node, "type", &type)) {
+		const gchar *klass;
+		if (parse_string(data_node, "klass", &klass)) {
 			    GList *l = g_hash_table_lookup(cxn->subscriptions, channel);
 			    while (l) {
 				    struct jugg_subscription *sub = l->data;
 				    if (!sub->klass || !strcmp(sub->klass, klass))
-					    handled |= sub->cb(cxn, sub->cb_data, klass, type, record_node);
+					    handled |= sub->cb(cxn, sub->cb_data, data_node);
 				    l = l->next;
 			    }
 		}
@@ -359,15 +354,14 @@ void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gc
 	}
 }
 
-int jugg_dump_incoming(ChimeConnection *cxn, gpointer cb_data, const gchar *klass,
-		       const gchar *type, JsonNode *node)
+int jugg_dump_incoming(ChimeConnection *cxn, gpointer cb_data, JsonNode *node)
 {
 	JsonGenerator *gen = json_generator_new();
 	gchar *msg;
 	json_generator_set_root(gen, node);
 	json_generator_set_pretty(gen, TRUE);
 	msg = json_generator_to_data(gen, NULL);
-	printf("incoming %s %s %s: %s\n", (gchar *)cb_data, klass, type, msg);
+	printf("incoming %s : %s\n", (gchar *)cb_data, msg);
 	g_free(msg);
 	g_object_unref(gen);
 

@@ -192,37 +192,46 @@ static gboolean add_chat_member(struct chime_chat *chat, JsonNode *node)
 	return TRUE;
 }
 
-static gboolean chat_jugg_cb(ChimeConnection *cxn, gpointer _chat,
-			     const gchar *klass, const gchar *type, JsonNode *record)
+static gboolean chat_msg_jugg_cb(ChimeConnection *cxn, gpointer _chat, JsonNode *data_node)
 {
 	struct chime_chat *chat = _chat;
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
 
-	if (!strcmp(klass, "RoomMessage")) {
-		const gchar *msg_id;
-		if (!parse_string(record, "MessageId", &msg_id))
-			return FALSE;
+	const gchar *msg_id;
+	if (!parse_string(record, "MessageId", &msg_id))
+		return FALSE;
 
-		if (chat->msgs.messages) {
-			/* Still gathering messages. Add to the table, to avoid dupes */
-			g_hash_table_insert(chat->msgs.messages, (gchar *)msg_id,
-					    json_node_ref(record));
-			return TRUE;
-		}
-
-		const gchar *msg_time;
-		GTimeVal tv;
-		if (!parse_time(record, "CreatedOn", &msg_time, &tv))
-			return FALSE;
-
-		chime_update_last_msg(cxn, TRUE, chat->room->id, msg_time, msg_id);
-
-		chat_deliver_msg(cxn, &chat->msgs, record, tv.tv_sec);
+	if (chat->msgs.messages) {
+		/* Still gathering messages. Add to the table, to avoid dupes */
+		g_hash_table_insert(chat->msgs.messages, (gchar *)msg_id,
+				    json_node_ref(record));
 		return TRUE;
-	} else if (!strcmp(klass, "RoomMembership")) {
-		/* What abpout removal? */
-		return add_chat_member(chat, record);
 	}
-	return FALSE;
+
+	const gchar *msg_time;
+	GTimeVal tv;
+	if (!parse_time(record, "CreatedOn", &msg_time, &tv))
+		return FALSE;
+
+	chime_update_last_msg(cxn, TRUE, chat->room->id, msg_time, msg_id);
+
+	chat_deliver_msg(cxn, &chat->msgs, record, tv.tv_sec);
+	return TRUE;
+}
+
+static gboolean chat_membership_jugg_cb(ChimeConnection *cxn, gpointer _chat, JsonNode *data_node)
+{
+	struct chime_chat *chat = _chat;
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
+	/* What abpout removal? */
+	return add_chat_member(chat, record);
 }
 
 void chime_destroy_chat(struct chime_chat *chat)
@@ -240,7 +249,8 @@ void chime_destroy_chat(struct chime_chat *chat)
 		soup_session_cancel_message(cxn->soup_sess, chat->members_msg, 1);
 		chat->members_msg = NULL;
 	}
-	chime_jugg_unsubscribe(cxn, room->channel, NULL, chat_jugg_cb, chat);
+	chime_jugg_unsubscribe(cxn, room->channel, "RoomMessage", chat_msg_jugg_cb, chat);
+	chime_jugg_unsubscribe(cxn, room->channel, "RoomMembership", chat_membership_jugg_cb, chat);
 
 	serv_got_chat_left(conn, id);
 	g_hash_table_remove(cxn->live_chats, GUINT_TO_POINTER(room->id));
@@ -326,7 +336,8 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 	chat->sent_msgs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 
 	chat->members = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, kill_member);
-	chime_jugg_subscribe(cxn, room->channel, NULL, chat_jugg_cb, chat);
+	chime_jugg_subscribe(cxn, room->channel, "RoomMessage", chat_msg_jugg_cb, chat);
+	chime_jugg_subscribe(cxn, room->channel, "RoomMembership", chat_membership_jugg_cb, chat);
 
 	chat->msgs.is_room = TRUE;
 	chat->msgs.id = room->id;
@@ -417,9 +428,13 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	return ret;
 }
 
-static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _unused,
-				      const gchar *klass, const gchar *type, JsonNode *record)
+static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
 	const gchar *room_id;
 	if (!parse_string(record, "RoomId", &room_id))
 		return FALSE;
@@ -433,9 +448,8 @@ static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 		return FALSE;
 	}
 
-	return chat_jugg_cb(cxn, room->chat, klass, type, record);
+	return chat_msg_jugg_cb(cxn, room->chat, record);
 }
-
 
 void chime_init_chats(ChimeConnection *cxn)
 {

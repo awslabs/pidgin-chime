@@ -66,10 +66,13 @@ static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node)
 }
 
 /* Callback for Juggernaut notifications about status */
-static gboolean contact_presence_jugg_cb(ChimeConnection *cxn, gpointer _unused,
-					 const gchar *klass, const gchar *type,
-					 JsonNode *record)
+static gboolean contact_presence_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
 	return set_contact_presence(cxn, record);
 }
 

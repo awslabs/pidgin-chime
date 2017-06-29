@@ -127,11 +127,10 @@ gboolean chime_read_last_msg(ChimeConnection *cxn, gboolean is_room,
 void chime_init_juggernaut(ChimeConnection *cxn);
 void chime_destroy_juggernaut(ChimeConnection *cxn);
 
-typedef gboolean (*JuggernautCallback)(ChimeConnection *cxn, gpointer cb_data,
-				       const gchar *klass, const gchar *type, JsonNode *record);
+typedef gboolean (*JuggernautCallback)(ChimeConnection *cxn, gpointer cb_data, JsonNode *data_node);
 void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);
 void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);
-int jugg_dump_incoming(ChimeConnection *cxn, gpointer cb_data, const gchar *klass, const gchar *type, JsonNode *node);
+int jugg_dump_incoming(ChimeConnection *cxn, gpointer cb_data, JsonNode *node);
 void chime_purple_keepalive(PurpleConnection *conn);
 
 /* buddy.c */

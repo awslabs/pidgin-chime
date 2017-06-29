@@ -41,8 +41,7 @@ struct chime_conversation {
 	GHashTable *members;
 	GHashTable *sent_msgs;
 };
-static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused,
-					const gchar *klass, const gchar *type, JsonNode *record);
+static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *record);
 
 /* Called for all deliveries of incoming conversation messages, at startup and later */
 static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversation *conv,
@@ -267,17 +266,19 @@ static void destroy_conversation(gpointer _conv)
 	g_free(conv);
 }
 
-static gboolean conv_jugg_cb(ChimeConnection *cxn, gpointer _unused,
-			     const gchar *klass, const gchar *type, JsonNode *record)
+static gboolean conv_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
 	one_conversation_cb(NULL, 0, record, cxn);
 	return TRUE;
 }
 
 struct deferred_conv_jugg {
 	JuggernautCallback cb;
-	gchar *klass;
-	gchar *type;
 	JsonNode *node;
 };
 static void fetch_new_conv_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
@@ -304,21 +305,23 @@ static void fetch_new_conv_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *
 			goto bad;
 
 		/* OK, now we know about the new conversation we can play the msg node */
-		defer->cb(cxn, NULL, defer->klass, defer->type, defer->node);
+		defer->cb(cxn, NULL, defer->node);
 		goto out;
 	}
  bad:
 	;
  out:
-	g_free(defer->klass);
-	g_free(defer->type);
 	json_node_unref(defer->node);
 	g_free(defer);
 }
 
-static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused,
-				 const gchar *klass, const gchar *type, JsonNode *record)
+static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
 	const gchar *conv_id;
 	if (!parse_string(record, "ConversationId", &conv_id))
 		return FALSE;
@@ -330,17 +333,13 @@ static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 		 * of a new conversation before they send the first message. So let's
 		 * go looking for it... */
 		struct deferred_conv_jugg *defer = g_new0(struct deferred_conv_jugg, 1);
-		defer->klass = g_strdup(klass);
-		defer->type = g_strdup(type);
-		defer->node = json_node_ref(record);
+		defer->node = json_node_ref(data_node);
 		defer->cb = conv_msg_jugg_cb;
 
 		SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s", conv_id);
 		if (chime_queue_http_request(cxn, NULL, uri, fetch_new_conv_cb, defer))
 			return TRUE;
 
-		g_free(defer->klass);
-		g_free(defer->type);
 		json_node_unref(defer->node);
 		g_free(defer);
 		return FALSE;
@@ -364,9 +363,13 @@ static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 	return do_conv_deliver_msg(cxn, conv, record, tv.tv_sec);
 }
 
-static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused,
-					const gchar *klass, const gchar *type, JsonNode *record)
+static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
 	const gchar *conv_id;
 	if (!parse_string(record, "ConversationId", &conv_id))
 		return FALSE;
@@ -378,17 +381,13 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 		 * of a new conversation before they send the first message. So let's
 		 * go looking for it... */
 		struct deferred_conv_jugg *defer = g_new0(struct deferred_conv_jugg, 1);
-		defer->klass = g_strdup(klass);
-		defer->type = g_strdup(type);
-		defer->node = json_node_ref(record);
+		defer->node = json_node_ref(data_node);
 		defer->cb = conv_membership_jugg_cb;
 
 		SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s", conv_id);
 		if (chime_queue_http_request(cxn, NULL, uri, fetch_new_conv_cb, defer))
 			return TRUE;
 
-		g_free(defer->klass);
-		g_free(defer->type);
 		json_node_unref(defer->node);
 		g_free(defer);
 		return FALSE;
@@ -396,7 +395,7 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused,
 
 	/* WTF? Some users get only ConversationMembership updates when a new message
 	   comes in? */
-	JsonObject *obj = json_node_get_object(record);
+	obj = json_node_get_object(record);
 	JsonNode *member = json_object_get_member(obj, "Member");
 	if (!member)
 		return FALSE;

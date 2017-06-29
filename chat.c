@@ -100,40 +100,55 @@ static gchar *parse_outbound_mentions(GHashTable *members, const gchar *message)
        return parsed;
 }
 
+static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
+			       JsonNode *node, time_t msg_time)
+{
+	PurpleConnection *conn = chat->conv->account->gc;
+	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
+	const gchar *content, *sender;
+
+	if (!parse_string(node, "Content", &content) ||
+	    !parse_string(node, "Sender", &sender))
+		return;
+
+	const gchar *from = _("Unknown sender");
+	int msg_flags;
+
+	if (!strcmp(sender, cxn->profile_id)) {
+		from = purple_connection_get_display_name(cxn->prpl_conn);
+		msg_flags = PURPLE_MESSAGE_SEND;
+	} else {
+		struct chat_member *who = g_hash_table_lookup(chat->members, sender);
+		if (who)
+			from = who->display_name;
+		msg_flags = PURPLE_MESSAGE_RECV;
+	}
+
+	gchar *escaped = g_markup_escape_text(content, -1);
+
+	gchar *parsed = NULL;
+	if (parse_inbound_mentions(cxn, escaped, &parsed) &&
+	    (msg_flags & PURPLE_MESSAGE_RECV)) {
+		// Presumably this will trigger a notification.
+		msg_flags |= PURPLE_MESSAGE_NICK;
+	}
+	g_free(escaped);
+	serv_got_chat_in(conn, id, from, msg_flags, parsed, msg_time);
+	g_free(parsed);
+}
+
 static void chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 			     JsonNode *node, time_t msg_time)
 {
 	struct chime_chat *chat = (struct chime_chat *)msgs; /* Really */
-	struct chat_member *who = NULL;
-	const gchar *str, *content, *msg_id;
+	const gchar *msg_id;
 
+	/* Eliminate duplicates with outbound messages */
 	if (parse_string(node, "MessageId", &msg_id) &&
 	    g_hash_table_remove(chat->sent_msgs, msg_id))
 		return;
 
-	if (parse_string(node, "Content", &content)) {
-		PurpleConnection *conn = chat->conv->account->gc;
-		int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
-
-		if (parse_string(node, "Sender", &str))
-			who = g_hash_table_lookup(chat->members, str);
-
-		gchar *escaped = g_markup_escape_text(content, -1);
-
-		gchar *parsed = NULL;
-		int message_flag = PURPLE_MESSAGE_RECV;
-		if (parse_inbound_mentions(cxn, escaped, &parsed)) {
-		       // Presumably this will trigger a notification.
-		       message_flag |= PURPLE_MESSAGE_NICK;
-		}
-		g_free(escaped);
-
-		serv_got_chat_in(conn, id, who ? who->display_name : _("<unknown sender>"),
-				 message_flag, parsed, msg_time);
-		g_free(parsed);
-
-	}
-
+	parse_incoming_msg(cxn, chat, node, msg_time);
 }
 
 static gboolean add_chat_member(struct chime_chat *chat, JsonNode *node)
@@ -329,24 +344,41 @@ void chime_purple_chat_leave(PurpleConnection *conn, int id)
 
 static void send_msg_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _chat)
 {
-       struct chime_chat *chat = _chat;
+	struct chime_chat *chat = _chat;
 
-       /* Nothing to do o nsuccess */
-       if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+	/* Nothing to do o nsuccess */
+	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
 		gchar *err_msg = g_strdup_printf(_("Failed to deliver message (%d): %s"),
 						 msg->status_code, msg->reason_phrase);
 		purple_conversation_write(chat->conv, NULL, err_msg, PURPLE_MESSAGE_ERROR, time(NULL));
 		g_free(err_msg);
 		return;
-       }
-       JsonObject *obj = json_node_get_object(node);
-       JsonNode *msgnode = json_object_get_member(obj, "Message");
-       if (msgnode) {
-	       const gchar *msg_id;
+	}
+	JsonObject *obj = json_node_get_object(node);
+	JsonNode *msgnode = json_object_get_member(obj, "Message");
+	if (msgnode) {
+		const gchar *msg_time, *msg_id, *last_seen;
+		GTimeVal tv, seen_tv;
 
-	       if (parse_string(msgnode, "MessageId", &msg_id))
-		       g_hash_table_add(chat->sent_msgs, g_strdup(msg_id));
-       }
+		if (!parse_time(msgnode, "CreatedOn", &msg_time, &tv))
+			tv.tv_sec = time(NULL);
+
+		/* If we have already received a message at least this new before
+		 * the response to the creation arrived, then don't deliver it to
+		 * Pidgin again.... */
+		if (chime_read_last_msg(cxn, TRUE, chat->room->id, &last_seen, NULL) &&
+		    g_time_val_from_iso8601(last_seen, &seen_tv) &&
+		    (seen_tv.tv_sec > tv.tv_sec ||
+		     (seen_tv.tv_sec == tv.tv_sec && seen_tv.tv_usec > tv.tv_usec)))
+			return;
+
+		/* If we're doing it, then stick it into the hash table so that
+		 * chat_deliver_msg won't do it again when it does come back in. */
+		if (parse_string(msgnode, "MessageId", &msg_id))
+			g_hash_table_add(chat->sent_msgs, g_strdup(msg_id));
+
+		parse_incoming_msg(cxn, chat, msgnode, tv.tv_sec);
+	}
 }
 
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags)
@@ -376,8 +408,6 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages", chat->room->id);
 	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, send_msg_cb, chat)) {
 		ret = 0;
-		serv_got_chat_in(conn, id, purple_connection_get_display_name(conn),
-				 flags, message, time(NULL));
 	} else
 		ret = -1;
 

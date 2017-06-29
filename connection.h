@@ -57,6 +57,7 @@ struct _ChimeConnection {
 	GHashTable *rooms_by_name;
 	GHashTable *live_chats;
 	int chat_id;
+	GRegex *mention_regex;
 
 	/* Conversations */
 	GHashTable *im_conversations_by_peer_id;

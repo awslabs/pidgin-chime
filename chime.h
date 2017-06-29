@@ -59,11 +59,6 @@ struct chime_contact
 
 	int availability;
 	gint64 avail_revision;
-
-	/* A given contact may be a Buddy, or may just be known because
-	 * they're in an active conversation */
-	PurpleBuddy *buddy;
-	//	GList *conversations;
 };
 
 struct chime_msgs;

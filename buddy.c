@@ -27,6 +27,15 @@
 
 #include <libsoup/soup.h>
 
+static void update_purple_status(ChimeConnection *cxn, struct chime_contact *contact)
+{
+	if (contact->availability > 0 && contact->availability < CHIME_MAX_STATUS) {
+		printf("Set %s avail %s\n", contact->email, chime_statuses[contact->availability]);
+		purple_prpl_got_user_status(cxn->prpl_conn->account, contact->email,
+					    chime_statuses[contact->availability], NULL);
+	}
+}
+
 /* Called to signal presence to Pidgin, with a node obtained
  * either from Juggernaut or explicit request (at startup). */
 static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node)
@@ -52,11 +61,7 @@ static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node)
 	contact->avail_revision = revision;
 	contact->availability = availability;
 
-	if (contact->buddy && availability > 0 && availability < CHIME_MAX_STATUS) {
-		printf("Set %s avail %s\n", contact->buddy->name, chime_statuses[availability]);
-		if (contact->buddy)
-			purple_prpl_got_user_status(cxn->prpl_conn->account, contact->buddy->name, chime_statuses[availability], NULL);
-	}
+	update_purple_status(cxn, contact);
 	return TRUE;
 }
 
@@ -184,39 +189,32 @@ static void one_buddy_cb(JsonArray *arr, guint idx, JsonNode *elem, gpointer _cx
 	if (!contact)
 		return;
 
-	PurpleBuddy *buddy = purple_find_buddy(cxn->prpl_conn->account, contact->email);
-	if (!buddy) {
+	GSList *buddies = purple_find_buddies(cxn->prpl_conn->account, contact->email);
+	if (!buddies) {
 		PurpleGroup *group = purple_find_group(_("Chime Contacts"));
 		if (!group) {
 			group = purple_group_new(_("Chime Contacts"));
 			purple_blist_add_group(group, NULL);
 		}
 
-		buddy = purple_buddy_new(cxn->prpl_conn->account, contact->email, contact->display_name);
+		PurpleBuddy *buddy = purple_buddy_new(cxn->prpl_conn->account, contact->email,
+						      NULL);
 		purple_blist_add_buddy(buddy, NULL, group, NULL);
+		return;
 	}
+	while (buddies) {
+		PurpleBuddy *buddy = buddies->data;
+		buddies = g_slist_remove(buddies, buddy);
 
-	/* ASSERT: there isn't already a *different* contact->buddy */
-	contact->buddy = buddy;
-	buddy->proto_data = contact;
-
-	if (g_strcmp0(contact->display_name, purple_buddy_get_name(buddy)))
-		purple_blist_alias_buddy(buddy, contact->display_name);
+		const gchar *alias = purple_buddy_get_server_alias(buddy);
+		if (g_strcmp0(alias, contact->display_name))
+			purple_blist_server_alias_buddy(buddy, contact->display_name);
+	}
 }
 
 void chime_purple_buddy_free(PurpleBuddy *buddy)
 {
-	struct chime_contact *contact = buddy->proto_data;
-
 	printf("buddy_free %s\n", purple_buddy_get_name(buddy));
-
-	if (!contact)
-		return;
-
-	contact->buddy = NULL;
-	buddy->proto_data = NULL;
-
-	/* We actually leave the internal struct chime_contact alone */
 }
 
 
@@ -232,7 +230,8 @@ static void buddies_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, g
 	GSList *l = purple_find_buddies(cxn->prpl_conn->account, NULL);
 	while (l) {
 		PurpleBuddy *buddy = l->data;
-		struct chime_contact *contact = buddy->proto_data;
+		struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email,
+								    purple_buddy_get_name(buddy));
 		if (!contact || !contact->profile_id)
 			purple_blist_remove_buddy(buddy);
 
@@ -291,12 +290,12 @@ static void add_buddy_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
-
 	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email,
 							    purple_buddy_get_name(buddy));
+	printf("Add buddy %s: %p\n", purple_buddy_get_name(buddy), contact);
 	if (contact) {
-		/* We already knew about this person (from a conversation) */
-		buddy->proto_data = contact;
+		purple_blist_server_alias_buddy(buddy, contact->display_name);
+		update_purple_status(cxn, contact);
 	}
 
 	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/invites");
@@ -343,8 +342,6 @@ static void destroy_contact(gpointer _contact)
 	g_free(contact->email);
 	g_free(contact->full_name);
 	g_free(contact->display_name);
-	if (contact->buddy)
-		contact->buddy->proto_data = NULL;
 	/* XXX: conversations list */
 	g_free(contact);
 }

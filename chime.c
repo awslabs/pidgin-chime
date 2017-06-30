@@ -32,8 +32,6 @@
 
 #include "chime.h"
 
-static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg);
-
 G_DEFINE_QUARK(PidginChimeError, pidgin_chime_error);
 
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...)
@@ -103,141 +101,6 @@ gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str,
 		*time_str = msg_time;
 
 	return TRUE;
-}
-/* If we get an auth failure on a standard request, we automatically attempt
- * to renew the authentication token and resubmit the request. */
-static void renew_cb(ChimeConnection *cxn, SoupMessage *msg,
-		     JsonNode *node, gpointer _unused)
-{
-	GList *l;
-	const gchar *sess_tok;
-	gchar *cookie_hdr;
-
-	if (!node || !parse_string(node, "SessionToken", &sess_tok)) {
-		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
-					       _("Failed to renew session token"));
-		/* No need to cancel the outstanding requests; the session
-		   will be torn down anyway. */
-		return;
-	}
-
-	purple_account_set_string(cxn->prpl_conn->account, "token", sess_tok);
-	g_free(cxn->session_token);
-	cxn->session_token = g_strdup(sess_tok);
-
-	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", cxn->session_token);
-
-	while ( (l = g_list_first(cxn->msg_queue)) ) {
-		struct chime_msg *cmsg = l->data;
-
-		soup_message_headers_replace(cmsg->msg->request_headers, "Cookie", cookie_hdr);
-		soup_session_queue_message(cxn->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
-		cxn->msg_queue = g_list_remove(cxn->msg_queue, cmsg);
-	}
-
-	g_free(cookie_hdr);
-}
-
-static void chime_renew_token(ChimeConnection *cxn)
-{
-	SoupURI *uri;
-	JsonBuilder *builder;
-	JsonNode *node;
-
-	builder = json_builder_new();
-	builder = json_builder_begin_object(builder);
-	builder = json_builder_set_member_name(builder, "Token");
-	builder = json_builder_add_string_value(builder, cxn->session_token);
-	builder = json_builder_end_object(builder);
-	node = json_builder_get_root(builder);
-
-	uri = soup_uri_new_printf(cxn->profile_url, "/tokens");
-	soup_uri_set_query_from_fields(uri, "Token", cxn->session_token, NULL);
-	chime_queue_http_request(cxn, node, uri, "POST", renew_cb, NULL);
-
-	g_object_unref(builder);
-}
-
-/* First callback for SoupMessage completion — do the common
- * parsing of the JSON response (if any) and hand it on to the
- * real callback function. Also handles auth token renewal. */
-static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg)
-{
-	struct chime_msg *cmsg = _cmsg;
-	ChimeConnection *cxn = cmsg->cxn;
-	JsonParser *parser = NULL;
-	JsonNode *node = NULL;
-
-	/* Special case for renew_cb itself, which mustn't recurse! */
-	if ((cmsg->cb != renew_cb) && msg->status_code == 401) {
-		g_object_ref(msg);
-		if (cxn->msg_queue) {
-			/* Already renewing; just add to the list */
-			cxn->msg_queue = g_list_append(cxn->msg_queue, cmsg);
-			return;
-		}
-
-		cxn->msg_queue = g_list_append(cxn->msg_queue, cmsg);
-		chime_renew_token(cxn);
-		return;
-	}
-
-	const gchar *content_type = soup_message_headers_get_content_type(msg->response_headers, NULL);
-	if (content_type && !strcmp(content_type, "application/json")) {
-		GError *error = NULL;
-
-		parser = json_parser_new();
-		if (!json_parser_load_from_data(parser, msg->response_body->data, msg->response_body->length, &error)) {
-			g_warning("Error loading data: %s", error->message);
-			g_error_free(error);
-		} else {
-			node = json_parser_get_root(parser);
-		}
-	}
-
-	if (cmsg->cb)
-		cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);
-	g_clear_object(&parser);
-	g_free(cmsg);
-}
-
-
-SoupMessage *chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
-				      SoupURI *uri, const gchar *method,
-				      ChimeSoupMessageCallback callback,
-				      gpointer cb_data)
-{
-	struct chime_msg *cmsg = g_new0(struct chime_msg, 1);
-
-	cmsg->cxn = cxn;
-	cmsg->cb = callback;
-	cmsg->cb_data = cb_data;
-	cmsg->msg = soup_message_new_from_uri(method, uri);
-	soup_uri_free(uri);
-
-	if (cxn->session_token) {
-		gchar *cookie = g_strdup_printf("_aws_wt_session=%s", cxn->session_token);
-		soup_message_headers_append(cmsg->msg->request_headers, "Cookie", cookie);
-		g_free(cookie);
-	}
-	soup_message_headers_append(cmsg->msg->request_headers, "Accept", "*/*");
-	soup_message_headers_append(cmsg->msg->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
-	if (node) {
-		gchar *body;
-		gsize body_size;
-		JsonGenerator *gen = json_generator_new();
-		json_generator_set_root(gen, node);
-		body = json_generator_to_data(gen, &body_size);
-		soup_message_set_request(cmsg->msg, "application/json",
-					 SOUP_MEMORY_TAKE,
-					 body, body_size);
-		g_object_unref(gen);
-		json_node_unref(node);
-	}
-
-	soup_session_queue_message(cxn->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
-
-	return cmsg->msg;
 }
 
 static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
@@ -469,7 +332,7 @@ void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url,
 					   "/%ss/%s", is_room ? "room" : "conversation",
 					   id);
-	chime_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", NULL, NULL);
+	chime_connection_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", NULL, NULL);
 	g_object_unref(jb);
 }
 

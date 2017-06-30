@@ -285,7 +285,7 @@ void chime_init_juggernaut(ChimeConnection *cxn)
 
 	purple_connection_update_progress(cxn->prpl_conn, _("Obtaining WebSocket params..."),
 					  2, CONNECT_STEPS);
-	chime_queue_http_request(cxn, NULL, uri, "GET", ws_cb, NULL);
+	chime_connection_queue_http_request(cxn, NULL, uri, "GET", ws_cb, NULL);
 }
 
 gboolean chime_jugg_send(ChimeConnection *cxn, JsonNode *node)

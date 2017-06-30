@@ -247,7 +247,7 @@ static void fetch_conversations(ChimeConnection *cxn, const gchar *next_token)
 	soup_uri_set_query_from_fields(uri, "max-results", "50",
 				       next_token ? "next-token" : NULL, next_token,
 				       NULL);
-	chime_queue_http_request(cxn, NULL, uri, "GET", conversationlist_cb, NULL);
+	chime_connection_queue_http_request(cxn, NULL, uri, "GET", conversationlist_cb, NULL);
 }
 
 static void destroy_conversation(gpointer _conv)
@@ -340,7 +340,7 @@ static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNod
 		defer->cb = conv_msg_jugg_cb;
 
 		SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s", conv_id);
-		if (chime_queue_http_request(cxn, NULL, uri, "GET", fetch_new_conv_cb, defer))
+		if (chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_new_conv_cb, defer))
 			return TRUE;
 
 		json_node_unref(defer->node);
@@ -388,7 +388,7 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, 
 		defer->cb = conv_membership_jugg_cb;
 
 		SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s", conv_id);
-		if (chime_queue_http_request(cxn, NULL, uri, "GET", fetch_new_conv_cb, defer))
+		if (chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_new_conv_cb, defer))
 			return TRUE;
 
 		json_node_unref(defer->node);
@@ -582,7 +582,7 @@ static int send_im(ChimeConnection *cxn, struct im_send_data *im)
 	int ret;
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s/messages",
 					   im->conv->id);
-	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", send_im_cb, im))
+	if (chime_connection_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", send_im_cb, im))
 		ret = 1;
 	else {
 		ret = -1;
@@ -632,7 +632,7 @@ static int create_im_conv(ChimeConnection *cxn, struct im_send_data *im)
 
 	int ret;
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations");
-	if (chime_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", conv_create_cb, im))
+	if (chime_connection_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", conv_create_cb, im))
 		ret = 1;
 	else {
 		ret = -1;

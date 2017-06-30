@@ -117,7 +117,7 @@ static gboolean fetch_presences(gpointer _cxn)
 		soup_uri_set_query_from_fields(uri, "profile-ids", query, NULL);
 		g_free(query);
 
-		chime_queue_http_request(cxn, NULL, uri, "GET", presence_cb, NULL);
+		chime_connection_queue_http_request(cxn, NULL, uri, "GET", presence_cb, NULL);
 	}
 	g_free(ids);
 	return FALSE;
@@ -238,7 +238,7 @@ static void buddies_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, g
 void fetch_buddies(ChimeConnection *cxn)
 {
 	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/contacts");
-	chime_queue_http_request(cxn, NULL, uri, "GET", buddies_cb, NULL);
+	chime_connection_queue_http_request(cxn, NULL, uri, "GET", buddies_cb, NULL);
 }
 
 
@@ -295,7 +295,7 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 	builder = json_builder_end_object(builder);
 
 	/* For cancellation if the buddy is deleted before the request completes */
-	chime_queue_http_request(cxn, json_builder_get_root(builder), uri, "POST", add_buddy_cb, buddy);
+	chime_connection_queue_http_request(cxn, json_builder_get_root(builder), uri, "POST", add_buddy_cb, buddy);
 
 	g_object_unref(builder);
 }
@@ -333,7 +333,7 @@ void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, Purpl
 		return;
 
 	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/contacts/%s", contact->profile_id);
-	chime_queue_http_request(cxn, NULL, uri, "DELETE", remove_buddy_cb, NULL);
+	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE", remove_buddy_cb, NULL);
 }
 
 static void destroy_contact(gpointer _contact)

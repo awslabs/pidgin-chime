@@ -31,11 +31,6 @@
 #define CHIME_MAX_STATUS 6
 const gchar *chime_statuses[CHIME_MAX_STATUS];
 
-typedef void (*ChimeSoupMessageCallback)(ChimeConnection *cxn,
-					 SoupMessage *msg,
-					 JsonNode *node,
-					 gpointer cb_data);
-
 /* SoupMessage handling for Chime communication, with retry on re-auth
  * and JSON parsing. XX: MAke this a proper superclass of SoupMessage */
 struct chime_msg {
@@ -108,12 +103,6 @@ gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
 gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv);
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
-
-/* NB: This consumes the uri passed to it. But not the node. */
-SoupMessage *chime_queue_http_request(ChimeConnection *cxn, JsonNode *node,
-				      SoupURI *uri, const gchar *method,
-				      ChimeSoupMessageCallback callback,
-				      gpointer cb_data);
 
 void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 			   const gchar *id, const gchar *msg_time,

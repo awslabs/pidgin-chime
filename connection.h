@@ -88,6 +88,11 @@ typedef enum
 	CHIME_CONNECTION_ERROR_NETWORK
 } ChimeConnectionErrorEnum;
 
+typedef void (*ChimeSoupMessageCallback)(ChimeConnection *cxn,
+					 SoupMessage *msg,
+					 JsonNode *node,
+					 gpointer cb_data);
+
 #define CHIME_CONNECTION_ERROR (chime_connection_error_quark())
 GQuark chime_connection_error_quark (void);
 
@@ -116,6 +121,13 @@ gboolean         chime_connection_set_status_finish          (ChimeConnection  *
                                                               GError          **error);
 
 const gchar     *chime_connection_get_session_token          (ChimeConnection  *self);
+
+SoupMessage     *chime_connection_queue_http_request         (ChimeConnection         *self,
+                                                              JsonNode                *node,
+                                                              SoupURI                 *uri,
+                                                              const gchar             *method,
+                                                              ChimeSoupMessageCallback callback,
+                                                              gpointer                 cb_data);
 
 G_END_DECLS
 

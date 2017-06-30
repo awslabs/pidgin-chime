@@ -212,10 +212,10 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	printf("Got ws conn %p\n", cxn->ws_conn);
 	soup_websocket_connection_send_text(cxn->ws_conn,  "1::");
 
-	g_signal_connect(G_OBJECT(cxn->ws_conn), "closed",
-			 G_CALLBACK(on_websocket_closed), cxn);
-	g_signal_connect(G_OBJECT(cxn->ws_conn), "message",
-			 G_CALLBACK(on_websocket_message), cxn);
+	cxn->closed_handler = g_signal_connect(G_OBJECT(cxn->ws_conn), "closed",
+					       G_CALLBACK(on_websocket_closed), cxn);
+	cxn->message_handler = g_signal_connect(G_OBJECT(cxn->ws_conn), "message",
+						G_CALLBACK(on_websocket_message), cxn);
 
 }
 
@@ -271,6 +271,13 @@ static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer _cxn)
 	return TRUE;
 }
 
+
+static void on_final_ws_close(SoupWebsocketConnection *ws, gpointer _unused)
+{
+	g_object_unref(ws);
+	printf("Final unref of websocket\n");
+}
+
 void chime_destroy_juggernaut(ChimeConnection *cxn)
 {
 	if (cxn->subscriptions) {
@@ -279,9 +286,16 @@ void chime_destroy_juggernaut(ChimeConnection *cxn)
 		cxn->subscriptions = NULL;
 	}
 	soup_websocket_connection_send_text(cxn->ws_conn, "0::");
-	/* XXX: The above doesn't work unless we let the websocket live long
-	 * enough to actually send it. One way is to comment the next line out: */
-	g_clear_object(&cxn->ws_conn);
+
+	/* The ChimeConnection is going away, so disconnect the signals which 
+	 * refer to it...*/
+	g_signal_handler_disconnect(G_OBJECT(cxn->ws_conn), cxn->message_handler);
+	g_signal_handler_disconnect(G_OBJECT(cxn->ws_conn), cxn->closed_handler);
+	cxn->message_handler = cxn->closed_handler = 0;
+
+	g_signal_connect(G_OBJECT(cxn->ws_conn), "closed", G_CALLBACK(on_final_ws_close), NULL);
+	cxn->ws_conn = NULL;
+
 	g_clear_pointer(&cxn->ws_key, g_free);
 }
 

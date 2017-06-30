@@ -38,7 +38,7 @@ struct _ChimeConnection {
 	gchar *session_token;
 
 	/* Messages queued for resubmission */
-	GList *msg_queue;
+	GQueue *msg_queue;
 
 	/* Juggernaut */
 	SoupWebsocketConnection *ws_conn;

@@ -47,10 +47,16 @@ chime_connection_finalize(GObject *object)
 }
 
 static void
+cmsg_free(struct chime_msg *cmsg)
+{
+	g_object_unref(cmsg->msg);
+	g_free(cmsg);
+}
+
+static void
 chime_connection_dispose(GObject *object)
 {
 	ChimeConnection *self = CHIME_CONNECTION(object);
-	GList *l;
 
 	if (self->soup_sess) {
 		soup_session_abort(self->soup_sess);
@@ -65,15 +71,10 @@ chime_connection_dispose(GObject *object)
 
 	g_clear_pointer(&self->reg_node, json_node_unref);
 
-	// FIXME: change to use g_list_free_full
-	while ( (l = g_list_first(self->msg_queue)) ) {
-		struct chime_msg *cmsg = l->data;
-
-		g_object_unref(cmsg->msg);
-		g_free(cmsg);
-		self->msg_queue = g_list_remove(self->msg_queue, cmsg);
+	if (self->msg_queue) {
+		g_queue_free_full(self->msg_queue, (GDestroyNotify)cmsg_free);
+		self->msg_queue = NULL;
 	}
-	self->msg_queue = NULL;
 	
 	purple_connection_set_protocol_data(self->prpl_conn, NULL);
 
@@ -163,6 +164,8 @@ chime_connection_init(ChimeConnection *self)
 		g_object_unref(l);
 		g_object_set(self->soup_sess, "ssl-strict", FALSE, NULL);
 	}
+
+	self->msg_queue = g_queue_new();
 }
 
 ChimeConnection *
@@ -396,7 +399,6 @@ chime_connection_get_session_token(ChimeConnection *self)
 static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 		     JsonNode *node, gpointer _unused)
 {
-	GList *l;
 	const gchar *sess_tok;
 	gchar *cookie_hdr;
 
@@ -416,12 +418,10 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 
 	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", self->session_token);
 
-	while ( (l = g_list_first(self->msg_queue)) ) {
-		struct chime_msg *cmsg = l->data;
-
+	struct chime_msg *cmsg = NULL;
+	while ( (cmsg = g_queue_pop_head(self->msg_queue)) ) {
 		soup_message_headers_replace(cmsg->msg->request_headers, "Cookie", cookie_hdr);
 		soup_session_queue_message(self->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
-		self->msg_queue = g_list_remove(self->msg_queue, cmsg);
 	}
 
 	g_free(cookie_hdr);
@@ -460,14 +460,10 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 	/* Special case for renew_cb itself, which mustn't recurse! */
 	if ((cmsg->cb != renew_cb) && msg->status_code == 401) {
 		g_object_ref(msg);
-		if (cxn->msg_queue) {
-			/* Already renewing; just add to the list */
-			cxn->msg_queue = g_list_append(cxn->msg_queue, cmsg);
-			return;
-		}
-
-		cxn->msg_queue = g_list_append(cxn->msg_queue, cmsg);
-		chime_renew_token(cxn);
+		gboolean already_renewing = !g_queue_is_empty(cxn->msg_queue);
+		g_queue_push_tail(cxn->msg_queue, cmsg);
+		if (!already_renewing)
+			chime_renew_token(cxn);
 		return;
 	}
 

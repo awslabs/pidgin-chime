@@ -577,7 +577,7 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 	/* If we are already renewing the token, don't bother submitting it with the
 	 * old token just for it to fail (and perhaps trigger *another* token reneawl
 	 * which isn't even needed. */
-	if (!g_queue_is_empty(self->msg_queue))
+	if (cmsg->cb != renew_cb && !g_queue_is_empty(self->msg_queue))
 		g_queue_push_tail(self->msg_queue, cmsg);
 	else
 		soup_session_queue_message(self->soup_sess, cmsg->msg, soup_msg_cb, cmsg);

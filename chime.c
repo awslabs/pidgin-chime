@@ -126,6 +126,27 @@ static const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
         return "chime";
 }
 
+static void on_set_idle_ready(GObject *source, GAsyncResult *result, gpointer user_data)
+{
+	GError *error = NULL;
+
+	if (!chime_connection_set_device_status_finish(CHIME_CONNECTION(source), result, &error)) {
+		g_warning("Could not set the device status: %s", error->message);
+		g_error_free(error);
+		return;
+	}
+}
+
+static void chime_purple_set_idle(PurpleConnection *conn, int idle_time)
+{
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	printf("set idle %d\n", idle_time);
+
+	chime_connection_set_device_status_async(cxn, idle_time ? "Idle" : "Active",
+						 NULL, on_set_idle_ready,
+						 NULL);
+}
+
 static void on_device_registered(GObject *source, GAsyncResult *result, gpointer data)
 {
 	PurpleConnection *conn = (PurpleConnection *)data;
@@ -138,6 +159,7 @@ static void on_device_registered(GObject *source, GAsyncResult *result, gpointer
 		return;
 	}
 
+	chime_purple_set_idle(conn, 0);
 	printf("Device registered\n");
 }
 
@@ -233,27 +255,6 @@ static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status
 	chime_connection_set_presence_async(cxn, purple_status_get_id(status), NULL,
 					    NULL, on_set_status_ready,
 					    NULL);
-}
-
-static void on_set_idle_ready(GObject *source, GAsyncResult *result, gpointer user_data)
-{
-	GError *error = NULL;
-
-	if (!chime_connection_set_device_status_finish(CHIME_CONNECTION(source), result, &error)) {
-		g_warning("Could not set the device status: %s", error->message);
-		g_error_free(error);
-		return;
-	}
-}
-
-static void chime_purple_set_idle(PurpleConnection *conn, int idle_time)
-{
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
-	printf("set idle %d\n", idle_time);
-
-	chime_connection_set_device_status_async(cxn, idle_time ? "Idle" : "Active",
-						 NULL, on_set_idle_ready,
-						 NULL);
 }
 
 static PurplePluginProtocolInfo chime_prpl_info = {

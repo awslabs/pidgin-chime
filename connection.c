@@ -349,7 +349,10 @@ chime_connection_register_device_finish(ChimeConnection  *self,
 static void set_device_status_cb(ChimeConnection *self, SoupMessage *msg,
 				 JsonNode *node, gpointer user_data)
 {
-	g_task_return_boolean(G_TASK(user_data), TRUE);
+	GTask *task = G_TASK(user_data);
+
+	g_task_return_boolean(task, TRUE);
+	g_object_unref(task);
 }
 
 void
@@ -389,7 +392,10 @@ chime_connection_set_device_status_finish(ChimeConnection  *self,
 static void set_presence_cb(ChimeConnection *self, SoupMessage *msg,
 			    JsonNode *node, gpointer user_data)
 {
-	g_task_return_boolean(G_TASK(user_data), TRUE);
+	GTask *task = G_TASK(user_data);
+
+	g_task_return_boolean(task, TRUE);
+	g_object_unref(task);
 }
 
 void

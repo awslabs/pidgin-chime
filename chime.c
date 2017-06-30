@@ -187,7 +187,7 @@ static void chime_purple_close(PurpleConnection *conn)
 
 
 const gchar *chime_statuses[CHIME_MAX_STATUS] = {
-	"zero", "offline", "Available", "three", "Busy", "Mobile"
+	"zero", "offline", "Automatic", "three", "Busy", "Mobile"
 };
 
 static GList *chime_purple_status_types(PurpleAccount *account)
@@ -218,7 +218,7 @@ static void on_set_status_ready(GObject *source, GAsyncResult *result, gpointer 
 {
 	GError *error = NULL;
 
-	if (!chime_connection_set_status_finish(CHIME_CONNECTION(source), result, &error)) {
+	if (!chime_connection_set_presence_finish(CHIME_CONNECTION(source), result, &error)) {
 		g_warning("Could not set the status: %s", error->message);
 		g_error_free(error);
 		return;
@@ -230,9 +230,9 @@ static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status
 	ChimeConnection *cxn = purple_connection_get_protocol_data(account->gc);
 	printf("set status %s\n", purple_status_get_id(status));
 
-	chime_connection_set_status_async(cxn, purple_status_get_id(status),
-	                                  NULL, on_set_status_ready,
-	                                  NULL);
+	chime_connection_set_presence_async(cxn, purple_status_get_id(status), NULL,
+					    NULL, on_set_status_ready,
+					    NULL);
 }
 
 static void on_set_idle_ready(GObject *source, GAsyncResult *result, gpointer user_data)

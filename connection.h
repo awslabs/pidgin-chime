@@ -110,13 +110,14 @@ gboolean         chime_connection_register_device_finish     (ChimeConnection  *
                                                               GAsyncResult     *result,
                                                               GError          **error);
 
-void             chime_connection_set_status_async           (ChimeConnection    *self,
-                                                              const gchar        *status,
+void             chime_connection_set_presence_async         (ChimeConnection    *self,
+                                                              const gchar        *availability,
+                                                              const gchar        *visibility,
                                                               GCancellable       *cancellable,
                                                               GAsyncReadyCallback callback,
                                                               gpointer            user_data);
 
-gboolean         chime_connection_set_status_finish          (ChimeConnection  *self,
+gboolean         chime_connection_set_presence_finish        (ChimeConnection  *self,
                                                               GAsyncResult     *result,
                                                               GError          **error);
 

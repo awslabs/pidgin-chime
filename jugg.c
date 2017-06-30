@@ -423,7 +423,7 @@ void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gc
 
 	item = g_list_find_custom(l, &sub, compare_sub);
 	if (item) {
-		l = g_list_remove(l, item->data);
+		l = g_list_delete_link(l, item);
 		if (!l) {
 			g_hash_table_remove(priv->subscriptions, channel);
 			if (priv->ws_conn)

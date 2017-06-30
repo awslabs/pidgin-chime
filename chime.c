@@ -274,7 +274,6 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.add_buddy = chime_purple_add_buddy,
 	.buddy_free = chime_purple_buddy_free,
 	.remove_buddy = chime_purple_remove_buddy,
-	.keepalive = chime_purple_keepalive,
 	.send_typing = chime_send_typing,
 	.set_idle = chime_purple_set_idle,
 };

@@ -210,6 +210,8 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 #endif
 
 	printf("Got ws conn %p\n", cxn->ws_conn);
+	soup_websocket_connection_send_text(cxn->ws_conn,  "1::");
+
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "closed",
 			 G_CALLBACK(on_websocket_closed), cxn);
 	g_signal_connect(G_OBJECT(cxn->ws_conn), "message",
@@ -380,14 +382,4 @@ void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gc
 		} else
 			g_hash_table_replace(cxn->subscriptions, g_strdup(channel), l);
 	}
-}
-
-void chime_purple_keepalive(PurpleConnection *conn)
-{
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
-
-	/* XX: Check for response. But at least this will trigger a disconnect
-	   in some cases which we otherwise wouldn't have noticed. */
-	if (cxn->ws_conn && cxn->jugg_connected)
-		soup_websocket_connection_send_text(cxn->ws_conn, "1::");
 }

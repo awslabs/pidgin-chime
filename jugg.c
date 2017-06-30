@@ -258,7 +258,10 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 
 static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer _cxn)
 {
-	send_subscription_message(_cxn, "unsubscribe", k);
+	ChimeConnection *cxn = _cxn;
+
+	if (cxn->ws_conn)
+		send_subscription_message(_cxn, "unsubscribe", k);
 
 	g_list_free_full(v, g_free);
 	return TRUE;
@@ -278,16 +281,18 @@ void chime_destroy_juggernaut(ChimeConnection *cxn)
 		g_hash_table_destroy(cxn->subscriptions);
 		cxn->subscriptions = NULL;
 	}
-	soup_websocket_connection_send_text(cxn->ws_conn, "0::");
 
-	/* The ChimeConnection is going away, so disconnect the signals which 
+	/* The ChimeConnection is going away, so disconnect the signals which
 	 * refer to it...*/
-	g_signal_handler_disconnect(G_OBJECT(cxn->ws_conn), cxn->message_handler);
-	g_signal_handler_disconnect(G_OBJECT(cxn->ws_conn), cxn->closed_handler);
-	cxn->message_handler = cxn->closed_handler = 0;
+	if (cxn->ws_conn) {
+		g_signal_handler_disconnect(G_OBJECT(cxn->ws_conn), cxn->message_handler);
+		g_signal_handler_disconnect(G_OBJECT(cxn->ws_conn), cxn->closed_handler);
+		cxn->message_handler = cxn->closed_handler = 0;
 
-	g_signal_connect(G_OBJECT(cxn->ws_conn), "closed", G_CALLBACK(on_final_ws_close), NULL);
-	cxn->ws_conn = NULL;
+		soup_websocket_connection_send_text(cxn->ws_conn, "0::");
+		g_signal_connect(G_OBJECT(cxn->ws_conn), "closed", G_CALLBACK(on_final_ws_close), NULL);
+		cxn->ws_conn = NULL;
+	}
 
 	g_clear_pointer(&cxn->ws_key, g_free);
 }

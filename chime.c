@@ -201,7 +201,7 @@ static GList *chime_purple_status_types(PurpleAccount *account)
 	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, chime_statuses[2],
 				      _("Available"), TRUE);
 	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, chime_statuses[3],
+	type = purple_status_type_new(PURPLE_STATUS_AWAY, chime_statuses[3],
 				      _("Status 3"), FALSE);
 	types = g_list_append(types, type);
 	type = purple_status_type_new(PURPLE_STATUS_UNAVAILABLE, chime_statuses[4],
@@ -235,6 +235,27 @@ static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status
 	                                  NULL);
 }
 
+static void on_set_idle_ready(GObject *source, GAsyncResult *result, gpointer user_data)
+{
+	GError *error = NULL;
+
+	if (!chime_connection_set_device_status_finish(CHIME_CONNECTION(source), result, &error)) {
+		g_warning("Could not set the device status: %s", error->message);
+		g_error_free(error);
+		return;
+	}
+}
+
+static void chime_purple_set_idle(PurpleConnection *conn, int idle_time)
+{
+	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	printf("set idle %d\n", idle_time);
+
+	chime_connection_set_device_status_async(cxn, idle_time ? "Idle" : "Active",
+						 NULL, on_set_idle_ready,
+						 NULL);
+}
+
 static PurplePluginProtocolInfo chime_prpl_info = {
 	.options = OPT_PROTO_NO_PASSWORD,
 	.list_icon = chime_purple_list_icon,
@@ -254,6 +275,7 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.remove_buddy = chime_purple_remove_buddy,
 	.keepalive = chime_purple_keepalive,
 	.send_typing = chime_send_typing,
+	.set_idle = chime_purple_set_idle,
 };
 
 static void chime_purple_show_about_plugin(PurplePluginAction *action)

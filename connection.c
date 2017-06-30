@@ -346,6 +346,46 @@ chime_connection_register_device_finish(ChimeConnection  *self,
 	return g_task_propagate_boolean(G_TASK(result), error);
 }
 
+static void set_device_status_cb(ChimeConnection *self, SoupMessage *msg,
+				 JsonNode *node, gpointer user_data)
+{
+	g_task_return_boolean(G_TASK(user_data), TRUE);
+}
+
+void
+chime_connection_set_device_status_async(ChimeConnection    *self,
+					 const gchar        *status,
+					 GCancellable       *cancellable,
+					 GAsyncReadyCallback callback,
+					 gpointer            user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(self));
+
+	GTask *task = g_task_new(self, cancellable, callback, user_data);
+	JsonBuilder *builder = json_builder_new();
+	builder = json_builder_begin_object(builder);
+	builder = json_builder_set_member_name(builder, "Status");
+	builder = json_builder_add_string_value(builder, status);
+	builder = json_builder_end_object(builder);
+	JsonNode *node = json_builder_get_root(builder);
+
+	SoupURI *uri = soup_uri_new_printf(self->presence_url, "/devicestatus");
+	chime_connection_queue_http_request(self, node, uri, "PUT", set_device_status_cb, task);
+
+	g_object_unref(builder);
+}
+
+gboolean
+chime_connection_set_device_status_finish(ChimeConnection  *self,
+					  GAsyncResult     *result,
+					  GError          **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_boolean(G_TASK(result), error);
+}
+
 static void set_status_cb(ChimeConnection *self, SoupMessage *msg,
                           JsonNode *node, gpointer user_data)
 {

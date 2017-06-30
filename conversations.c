@@ -138,10 +138,8 @@ static void fetch_conversation_messages(ChimeConnection *cxn, struct chime_conve
 	fetch_messages(cxn, conv->msgs, NULL);
 }
 
-static void one_conversation_cb(JsonArray *array, guint index_,
-			JsonNode *node, gpointer _cxn)
+static struct chime_conversation *one_conversation_cb(ChimeConnection *cxn, JsonNode *node)
 {
-	ChimeConnection *cxn = _cxn;
 	struct chime_conversation *conv;
 	const gchar *channel, *id, *name, *visibility;
 	gint64 favourite;
@@ -153,7 +151,7 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 	    !parse_string(node, "Visibility", &visibility) ||
 	    !parse_int(node, "Favorite", &favourite) ||
 	    !(members_node = json_object_get_member(json_node_get_object(node), "Members")))
-		return;
+		return NULL;
 
 	conv = g_hash_table_lookup(cxn->conversations_by_id, id);
 	if (conv) {
@@ -213,6 +211,7 @@ static void one_conversation_cb(JsonArray *array, guint index_,
 	}
 
 	g_hash_table_insert(cxn->conversations_by_name, conv->name, conv);
+	return conv;
 }
 
 static void fetch_conversations(ChimeConnection *cxn, const gchar *next_token);
@@ -230,7 +229,9 @@ static void conversationlist_cb(ChimeConnection *cxn, SoupMessage *msg,
 		convs_node = json_object_get_member(obj, "Conversations");
 		if (convs_node) {
 			convs_arr = json_node_get_array(convs_node);
-			json_array_foreach_element(convs_arr, one_conversation_cb, cxn);
+			guint i, len = json_array_get_length(convs_arr);
+			for (i = 0; i < len; i++)
+				one_conversation_cb(cxn, json_array_get_element(convs_arr, i));
 		}
 		if (parse_string(node, "NextToken", &next_token))
 			fetch_conversations(cxn, next_token);
@@ -276,8 +277,7 @@ static gboolean conv_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *d
 	if (!record)
 		return FALSE;
 
-	one_conversation_cb(NULL, 0, record, cxn);
-	return TRUE;
+	return !!one_conversation_cb(cxn, record);
 }
 
 struct deferred_conv_jugg {
@@ -295,7 +295,8 @@ static void fetch_new_conv_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *
 		if (!node)
 			goto bad;
 
-		one_conversation_cb(NULL, 0, node, cxn);
+		if (!one_conversation_cb(cxn, node))
+			goto bad;
 
 		/* Sanity check; we don't want to just keep looping for ever if it goes wrong */
 		const gchar *conv_id;
@@ -482,8 +483,8 @@ void chime_destroy_conversations(ChimeConnection *cxn)
 }
 
 struct im_send_data {
-	struct chime_contact *contact;
 	struct chime_conversation *conv;
+	gchar *who;
 	gchar *message;
 	PurpleMessageFlags flags;
 };
@@ -498,7 +499,7 @@ static void im_error(ChimeConnection *cxn, struct im_send_data *im,
 	va_end(args);
 
 	PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY,
-									  im->contact->email,
+									  im->who,
 									  cxn->prpl_conn->account);
 	if (pconv)
 		purple_conversation_write(pconv, NULL, msg, PURPLE_MESSAGE_ERROR, time(NULL));
@@ -588,6 +589,7 @@ static int send_im(ChimeConnection *cxn, struct im_send_data *im)
 		ret = 1;
 	else {
 		ret = -1;
+		g_free(im->who);
 		g_free(im->message);
 		g_free(im);
 	}
@@ -606,9 +608,7 @@ static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *nod
 		if (!node)
 			goto bad;
 
-		one_conversation_cb(NULL, 0, node, cxn);
-		im->conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
-					       im->contact->profile_id);
+		im->conv = one_conversation_cb(cxn, node);
 		if (!im->conv)
 			goto bad;
 
@@ -617,18 +617,19 @@ static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *nod
 	}
  bad:
 	im_error(cxn, im, _("Failed to create IM conversation"));
+	g_free(im->who);
 	g_free(im->message);
 	g_free(im);
 }
 
-static int create_im_conv(ChimeConnection *cxn, struct im_send_data *im)
+ static int create_im_conv(ChimeConnection *cxn, struct im_send_data *im, const gchar *profile_id)
 {
 	JsonBuilder *jb = json_builder_new();
 	jb = json_builder_new();
 	jb = json_builder_begin_object(jb);
 	jb = json_builder_set_member_name(jb, "ProfileIds");
 	jb = json_builder_begin_array(jb);
-	jb = json_builder_add_string_value(jb, im->contact->profile_id);
+	jb = json_builder_add_string_value(jb, profile_id);
 	jb = json_builder_end_array(jb);
 	jb = json_builder_end_object(jb);
 
@@ -638,6 +639,7 @@ static int create_im_conv(ChimeConnection *cxn, struct im_send_data *im)
 		ret = 1;
 	else {
 		ret = -1;
+		g_free(im->who);
 		g_free(im->message);
 		g_free(im);
 	}
@@ -646,24 +648,69 @@ static int create_im_conv(ChimeConnection *cxn, struct im_send_data *im)
 	return ret;
 }
 
+static void autocomplete_im_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _im)
+{
+	struct im_send_data *im = _im;
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		JsonArray *arr = json_node_get_array(node);
+
+		guint i, len = json_array_get_length(arr);
+		for (i = 0; i < len; i++) {
+			JsonNode *node = json_array_get_element(arr, i);
+			const gchar *email, *profile_id;
+
+			if (parse_string(node, "email", &email) &&
+			    parse_string(node, "id", &profile_id) &&
+			    !strcmp(im->who, email)) {
+				create_im_conv(cxn, im, profile_id);
+				return;
+			}
+		}
+	}
+	im_error(cxn, im, _("Failed to find user"));
+	g_free(im->who);
+	g_free(im->message);
+	g_free(im);
+}
+
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(gc);
 
-	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email, who);
-	if (!contact) {
-		/* XXX: Send an invite? */
-		return -1;
-	}
 	struct im_send_data *im = g_new0(struct im_send_data, 1);
-	im->contact = contact;
 	im->message = purple_unescape_html(message);
+	im->who = g_strdup(who);
 	im->flags = flags;
-	im->conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
-				       contact->profile_id);
-	if (im->conv)
-		return send_im(cxn, im);
-	else
-		return create_im_conv(cxn, im);
+
+	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email, who);
+	if (contact) {
+		im->conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
+					       contact->profile_id);
+		if (im->conv)
+			return send_im(cxn, im);
+
+		return create_im_conv(cxn, im, contact->profile_id);
+	}
+
+	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/registered_auto_completes");
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "q");
+	jb = json_builder_add_string_value(jb, who);
+	jb = json_builder_end_object(jb);
+
+	int ret;
+	if (chime_connection_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", autocomplete_im_cb, im))
+		ret = 1;
+	else {
+		ret = -1;
+		g_free(im->who);
+		g_free(im->message);
+		g_free(im);
+	}
+
+	g_object_unref(jb);
+	return ret;
 }
 

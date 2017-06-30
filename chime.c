@@ -351,9 +351,15 @@ static GList *chime_purple_status_types(PurpleAccount *account)
 	return types;
 }
 
-static void sts_cb(ChimeConnection *cxn, SoupMessage *msg,
-		   JsonNode *node, gpointer _roomlist)
+static void on_set_status_ready(GObject *source, GAsyncResult *result, gpointer user_data)
 {
+	GError *error = NULL;
+
+	if (!chime_connection_set_status_finish(CHIME_CONNECTION(source), result, &error)) {
+		g_warning("Could not set the status: %s", error->message);
+		g_error_free(error);
+		return;
+	}
 }
 
 static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status)
@@ -361,17 +367,9 @@ static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status
 	ChimeConnection *cxn = purple_connection_get_protocol_data(account->gc);
 	printf("set status %s\n", purple_status_get_id(status));
 
-	JsonBuilder *builder = json_builder_new();
-	builder = json_builder_begin_object(builder);
-	builder = json_builder_set_member_name(builder, "ManualAvailability");
-	builder = json_builder_add_string_value(builder, purple_status_get_id(status));
-	builder = json_builder_end_object(builder);
-	JsonNode *node = json_builder_get_root(builder);
-
-	SoupURI *uri = soup_uri_new_printf(cxn->presence_url, "/presencesettings");
-	chime_queue_http_request(cxn, node, uri, "POST", sts_cb, NULL);
-
-	g_object_unref(builder);
+	chime_connection_set_status_async(cxn, purple_status_get_id(status),
+	                                  NULL, on_set_status_ready,
+	                                  NULL);
 }
 
 static PurplePluginProtocolInfo chime_prpl_info = {

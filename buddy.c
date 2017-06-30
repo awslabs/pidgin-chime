@@ -127,12 +127,14 @@ static gboolean fetch_presences(gpointer _cxn)
 struct chime_contact *chime_contact_new(ChimeConnection *cxn, JsonNode *node, gboolean conv)
 {
 	const gchar *email, *full_name, *presence_channel, *display_name, *profile_id;
+	const gchar *profile_channel = NULL;
 	struct chime_contact *contact;
 
 	/*                        ↓↓ WTF guys? ↓↓                 */
 	if (!parse_string(node, conv?"Email":"email", &email) ||
 	    !parse_string(node, conv?"FullName":"full_name", &full_name) ||
 	    !parse_string(node, conv?"PresenceChannel":"presence_channel", &presence_channel) ||
+	    (!conv && !parse_string(node, "profile_channel", &profile_channel)) ||
 	    !parse_string(node, conv?"DisplayName":"display_name", &display_name) ||
 	    !parse_string(node, conv?"ProfileId":"id", &profile_id))
 		return NULL;
@@ -145,6 +147,10 @@ struct chime_contact *chime_contact_new(ChimeConnection *cxn, JsonNode *node, gb
 		contact->presence_channel = g_strdup(presence_channel);
 		chime_jugg_subscribe(cxn, presence_channel, "Presence", contact_presence_jugg_cb,
 				     contact);
+		if (!conv) {
+			contact->profile_channel = g_strdup(profile_channel);
+			chime_jugg_subscribe(cxn, profile_channel, NULL, NULL, NULL);
+		}
 		g_hash_table_insert(cxn->contacts_by_id, contact->profile_id, contact);
 
 		/* We'll need to request presence */
@@ -340,6 +346,10 @@ static void destroy_contact(gpointer _contact)
 {
 	struct chime_contact *contact = _contact;
 
+	if (contact->profile_channel) {
+		chime_jugg_unsubscribe(contact->cxn, contact->profile_channel, NULL, NULL, NULL);
+		g_free(contact->profile_channel);
+	}
 	if (contact->presence_channel) {
 		chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence",
 				       contact_presence_jugg_cb, contact);

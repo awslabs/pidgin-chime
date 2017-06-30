@@ -263,8 +263,10 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 	connect_jugg(cxn);
 }
 
-static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer user_data)
+static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer _cxn)
 {
+	send_subscription_message(_cxn, "unsubscribe", k);
+
 	g_list_free_full(v, g_free);
 	return TRUE;
 }
@@ -272,10 +274,13 @@ static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer user_data
 void chime_destroy_juggernaut(ChimeConnection *cxn)
 {
 	if (cxn->subscriptions) {
-		g_hash_table_foreach_remove(cxn->subscriptions, chime_sublist_destroy, NULL);
+		g_hash_table_foreach_remove(cxn->subscriptions, chime_sublist_destroy, cxn);
 		g_hash_table_destroy(cxn->subscriptions);
 		cxn->subscriptions = NULL;
 	}
+	soup_websocket_connection_send_text(cxn->ws_conn, "0::");
+	/* XXX: The above doesn't work unless we let the websocket live long
+	 * enough to actually send it. One way is to comment the next line out: */
 	g_clear_object(&cxn->ws_conn);
 	g_clear_pointer(&cxn->ws_key, g_free);
 }

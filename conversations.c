@@ -540,6 +540,8 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 
 	struct chime_conversation *conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
 							      contact->profile_id);
+	if (!conv)
+		return 0;
 
 	JsonBuilder *jb = json_builder_new();
 	jb = json_builder_begin_object(jb);

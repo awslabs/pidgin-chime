@@ -105,6 +105,8 @@ gboolean         chime_connection_register_device_finish     (ChimeConnection  *
                                                               GAsyncResult     *result,
                                                               GError          **error);
 
+const gchar     *chime_connection_get_session_token          (ChimeConnection  *self);
+
 G_END_DECLS
 
 #endif /* __CHIME_CONNECTION_H__ */

@@ -113,6 +113,48 @@ chime_connection_set_property(GObject      *object,
 	}
 }
 
+static void
+chime_connection_class_init(ChimeConnectionClass *klass)
+{
+	GObjectClass *object_class = G_OBJECT_CLASS(klass);
+
+	object_class->finalize = chime_connection_finalize;
+	object_class->dispose = chime_connection_dispose;
+	object_class->get_property = chime_connection_get_property;
+	object_class->set_property = chime_connection_set_property;
+
+	props[PROP_PURPLE_CONNECTION] =
+		g_param_spec_pointer("purple-connection",
+				     "purple connection",
+				     "purple connection",
+				     G_PARAM_READWRITE |
+				     G_PARAM_CONSTRUCT_ONLY |
+				     G_PARAM_STATIC_STRINGS);
+
+	g_object_class_install_properties(object_class, LAST_PROP, props);
+}
+
+static void
+chime_connection_init(ChimeConnection *self)
+{
+	self->soup_sess = soup_session_new();
+
+	if (getenv("CHIME_DEBUG") && atoi(getenv("CHIME_DEBUG")) > 0) {
+		SoupLogger *l = soup_logger_new(SOUP_LOGGER_LOG_BODY, -1);
+		soup_session_add_feature(self->soup_sess, SOUP_SESSION_FEATURE(l));
+		g_object_unref(l);
+		g_object_set(self->soup_sess, "ssl-strict", FALSE, NULL);
+	}
+}
+
+ChimeConnection *
+chime_connection_new(PurpleConnection *connection)
+{
+	return g_object_new (CHIME_TYPE_CONNECTION,
+	                     "purple-connection", connection,
+	                     NULL);
+}
+
 static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 {
 	JsonObject *obj = json_node_get_object(self->reg_node);
@@ -124,7 +166,7 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 		return FALSE;
 	if (!parse_string(sess_node, "SessionToken", &sess_tok))
 		return FALSE;
-	purple_account_set_string(self->prpl_conn->account, "token", sess_tok);
+
 	self->session_token = g_strdup(sess_tok);
 
 	if (!parse_string(sess_node, "SessionId", &self->session_id))
@@ -181,48 +223,6 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 		return FALSE;
 
 	return TRUE;
-}
-
-static void
-chime_connection_class_init(ChimeConnectionClass *klass)
-{
-	GObjectClass *object_class = G_OBJECT_CLASS(klass);
-
-	object_class->finalize = chime_connection_finalize;
-	object_class->dispose = chime_connection_dispose;
-	object_class->get_property = chime_connection_get_property;
-	object_class->set_property = chime_connection_set_property;
-
-	props[PROP_PURPLE_CONNECTION] =
-		g_param_spec_pointer("purple-connection",
-				     "purple connection",
-				     "purple connection",
-				     G_PARAM_READWRITE |
-				     G_PARAM_CONSTRUCT_ONLY |
-				     G_PARAM_STATIC_STRINGS);
-
-	g_object_class_install_properties(object_class, LAST_PROP, props);
-}
-
-static void
-chime_connection_init(ChimeConnection *self)
-{
-	self->soup_sess = soup_session_new();
-
-	if (getenv("CHIME_DEBUG") && atoi(getenv("CHIME_DEBUG")) > 0) {
-		SoupLogger *l = soup_logger_new(SOUP_LOGGER_LOG_BODY, -1);
-		soup_session_add_feature(self->soup_sess, SOUP_SESSION_FEATURE(l));
-		g_object_unref(l);
-		g_object_set(self->soup_sess, "ssl-strict", FALSE, NULL);
-	}
-}
-
-ChimeConnection *
-chime_connection_new(PurpleConnection *connection)
-{
-	return g_object_new (CHIME_TYPE_CONNECTION,
-	                     "purple-connection", connection,
-	                     NULL);
 }
 
 static JsonNode *
@@ -319,4 +319,12 @@ chime_connection_register_device_finish(ChimeConnection  *self,
 	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
 
 	return g_task_propagate_boolean(G_TASK(result), error);
+}
+
+const gchar *
+chime_connection_get_session_token(ChimeConnection *self)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
+
+	return self->session_token;
 }

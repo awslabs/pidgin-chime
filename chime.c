@@ -266,14 +266,16 @@ static const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
 static void on_device_registered(GObject *source, GAsyncResult *result, gpointer data)
 {
 	PurpleConnection *conn = (PurpleConnection *)data;
+	ChimeConnection *connection = CHIME_CONNECTION(source);
 	GError *error = NULL;
 
-	if (!chime_connection_register_device_finish(CHIME_CONNECTION(source), result, &error)) {
+	if (!chime_connection_register_device_finish(connection, result, &error)) {
 		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, error->message);
 		g_error_free(error);
 		return;
 	}
 
+	purple_account_set_string(conn->account, "token", chime_connection_get_session_token(connection));
 	printf("Device registered\n");
 }
 

@@ -275,8 +275,13 @@ static void on_device_registered(GObject *source, GAsyncResult *result, gpointer
 		return;
 	}
 
-	purple_account_set_string(conn->account, "token", chime_connection_get_session_token(connection));
 	printf("Device registered\n");
+}
+
+static void on_session_token_changed(ChimeConnection *connection, GParamSpec *pspec, PurpleConnection *conn)
+{
+	printf("Session token changed\n");
+	purple_account_set_string(conn->account, "token", chime_connection_get_session_token(connection));
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
@@ -285,6 +290,9 @@ static void chime_purple_login(PurpleAccount *account)
 	PurpleConnection *conn = purple_account_get_connection(account);
 	ChimeConnection *cxn = chime_connection_new(conn);
 	purple_connection_set_protocol_data(conn, cxn);
+
+	g_signal_connect(cxn, "notify::session-token",
+	                 G_CALLBACK(on_session_token_changed), conn);
 
 	const gchar *devtoken = purple_account_get_string(account, "devtoken", NULL);
 

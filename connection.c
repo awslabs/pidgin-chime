@@ -25,6 +25,7 @@ enum
 {
     PROP_0,
     PROP_PURPLE_CONNECTION,
+    PROP_SESSION_TOKEN,
     LAST_PROP
 };
 
@@ -89,6 +90,9 @@ chime_connection_get_property(GObject    *object,
 	case PROP_PURPLE_CONNECTION:
 		g_value_set_pointer(value, self->prpl_conn);
 		break;
+	case PROP_SESSION_TOKEN:
+		g_value_set_string(value, self->session_token);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
 		break;
@@ -106,6 +110,9 @@ chime_connection_set_property(GObject      *object,
 	switch (prop_id) {
 	case PROP_PURPLE_CONNECTION:
 		self->prpl_conn = g_value_get_pointer(value);
+		break;
+	case PROP_SESSION_TOKEN:
+		self->session_token = g_value_dup_string(value);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -130,6 +137,15 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 				     G_PARAM_READWRITE |
 				     G_PARAM_CONSTRUCT_ONLY |
 				     G_PARAM_STATIC_STRINGS);
+
+	props[PROP_SESSION_TOKEN] =
+		g_param_spec_string("session-token",
+				    "session token",
+				    "session token",
+				    NULL,
+				    G_PARAM_READWRITE |
+				    G_PARAM_CONSTRUCT |
+				    G_PARAM_STATIC_STRINGS);
 
 	g_object_class_install_properties(object_class, LAST_PROP, props);
 }
@@ -167,7 +183,11 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 	if (!parse_string(sess_node, "SessionToken", &sess_tok))
 		return FALSE;
 
-	self->session_token = g_strdup(sess_tok);
+	if (g_strcmp0(self->session_token, sess_tok) != 0) {
+		g_free(self->session_token);
+		self->session_token = g_strdup(sess_tok);
+		g_object_notify(G_OBJECT(self), "session-token");
+	}
 
 	if (!parse_string(sess_node, "SessionId", &self->session_id))
 		return FALSE;

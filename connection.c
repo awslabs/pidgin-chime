@@ -521,7 +521,7 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 	}
 
 	const gchar *content_type = soup_message_headers_get_content_type(msg->response_headers, NULL);
-	if (content_type && !strcmp(content_type, "application/json")) {
+	if (!g_strcmp0(content_type, "application/json")) {
 		GError *error = NULL;
 
 		parser = json_parser_new();

@@ -72,7 +72,9 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 		if (!contact)
 			return FALSE;
 
-		serv_got_im(cxn->prpl_conn, contact->email, message, flags, msg_time);
+		gchar *escaped = g_markup_escape_text(message, -1);
+		serv_got_im(cxn->prpl_conn, contact->email, escaped, flags, msg_time);
+		g_free(escaped);
 	} else {
 		const gchar *msg_id;
 		if (parse_string(record, "MessageId", &msg_id) &&
@@ -105,8 +107,9 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 				return FALSE;
 			}
 		}
-
-		purple_conversation_write(pconv, NULL, message, PURPLE_MESSAGE_SEND, msg_time);
+		gchar *escaped = g_markup_escape_text(message, -1);
+		purple_conversation_write(pconv, NULL, escaped, PURPLE_MESSAGE_SEND, msg_time);
+		g_free(escaped);
 	}
 
 	return TRUE;

@@ -43,6 +43,8 @@ chime_connection_finalize(GObject *object)
 
 	g_free(self->session_token);
 
+	printf("Connection finalized: %p\n", self);
+
 	G_OBJECT_CLASS(chime_connection_parent_class)->finalize(object);
 }
 
@@ -57,6 +59,8 @@ static void
 chime_connection_dispose(GObject *object)
 {
 	ChimeConnection *self = CHIME_CONNECTION(object);
+
+	printf("Disposing connection: %p\n", self);
 
 	if (self->soup_sess) {
 		soup_session_abort(self->soup_sess);
@@ -77,6 +81,8 @@ chime_connection_dispose(GObject *object)
 	}
 	
 	purple_connection_set_protocol_data(self->prpl_conn, NULL);
+
+	printf("Connection disposed: %p\n", self);
 
 	G_OBJECT_CLASS(chime_connection_parent_class)->dispose(object);
 }

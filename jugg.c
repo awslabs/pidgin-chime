@@ -34,6 +34,14 @@ struct jugg_subscription {
 	gchar *klass;
 };
 
+static void free_jugg_subscription(gpointer user_data)
+{
+	struct jugg_subscription *sub = user_data;
+
+	g_free(sub->klass);
+	g_free(sub);
+}
+
 static void on_websocket_closed(SoupWebsocketConnection *ws,
 				gpointer _cxn)
 {
@@ -263,7 +271,7 @@ static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer _cxn)
 	if (cxn->ws_conn)
 		send_subscription_message(_cxn, "unsubscribe", k);
 
-	g_list_free_full(v, g_free);
+	g_list_free_full(v, free_jugg_subscription);
 	return TRUE;
 }
 
@@ -364,7 +372,7 @@ void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gcha
 		send_subscription_message(cxn, "subscribe", channel);
 
 	if (g_list_find_custom(l, sub, compare_sub)) {
-		g_free(sub);
+		free_jugg_subscription(sub);
 		return;
 	}
 

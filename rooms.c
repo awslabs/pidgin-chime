@@ -141,9 +141,9 @@ void chime_init_rooms(ChimeConnection *cxn)
 
 void chime_destroy_rooms(ChimeConnection *cxn)
 {
-	g_hash_table_destroy(cxn->rooms_by_name);
-	g_hash_table_destroy(cxn->rooms_by_id);
-	cxn->rooms_by_name = cxn->rooms_by_id = NULL;
+	g_clear_pointer(&cxn->rooms_by_name, g_hash_table_unref);
+	g_clear_pointer(&cxn->rooms_by_id, g_hash_table_unref);
+	g_clear_pointer(&cxn->live_chats, g_hash_table_unref);
 }
 
 static void get_room(gpointer _id, gpointer _room, gpointer _roomlist)

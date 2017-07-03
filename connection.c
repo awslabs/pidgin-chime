@@ -419,6 +419,7 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 	chime_init_chats(self);
 
 	g_signal_emit (self, signals[CONNECTED], 0);
+	self->state = CHIME_STATE_CONNECTED;
 	g_object_unref(task);
 }
 
@@ -427,6 +428,8 @@ chime_connection_connect(ChimeConnection    *self)
 {
 	if (self->state != CHIME_STATE_DISCONNECTED)
 		return;
+
+	self->state = CHIME_STATE_CONNECTING;
 
 	if (!self->session_token)
 		chime_initial_login(self);

@@ -52,6 +52,8 @@ chime_connection_finalize(GObject *object)
 	ChimeConnection *self = CHIME_CONNECTION(object);
 
 	g_free(self->session_token);
+	g_free(self->device_token);
+	g_free(self->server);
 
 	printf("Connection finalized: %p\n", self);
 

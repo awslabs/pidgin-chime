@@ -32,15 +32,14 @@ AS_COMPILER_FLAGS(WFLAGS,
 AC_SUBST(WFLAGS, [$WFLAGS])
 
 plugindir=
-PKG_CHECK_MODULES(PURPLE, [purple-3], [plugindir="$($PKG_CONFIG --variable=plugindir purple-3)"],
-		  [PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0])
-		   plugindir="$($PKG_CONFIG --variable=plugindir purple)"
-		   purple_datadir="$($PKG_CONFIG --variable=datadir purple)"
-		   ])
+PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0])
+plugindir="$($PKG_CONFIG --variable=plugindir purple)"
+purple_datadir="$($PKG_CONFIG --variable=datadir purple)"
+
 
 AC_SUBST(plugindir, $plugindir)
-if [ "$purple_datadir" = "" ]; then
-   purple_datadir = "$datadir"
+if test "$purple_datadir" = "" ; then
+   purple_datadir="$datadir"
 fi
 AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
 PKG_CHECK_MODULES(SOUP, [libsoup-2.4])

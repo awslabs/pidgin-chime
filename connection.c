@@ -235,7 +235,7 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 	signals[CONNECTED] =
 		g_signal_new ("connected",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
-			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_STRING);
 
 	signals[DISCONNECTED] =
 		g_signal_new ("disconnected",
@@ -307,7 +307,6 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 	JsonObject *obj = json_node_get_object(priv->reg_node);
 	JsonNode *node, *sess_node = json_object_get_member(obj, "Session");
 	const gchar *sess_tok;
-	const gchar *display_name;
 
 	if (!sess_node)
 		return FALSE;
@@ -329,10 +328,8 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 	if (!parse_string(node, "profile_channel", &priv->profile_channel) ||
 	    !parse_string(node, "presence_channel", &priv->presence_channel) ||
 	    !parse_string(node, "id", &priv->profile_id) ||
-	    !parse_string(node, "display_name", &display_name))
+	    !parse_string(node, "display_name", &priv->display_name))
 		return FALSE;
-
-	purple_connection_set_display_name(self->prpl_conn, display_name);
 
 	node = json_object_get_member(obj, "Device");
 	if (!parse_string(node, "DeviceId", &priv->device_id) ||
@@ -434,7 +431,7 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 	chime_init_conversations(self);
 	chime_init_chats(self);
 
-	g_signal_emit (self, signals[CONNECTED], 0);
+	g_signal_emit (self, signals[CONNECTED], 0, priv->display_name);
 	priv->state = CHIME_STATE_CONNECTED;
 	g_object_unref(task);
 }

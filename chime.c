@@ -151,11 +151,12 @@ static void chime_purple_set_idle(PurpleConnection *conn, int idle_time)
 						 NULL);
 }
 
-static void on_chime_connected(ChimeConnection *cxn, PurpleConnection *conn)
+static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, PurpleConnection *conn)
 {
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Chime connected as %s\n", display_name);
+	purple_connection_set_display_name(conn, display_name);
 	purple_connection_set_state(conn, PURPLE_CONNECTED);
 	chime_purple_set_idle(conn, 0);
-	purple_debug(PURPLE_DEBUG_INFO, "chime", "Chime connected\n");
 }
 
 static void on_chime_disconnected(ChimeConnection *connection, GError *error, PurpleConnection *conn)

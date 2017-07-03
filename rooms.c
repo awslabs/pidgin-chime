@@ -25,6 +25,7 @@
 #include <roomlist.h>
 
 #include "chime.h"
+#include "chime-connection-private.h"
 
 #include <libsoup/soup.h>
 
@@ -32,6 +33,7 @@ static void one_room_cb(JsonArray *array, guint index_,
 			JsonNode *node, gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct chime_room *room;
 	const gchar *channel, *id, *type, *name, *privacy, *visibility;
 
@@ -43,9 +45,9 @@ static void one_room_cb(JsonArray *array, guint index_,
 	    !parse_string(node, "Visibility", &visibility))
 		return;
 
-	room = g_hash_table_lookup(cxn->rooms_by_id, id);
+	room = g_hash_table_lookup(priv->rooms_by_id, id);
 	if (room) {
-		g_hash_table_remove(cxn->rooms_by_name, room->name);
+		g_hash_table_remove(priv->rooms_by_name, room->name);
 		g_free(room->channel);
 		g_free(room->type);
 		g_free(room->name);
@@ -54,7 +56,7 @@ static void one_room_cb(JsonArray *array, guint index_,
 	} else {
 		room = g_new0(struct chime_room, 1);
 		room->id = g_strdup(id);
-		g_hash_table_insert(cxn->rooms_by_id, room->id, room);
+		g_hash_table_insert(priv->rooms_by_id, room->id, room);
 	}
 
 	room->channel = g_strdup(channel);
@@ -63,7 +65,7 @@ static void one_room_cb(JsonArray *array, guint index_,
 	room->privacy = g_strdup(privacy);
 	room->visibility = g_strdup(visibility);
 
-	g_hash_table_insert(cxn->rooms_by_name, room->name, room);
+	g_hash_table_insert(priv->rooms_by_name, room->name, room);
 }
 
 static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token);
@@ -132,18 +134,22 @@ static gboolean visible_rooms_jugg_cb(ChimeConnection *cxn, gpointer _unused, Js
 
 void chime_init_rooms(ChimeConnection *cxn)
 {
-	cxn->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
-	cxn->rooms_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_room);
-	cxn->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	priv->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
+	priv->rooms_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_room);
+	priv->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
 	fetch_rooms(cxn, NULL);
 	chime_jugg_subscribe(cxn, cxn->profile_channel, "VisibleRooms", visible_rooms_jugg_cb, NULL);
 }
 
 void chime_destroy_rooms(ChimeConnection *cxn)
 {
-	g_clear_pointer(&cxn->rooms_by_name, g_hash_table_unref);
-	g_clear_pointer(&cxn->rooms_by_id, g_hash_table_unref);
-	g_clear_pointer(&cxn->live_chats, g_hash_table_unref);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	g_clear_pointer(&priv->rooms_by_name, g_hash_table_unref);
+	g_clear_pointer(&priv->rooms_by_id, g_hash_table_unref);
+	g_clear_pointer(&priv->live_chats, g_hash_table_unref);
 }
 
 static void get_room(gpointer _id, gpointer _room, gpointer _roomlist)
@@ -164,6 +170,7 @@ static void get_room(gpointer _id, gpointer _room, gpointer _roomlist)
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	PurpleRoomlist *roomlist;
 	GList *fields = NULL;
 
@@ -174,8 +181,8 @@ PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
 	purple_roomlist_set_fields(roomlist, fields);
 
 
-	if (cxn->rooms_by_id)
-		g_hash_table_foreach(cxn->rooms_by_id, get_room, roomlist);
+	if (priv->rooms_by_id)
+		g_hash_table_foreach(priv->rooms_by_id, get_room, roomlist);
 
 	purple_roomlist_set_in_progress(roomlist, FALSE);
 	return roomlist;
@@ -207,14 +214,15 @@ GList *chime_purple_chat_info(PurpleConnection *conn)
 GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct chime_room *room = NULL;
 	GHashTable *hash;
 
 	if (!name)
 		return NULL;
 
-	if (cxn->rooms_by_name)
-		room = g_hash_table_lookup(cxn->rooms_by_name, name);
+	if (priv->rooms_by_name)
+		room = g_hash_table_lookup(priv->rooms_by_name, name);
 	if (!room)
 		return NULL;
 

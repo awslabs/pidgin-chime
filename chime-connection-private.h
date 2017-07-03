@@ -46,10 +46,19 @@ typedef struct {
 	gchar *ws_key;
 	GHashTable *subscriptions;
 
-	/* Buddies */
+	/* Contacts */
 	GHashTable *contacts_by_id;
 	GHashTable *contacts_by_email;
 	GSList *contacts_needed;
+
+	/* Rooms */
+	gint64 rooms_generation;
+	GHashTable *rooms_by_id;
+	GHashTable *rooms_by_name;
+	GHashTable *live_chats;
+	int chat_id;
+	GRegex *mention_regex;
+
 
 } ChimeConnectionPrivate;
 

@@ -33,14 +33,6 @@ struct _ChimeConnection {
 
 	PurpleConnection *prpl_conn;
 
-	/* Rooms */
-	gint64 rooms_generation;
-	GHashTable *rooms_by_id;
-	GHashTable *rooms_by_name;
-	GHashTable *live_chats;
-	int chat_id;
-	GRegex *mention_regex;
-
 	/* Conversations */
 	GHashTable *im_conversations_by_peer_id;
 	GHashTable *conversations_by_id;

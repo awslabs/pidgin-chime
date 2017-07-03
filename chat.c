@@ -450,7 +450,7 @@ static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _unused, Js
 	if (!room->chat)
 		do_join_chat(cxn, room);
 
-	return chat_msg_jugg_cb(cxn, room->chat, record);
+	return chat_msg_jugg_cb(cxn, room->chat, data_node);
 }
 
 void chime_init_chats(ChimeConnection *cxn)

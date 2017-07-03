@@ -229,7 +229,7 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 	signals[DISCONNECTED] =
 		g_signal_new ("disconnected",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
-			      NULL, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_STRING);
+			      NULL, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_ERROR);
 }
 
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error)

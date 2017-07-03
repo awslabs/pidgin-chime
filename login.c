@@ -24,6 +24,7 @@
 #include <libsoup/soup.h>
 
 #include "chime.h"
+#include "chime-connection-private.h"
 
 void chime_initial_login(ChimeConnection *cxn)
 {

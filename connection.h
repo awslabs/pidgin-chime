@@ -28,20 +28,8 @@ G_BEGIN_DECLS
 #define CHIME_TYPE_CONNECTION (chime_connection_get_type ())
 G_DECLARE_FINAL_TYPE (ChimeConnection, chime_connection, CHIME, CONNECTION, GObject)
 
-enum chime_state {
-	CHIME_STATE_CONNECTING,
-	CHIME_STATE_CONNECTED,
-	CHIME_STATE_DISCONNECTED
-};
-
-// FIXME: hide this
 struct _ChimeConnection {
 	GObject parent_instance;
-
-	enum chime_state state;
-	gchar *server;
-	gchar *device_token;
-	gchar *session_token;
 
 	PurpleConnection *prpl_conn;
 
@@ -64,6 +52,7 @@ struct _ChimeConnection {
 	GSList *contacts_needed;
 
 	/* Rooms */
+	gint64 rooms_generation;
 	GHashTable *rooms_by_id;
 	GHashTable *rooms_by_name;
 	GHashTable *live_chats;
@@ -143,8 +132,7 @@ SoupMessage     *chime_connection_queue_http_request         (ChimeConnection   
                                                               ChimeSoupMessageCallback callback,
                                                               gpointer                 cb_data);
 
-void chime_connection_fail(ChimeConnection *cxn, gint code, const gchar *format, ...);
-void chime_connection_fail_error(ChimeConnection *cxn, GError *error);
+
 void chime_connection_connect(ChimeConnection *cxn);
 void chime_connection_disconnect(ChimeConnection *cxn);
 

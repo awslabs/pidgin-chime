@@ -17,6 +17,7 @@
  */
 
 #include "connection.h"
+#include "chime-connection-private.h"
 #include "chime.h"
 
 #include <glib/gi18n.h>
@@ -49,11 +50,12 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 static void
 chime_connection_finalize(GObject *object)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (object);
 	ChimeConnection *self = CHIME_CONNECTION(object);
 
-	g_free(self->session_token);
-	g_free(self->device_token);
-	g_free(self->server);
+	g_free(priv->session_token);
+	g_free(priv->device_token);
+	g_free(priv->server);
 
 	printf("Connection finalized: %p\n", self);
 
@@ -70,6 +72,8 @@ cmsg_free(struct chime_msg *cmsg)
 void
 chime_connection_disconnect(ChimeConnection    *self)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+
 	printf("Disconnecting connection: %p\n", self);
 
 	if (self->soup_sess) {
@@ -93,17 +97,18 @@ chime_connection_disconnect(ChimeConnection    *self)
 	purple_connection_set_protocol_data(self->prpl_conn, NULL);
 	self->prpl_conn = NULL;
 
-	if (self->state != CHIME_STATE_DISCONNECTED)
+	if (priv->state != CHIME_STATE_DISCONNECTED)
 		g_signal_emit(self, signals[DISCONNECTED], 0, NULL);
-	self->state = CHIME_STATE_DISCONNECTED;
+	priv->state = CHIME_STATE_DISCONNECTED;
 }
 
 static void
 chime_connection_dispose(GObject *object)
 {
 	ChimeConnection *self = CHIME_CONNECTION(object);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
-	if (self->state != CHIME_STATE_DISCONNECTED)
+	if (priv->state != CHIME_STATE_DISCONNECTED)
 		chime_connection_disconnect(self);
 
 	printf("Connection disposed: %p\n", self);
@@ -118,19 +123,20 @@ chime_connection_get_property(GObject    *object,
                               GParamSpec *pspec)
 {
 	ChimeConnection *self = CHIME_CONNECTION(object);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
 	switch (prop_id) {
 	case PROP_PURPLE_CONNECTION:
 		g_value_set_pointer(value, self->prpl_conn);
 		break;
 	case PROP_SESSION_TOKEN:
-		g_value_set_string(value, self->session_token);
+		g_value_set_string(value, priv->session_token);
 		break;
 	case PROP_DEVICE_TOKEN:
-		g_value_set_string(value, self->device_token);
+		g_value_set_string(value, priv->device_token);
 		break;
 	case PROP_SERVER:
-		g_value_set_string(value, self->server);
+		g_value_set_string(value, priv->server);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -145,19 +151,20 @@ chime_connection_set_property(GObject      *object,
                               GParamSpec   *pspec)
 {
 	ChimeConnection *self = CHIME_CONNECTION(object);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
 	switch (prop_id) {
 	case PROP_PURPLE_CONNECTION:
 		self->prpl_conn = g_value_get_pointer(value);
 		break;
 	case PROP_SESSION_TOKEN:
-		self->session_token = g_value_dup_string(value);
+		priv->session_token = g_value_dup_string(value);
 		break;
 	case PROP_DEVICE_TOKEN:
-		self->device_token = g_value_dup_string(value);
+		priv->device_token = g_value_dup_string(value);
 		break;
 	case PROP_SERVER:
-		self->server = g_value_dup_string(value);
+		priv->server = g_value_dup_string(value);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -179,6 +186,8 @@ static void
 chime_connection_class_init(ChimeConnectionClass *klass)
 {
 	GObjectClass *object_class = G_OBJECT_CLASS(klass);
+
+        g_type_class_add_private (klass, sizeof (ChimeConnectionPrivate));
 
 	object_class->finalize = chime_connection_finalize;
 	object_class->dispose = chime_connection_dispose;
@@ -236,7 +245,9 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error)
 {
-	cxn->state = CHIME_STATE_DISCONNECTED;
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	priv->state = CHIME_STATE_DISCONNECTED;
 	g_signal_emit(cxn, signals[DISCONNECTED], 0, error);
 
 	/* Finish the cleanup */
@@ -259,6 +270,7 @@ void chime_connection_fail(ChimeConnection *cxn, gint code, const gchar *format,
 static void
 chime_connection_init(ChimeConnection *self)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	self->soup_sess = soup_session_new();
 
 	if (getenv("CHIME_DEBUG") && atoi(getenv("CHIME_DEBUG")) > 0) {
@@ -269,7 +281,7 @@ chime_connection_init(ChimeConnection *self)
 	}
 
 	self->msg_queue = g_queue_new();
-	self->state = CHIME_STATE_DISCONNECTED;
+	priv->state = CHIME_STATE_DISCONNECTED;
 }
 
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
@@ -291,6 +303,7 @@ chime_connection_new(PurpleConnection *connection, const gchar *server,
 
 static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	JsonObject *obj = json_node_get_object(self->reg_node);
 	JsonNode *node, *sess_node = json_object_get_member(obj, "Session");
 	const gchar *sess_tok;
@@ -301,9 +314,9 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 	if (!parse_string(sess_node, "SessionToken", &sess_tok))
 		return FALSE;
 
-	if (g_strcmp0(self->session_token, sess_tok) != 0) {
-		g_free(self->session_token);
-		self->session_token = g_strdup(sess_tok);
+	if (g_strcmp0(priv->session_token, sess_tok) != 0) {
+		g_free(priv->session_token);
+		priv->session_token = g_strdup(sess_tok);
 		g_object_notify(G_OBJECT(self), "session-token");
 	}
 
@@ -392,6 +405,7 @@ chime_device_register_req(const gchar *devtoken)
 static void register_cb(ChimeConnection *self, SoupMessage *msg,
 			JsonNode *node, gpointer user_data)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	GTask *task = G_TASK(user_data);
 
 	if (!node) {
@@ -421,25 +435,27 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 	chime_init_chats(self);
 
 	g_signal_emit (self, signals[CONNECTED], 0);
-	self->state = CHIME_STATE_CONNECTED;
+	priv->state = CHIME_STATE_CONNECTED;
 	g_object_unref(task);
 }
 
 void
 chime_connection_connect(ChimeConnection    *self)
 {
-	if (self->state != CHIME_STATE_DISCONNECTED)
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+
+	if (priv->state != CHIME_STATE_DISCONNECTED)
 		return;
 
-	self->state = CHIME_STATE_CONNECTING;
+	priv->state = CHIME_STATE_CONNECTING;
 
-	if (!self->session_token)
+	if (!priv->session_token)
 		chime_initial_login(self);
 
-	JsonNode *node = chime_device_register_req(self->device_token);
+	JsonNode *node = chime_device_register_req(priv->device_token);
 
-	SoupURI *uri = soup_uri_new_printf(self->server, "/sessions");
-	soup_uri_set_query_from_fields(uri, "Token", self->session_token, NULL);
+	SoupURI *uri = soup_uri_new_printf(priv->server, "/sessions");
+	soup_uri_set_query_from_fields(uri, "Token", priv->session_token, NULL);
 
 	chime_connection_queue_http_request(self, node, uri, "POST", register_cb, NULL);
 
@@ -544,9 +560,10 @@ chime_connection_set_presence_finish(ChimeConnection  *self,
 const gchar *
 chime_connection_get_session_token(ChimeConnection *self)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
 
-	return self->session_token;
+	return priv->session_token;
 }
 
 /* If we get an auth failure on a standard request, we automatically attempt
@@ -554,6 +571,7 @@ chime_connection_get_session_token(ChimeConnection *self)
 static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 		     JsonNode *node, gpointer _unused)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	const gchar *sess_tok;
 	gchar *cookie_hdr;
 
@@ -565,13 +583,13 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 		return;
 	}
 
-	if (g_strcmp0(self->session_token, sess_tok) != 0) {
-		g_free(self->session_token);
-		self->session_token = g_strdup(sess_tok);
+	if (g_strcmp0(priv->session_token, sess_tok) != 0) {
+		g_free(priv->session_token);
+		priv->session_token = g_strdup(sess_tok);
 		g_object_notify(G_OBJECT(self), "session-token");
 	}
 
-	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", self->session_token);
+	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
 
 	struct chime_msg *cmsg = NULL;
 	while ( (cmsg = g_queue_pop_head(self->msg_queue)) ) {
@@ -584,6 +602,7 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 
 static void chime_renew_token(ChimeConnection *self)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	SoupURI *uri;
 	JsonBuilder *builder;
 	JsonNode *node;
@@ -591,12 +610,12 @@ static void chime_renew_token(ChimeConnection *self)
 	builder = json_builder_new();
 	builder = json_builder_begin_object(builder);
 	builder = json_builder_set_member_name(builder, "Token");
-	builder = json_builder_add_string_value(builder, self->session_token);
+	builder = json_builder_add_string_value(builder, priv->session_token);
 	builder = json_builder_end_object(builder);
 	node = json_builder_get_root(builder);
 
 	uri = soup_uri_new_printf(self->profile_url, "/tokens");
-	soup_uri_set_query_from_fields(uri, "Token", self->session_token, NULL);
+	soup_uri_set_query_from_fields(uri, "Token", priv->session_token, NULL);
 	chime_connection_queue_http_request(self, node, uri, "POST", renew_cb, NULL);
 
 	json_node_unref(node);
@@ -648,6 +667,7 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 				    ChimeSoupMessageCallback callback,
 				    gpointer cb_data)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	struct chime_msg *cmsg = g_new0(struct chime_msg, 1);
 
 	cmsg->cxn = self;
@@ -656,8 +676,8 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 	cmsg->msg = soup_message_new_from_uri(method, uri);
 	soup_uri_free(uri);
 
-	if (self->session_token) {
-		gchar *cookie = g_strdup_printf("_aws_wt_session=%s", self->session_token);
+	if (priv->session_token) {
+		gchar *cookie = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
 		soup_message_headers_append(cmsg->msg->request_headers, "Cookie", cookie);
 		g_free(cookie);
 	}

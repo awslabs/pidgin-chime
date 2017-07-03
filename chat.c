@@ -422,12 +422,14 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	jb = json_builder_end_object(jb);
 
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages", chat->room->id);
-	if (chime_connection_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", send_msg_cb, chat)) {
+	JsonNode *node = json_builder_get_root(jb);
+	if (chime_connection_queue_http_request(cxn, node, uri, "POST", send_msg_cb, chat)) {
 		ret = 0;
 	} else
 		ret = -1;
 
 	g_free(expanded);
+	json_node_unref(node);
 	g_object_unref(jb);
 	return ret;
 }

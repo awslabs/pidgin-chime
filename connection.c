@@ -52,6 +52,8 @@ chime_connection_finalize(GObject *object)
 	ChimeConnection *self = CHIME_CONNECTION(object);
 
 	g_free(self->session_token);
+	g_free(self->device_token);
+	g_free(self->server);
 
 	printf("Connection finalized: %p\n", self);
 
@@ -440,6 +442,8 @@ chime_connection_connect(ChimeConnection    *self)
 	soup_uri_set_query_from_fields(uri, "Token", self->session_token, NULL);
 
 	chime_connection_queue_http_request(self, node, uri, "POST", register_cb, NULL);
+
+	json_node_unref(node);
 }
 
 static void set_device_status_cb(ChimeConnection *self, SoupMessage *msg,
@@ -471,6 +475,7 @@ chime_connection_set_device_status_async(ChimeConnection    *self,
 	SoupURI *uri = soup_uri_new_printf(self->presence_url, "/devicestatus");
 	chime_connection_queue_http_request(self, node, uri, "PUT", set_device_status_cb, task);
 
+	json_node_unref(node);
 	g_object_unref(builder);
 }
 
@@ -521,6 +526,7 @@ chime_connection_set_presence_async(ChimeConnection    *self,
 	SoupURI *uri = soup_uri_new_printf(self->presence_url, "/presencesettings");
 	chime_connection_queue_http_request(self, node, uri, "POST", set_presence_cb, task);
 
+	json_node_unref(node);
 	g_object_unref(builder);
 }
 
@@ -593,6 +599,7 @@ static void chime_renew_token(ChimeConnection *self)
 	soup_uri_set_query_from_fields(uri, "Token", self->session_token, NULL);
 	chime_connection_queue_http_request(self, node, uri, "POST", renew_cb, NULL);
 
+	json_node_unref(node);
 	g_object_unref(builder);
 }
 
@@ -667,7 +674,6 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 					 SOUP_MEMORY_TAKE,
 					 body, body_size);
 		g_object_unref(gen);
-		json_node_unref(node);
 	}
 
 	/* If we are already renewing the token, don't bother submitting it with the

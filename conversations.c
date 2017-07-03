@@ -121,7 +121,8 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 static void conv_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 			     JsonNode *node, time_t msg_time)
 {
-	struct chime_conversation *conv = g_hash_table_lookup(cxn->conversations_by_id, msgs->id);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	struct chime_conversation *conv = g_hash_table_lookup(priv->conversations_by_id, msgs->id);
 
 	do_conv_deliver_msg(cxn, conv, node, msg_time);
 }
@@ -145,6 +146,7 @@ static void fetch_conversation_messages(ChimeConnection *cxn, struct chime_conve
 
 static struct chime_conversation *one_conversation_cb(ChimeConnection *cxn, JsonNode *node)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct chime_conversation *conv;
 	const gchar *channel, *id, *name, *visibility;
 	gint64 favourite;
@@ -158,9 +160,9 @@ static struct chime_conversation *one_conversation_cb(ChimeConnection *cxn, Json
 	    !(members_node = json_object_get_member(json_node_get_object(node), "Members")))
 		return NULL;
 
-	conv = g_hash_table_lookup(cxn->conversations_by_id, id);
+	conv = g_hash_table_lookup(priv->conversations_by_id, id);
 	if (conv) {
-		g_hash_table_remove(cxn->conversations_by_name, conv->name);
+		g_hash_table_remove(priv->conversations_by_name, conv->name);
 		g_free(conv->channel);
 		g_free(conv->name);
 		g_free(conv->visibility);
@@ -168,7 +170,7 @@ static struct chime_conversation *one_conversation_cb(ChimeConnection *cxn, Json
 		conv = g_new0(struct chime_conversation, 1);
 		conv->cxn = cxn;
 		conv->id = g_strdup(id);
-		g_hash_table_insert(cxn->conversations_by_id, conv->id, conv);
+		g_hash_table_insert(priv->conversations_by_id, conv->id, conv);
 		chime_jugg_subscribe(cxn, channel, NULL, NULL, NULL);
 		chime_jugg_subscribe(cxn, channel, "ConversationMembership",
 				     conv_membership_jugg_cb, conv);
@@ -207,7 +209,7 @@ static struct chime_conversation *one_conversation_cb(ChimeConnection *cxn, Json
 			if (len == 2 && strcmp(member->profile_id, cxn->profile_id)) {
 				/* A two-party conversation contains only us (presumably!)
 				 * and one other. Index 1:1 conversations on that "other" */
-				g_hash_table_insert(cxn->im_conversations_by_peer_id,
+				g_hash_table_insert(priv->im_conversations_by_peer_id,
 						    (void *)member->profile_id, conv);
 
 				printf("im_member for %s (%d) %s\n", conv->id, len, member->profile_id);
@@ -215,7 +217,7 @@ static struct chime_conversation *one_conversation_cb(ChimeConnection *cxn, Json
 		}
 	}
 
-	g_hash_table_insert(cxn->conversations_by_name, conv->name, conv);
+	g_hash_table_insert(priv->conversations_by_name, conv->name, conv);
 	return conv;
 }
 
@@ -292,6 +294,7 @@ struct deferred_conv_jugg {
 static void fetch_new_conv_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 			      gpointer _defer)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct deferred_conv_jugg *defer = _defer;
 
 	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
@@ -308,7 +311,7 @@ static void fetch_new_conv_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *
 		if (!parse_string(node, "ConversationId", &conv_id))
 			goto bad;
 
-		struct chime_conversation *conv = g_hash_table_lookup(cxn->conversations_by_id,
+		struct chime_conversation *conv = g_hash_table_lookup(priv->conversations_by_id,
 								      conv_id);
 		if (!conv)
 			goto bad;
@@ -326,6 +329,7 @@ static void fetch_new_conv_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *
 
 static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	JsonObject *obj = json_node_get_object(data_node);
 	JsonNode *record = json_object_get_member(obj, "record");
 	if (!record)
@@ -335,7 +339,7 @@ static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNod
 	if (!parse_string(record, "ConversationId", &conv_id))
 		return FALSE;
 
-	struct chime_conversation *conv = g_hash_table_lookup(cxn->conversations_by_id,
+	struct chime_conversation *conv = g_hash_table_lookup(priv->conversations_by_id,
 							      conv_id);
 	if (!conv) {
 		/* It seems they don't do the helpful thing and send the notification
@@ -374,6 +378,7 @@ static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNod
 
 static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	JsonObject *obj = json_node_get_object(data_node);
 	JsonNode *record = json_object_get_member(obj, "record");
 	if (!record)
@@ -383,7 +388,7 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, 
 	if (!parse_string(record, "ConversationId", &conv_id))
 		return FALSE;
 
-	struct chime_conversation *conv = g_hash_table_lookup(cxn->conversations_by_id,
+	struct chime_conversation *conv = g_hash_table_lookup(priv->conversations_by_id,
 							      conv_id);
 	if (!conv) {
 		/* It seems they don't do the helpful thing and send the notification
@@ -462,9 +467,11 @@ static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNo
 
 void chime_init_conversations(ChimeConnection *cxn)
 {
-	cxn->im_conversations_by_peer_id = g_hash_table_new(g_str_hash, g_str_equal);
-	cxn->conversations_by_name = g_hash_table_new(g_str_hash, g_str_equal);
-	cxn->conversations_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_conversation);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	priv->im_conversations_by_peer_id = g_hash_table_new(g_str_hash, g_str_equal);
+	priv->conversations_by_name = g_hash_table_new(g_str_hash, g_str_equal);
+	priv->conversations_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_conversation);
 	chime_jugg_subscribe(cxn, cxn->device_channel, "ConversationMembership",
 			     conv_membership_jugg_cb, NULL);
 	chime_jugg_subscribe(cxn, cxn->device_channel, "ConversationMessage",
@@ -476,16 +483,18 @@ void chime_init_conversations(ChimeConnection *cxn)
 
 void chime_destroy_conversations(ChimeConnection *cxn)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
 	chime_jugg_unsubscribe(cxn, cxn->device_channel, "ConversationMembership",
 			       conv_membership_jugg_cb, NULL);
 	chime_jugg_unsubscribe(cxn, cxn->device_channel, "ConversationMessage",
 			       conv_msg_jugg_cb, NULL);
 	chime_jugg_unsubscribe(cxn, cxn->device_channel, "Conversation",
 			       conv_jugg_cb, NULL);
-	g_hash_table_destroy(cxn->im_conversations_by_peer_id);
-	g_hash_table_destroy(cxn->conversations_by_name);
-	g_hash_table_destroy(cxn->conversations_by_id);
-	cxn->conversations_by_name = cxn->conversations_by_id = NULL;
+	g_hash_table_destroy(priv->im_conversations_by_peer_id);
+	g_hash_table_destroy(priv->conversations_by_name);
+	g_hash_table_destroy(priv->conversations_by_id);
+	priv->conversations_by_name = priv->conversations_by_id = NULL;
 }
 
 struct im_send_data {
@@ -546,7 +555,7 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 	if (!contact)
 		return 0;
 
-	struct chime_conversation *conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
+	struct chime_conversation *conv = g_hash_table_lookup(priv->im_conversations_by_peer_id,
 							      contact->profile_id);
 	if (!conv)
 		return 0;
@@ -697,7 +706,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 
 	struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_email, who);
 	if (contact) {
-		im->conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
+		im->conv = g_hash_table_lookup(priv->im_conversations_by_peer_id,
 					       contact->profile_id);
 		if (im->conv)
 			return send_im(cxn, im);

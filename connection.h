@@ -33,11 +33,6 @@ struct _ChimeConnection {
 
 	PurpleConnection *prpl_conn;
 
-	/* Conversations */
-	GHashTable *im_conversations_by_peer_id;
-	GHashTable *conversations_by_id;
-	GHashTable *conversations_by_name;
-
 	/* Service config */
 	JsonNode *reg_node;
 	const gchar *session_id;

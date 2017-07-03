@@ -24,6 +24,7 @@
 #include <blist.h>
 
 #include "chime.h"
+#include "chime-connection-private.h"
 
 #include <libsoup/soup.h>
 
@@ -40,10 +41,11 @@ static void update_purple_status(ChimeConnection *cxn, struct chime_contact *con
  * either from Juggernaut or explicit request (at startup). */
 static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	const gchar *id;
 	gint64 availability, revision;
 
-	if (!cxn->contacts_by_id)
+	if (!priv->contacts_by_id)
 		return FALSE;
 
 	if (!parse_string(node, "ProfileId", &id) ||
@@ -51,7 +53,7 @@ static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node)
 	    !parse_int(node, "Availability", &availability))
 		return FALSE;
 
-	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id, id);
+	struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_id, id);
 	if (!contact)
 		return FALSE;
 
@@ -93,16 +95,17 @@ static void presence_cb(ChimeConnection *cxn, SoupMessage *msg,
 static gboolean fetch_presences(gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
-	int i, len = g_slist_length(cxn->contacts_needed);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	int i, len = g_slist_length(priv->contacts_needed);
 	if (!len)
 		return FALSE;
 
 	gchar **ids = g_new0(gchar *, len + 1);
 	i = 0;
-	while (cxn->contacts_needed) {
-		struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
-								    cxn->contacts_needed->data);
-		cxn->contacts_needed = g_slist_remove(cxn->contacts_needed, cxn->contacts_needed->data);
+	while (priv->contacts_needed) {
+		struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_id,
+								    priv->contacts_needed->data);
+		priv->contacts_needed = g_slist_remove(priv->contacts_needed, priv->contacts_needed->data);
 		if (!contact || contact->avail_revision)
 			continue;
 
@@ -126,6 +129,7 @@ static gboolean fetch_presences(gpointer _cxn)
 /* Add or update a contact, from contacts list or conversation */
 struct chime_contact *chime_contact_new(ChimeConnection *cxn, JsonNode *node, gboolean conv)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	const gchar *email, *full_name, *presence_channel, *display_name, *profile_id;
 	const gchar *profile_channel = NULL;
 	struct chime_contact *contact;
@@ -139,7 +143,7 @@ struct chime_contact *chime_contact_new(ChimeConnection *cxn, JsonNode *node, gb
 	    !parse_string(node, conv?"ProfileId":"id", &profile_id))
 		return NULL;
 
-	contact = g_hash_table_lookup(cxn->contacts_by_id, profile_id);
+	contact = g_hash_table_lookup(priv->contacts_by_id, profile_id);
 	if (!contact) {
 		contact = g_new0(struct chime_contact, 1);
 		contact->cxn = cxn;
@@ -151,21 +155,21 @@ struct chime_contact *chime_contact_new(ChimeConnection *cxn, JsonNode *node, gb
 			contact->profile_channel = g_strdup(profile_channel);
 			chime_jugg_subscribe(cxn, profile_channel, NULL, NULL, NULL);
 		}
-		g_hash_table_insert(cxn->contacts_by_id, contact->profile_id, contact);
+		g_hash_table_insert(priv->contacts_by_id, contact->profile_id, contact);
 
 		/* We'll need to request presence */
-		if (!cxn->contacts_needed)
+		if (!priv->contacts_needed)
 			g_idle_add(fetch_presences, cxn);
-		cxn->contacts_needed = g_slist_prepend(cxn->contacts_needed, contact->profile_id);
+		priv->contacts_needed = g_slist_prepend(priv->contacts_needed, contact->profile_id);
 	}
 	if (g_strcmp0(contact->email, email)) {
 		/* This should never change for a given ProfileId but let's at least
 		   not blow up completely... */
 		if (contact->email)
-			g_hash_table_steal(cxn->contacts_by_email, contact->email);
+			g_hash_table_steal(priv->contacts_by_email, contact->email);
 		g_free(contact->email);
 		contact->email = g_strdup(email);
-		g_hash_table_insert(cxn->contacts_by_email, contact->email, contact);
+		g_hash_table_insert(priv->contacts_by_email, contact->email, contact);
 	}
 	if (g_strcmp0(contact->full_name, full_name)) {
 		g_free(contact->full_name);
@@ -222,6 +226,8 @@ void chime_purple_buddy_free(PurpleBuddy *buddy)
 
 static void buddies_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
 	if (node) {
 		JsonArray *arr= json_node_get_array(node);
 
@@ -232,7 +238,7 @@ static void buddies_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, g
 	GSList *l = purple_find_buddies(cxn->prpl_conn->account, NULL);
 	while (l) {
 		PurpleBuddy *buddy = l->data;
-		struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email,
+		struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_email,
 								    purple_buddy_get_name(buddy));
 		if (!contact || !contact->profile_id)
 			purple_blist_remove_buddy(buddy);
@@ -250,6 +256,7 @@ void fetch_buddies(ChimeConnection *cxn)
 
 static void add_buddy_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _buddy)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	PurpleBuddy *buddy = _buddy;
 
 	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
@@ -266,7 +273,7 @@ static void add_buddy_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 
 	const gchar *id;
 	if (!parse_string(node, "id", &id) ||
-	    !g_hash_table_lookup(cxn->contacts_by_id, id)) {
+	    !g_hash_table_lookup(priv->contacts_by_id, id)) {
 
 		/* There is weirdness here. If this is a known person, then we can
 		 * *immediately* fetch their full name and other information by
@@ -281,7 +288,8 @@ static void add_buddy_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
-	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email,
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_email,
 							    purple_buddy_get_name(buddy));
 	printf("Add buddy %s: %p\n", purple_buddy_get_name(buddy), contact);
 	if (contact) {
@@ -336,7 +344,8 @@ void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, Purpl
 		buddies = g_slist_remove(buddies, b);
 	}
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
-	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email, buddy->name);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_email, buddy->name);
 	if (!contact)
 		return;
 
@@ -368,15 +377,17 @@ static void destroy_contact(gpointer _contact)
 
 void chime_init_buddies(ChimeConnection *cxn)
 {
-	cxn->contacts_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_contact);
-	cxn->contacts_by_email = g_hash_table_new(g_str_hash, g_str_equal);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	priv->contacts_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_contact);
+	priv->contacts_by_email = g_hash_table_new(g_str_hash, g_str_equal);
 
 	fetch_buddies(cxn);
 }
 
 void chime_destroy_buddies(ChimeConnection *cxn)
 {
-	g_hash_table_destroy(cxn->contacts_by_email);
-	g_hash_table_destroy(cxn->contacts_by_id);
-	cxn->contacts_by_email = cxn->contacts_by_id = NULL;
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	g_hash_table_destroy(priv->contacts_by_email);
+	g_hash_table_destroy(priv->contacts_by_id);
+	priv->contacts_by_email = priv->contacts_by_id = NULL;
 }

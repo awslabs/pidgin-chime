@@ -46,6 +46,11 @@ typedef struct {
 	gchar *ws_key;
 	GHashTable *subscriptions;
 
+	/* Buddies */
+	GHashTable *contacts_by_id;
+	GHashTable *contacts_by_email;
+	GSList *contacts_needed;
+
 } ChimeConnectionPrivate;
 
 #define CHIME_CONNECTION_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), CHIME_TYPE_CONNECTION, ChimeConnectionPrivate))

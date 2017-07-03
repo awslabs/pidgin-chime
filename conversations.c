@@ -49,6 +49,7 @@ static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _unused, Json
 static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversation *conv,
 				    JsonNode *record, time_t msg_time)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	const gchar *sender, *message;
 	gint64 sys;
 
@@ -68,7 +69,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 	}
 
 	if (strcmp(sender, cxn->profile_id)) {
-		struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
+		struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_id,
 								    sender);
 		if (!contact)
 			return FALSE;
@@ -92,7 +93,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 		else
 			peer = 0;
 
-		struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id,
+		struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_id,
 								    member_ids[peer]);
 		g_free(member_ids);
 		/* Ick, how do we inject a message from ourselves? */
@@ -426,6 +427,7 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, 
 
 static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNode *data_node)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct chime_conversation *conv = _conv;
 
 	gint64 state;
@@ -443,7 +445,7 @@ static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNo
 	if (!node || !parse_string(node, "id", &from))
 		return FALSE;
 
-	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_id, from);
+	struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_id, from);
 	if (!contact)
 		return FALSE;
 
@@ -540,7 +542,7 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email, name);
+	struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_email, name);
 	if (!contact)
 		return 0;
 
@@ -686,13 +688,14 @@ static void autocomplete_im_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode 
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(gc);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	struct im_send_data *im = g_new0(struct im_send_data, 1);
 	im->message = purple_unescape_html(message);
 	im->who = g_strdup(who);
 	im->flags = flags;
 
-	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email, who);
+	struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_email, who);
 	if (contact) {
 		im->conv = g_hash_table_lookup(cxn->im_conversations_by_peer_id,
 					       contact->profile_id);

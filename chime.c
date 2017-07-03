@@ -21,6 +21,7 @@
 #include <version.h>
 #include <accountopt.h>
 #include <status.h>
+#include <debug.h>
 
 #include <glib/gi18n.h>
 #include <glib/gstrfuncs.h>
@@ -107,18 +108,20 @@ static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
 {
 	printf("Chime plugin load\n");
 	setvbuf(stdout, NULL, _IONBF, 0);
-	purple_notify_message(plugin, PURPLE_NOTIFY_MSG_INFO, "Foo",
+	purple_notify_message(plugin, PURPLE_NOTIFY_MSG_ERROR, "Foo",
 			      "Chime plugin starting...", NULL, NULL, NULL);
 	return TRUE;
 }
 
 static gboolean chime_purple_plugin_unload(PurplePlugin *plugin)
 {
+	printf("Plugin unload\n");
 	return TRUE;
 }
 
 static void chime_purple_plugin_destroy(PurplePlugin *plugin)
 {
+	printf("Pkugin destroy\n");
 }
 
 static const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
@@ -147,37 +150,32 @@ static void chime_purple_set_idle(PurpleConnection *conn, int idle_time)
 						 NULL);
 }
 
-static void on_device_registered(GObject *source, GAsyncResult *result, gpointer data)
+static void on_chime_connected(ChimeConnection *cxn, PurpleConnection *conn)
 {
-	PurpleConnection *conn = (PurpleConnection *)data;
-	ChimeConnection *connection = CHIME_CONNECTION(source);
-	GError *error = NULL;
-
-	if (!chime_connection_register_device_finish(connection, result, &error)) {
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, error->message);
-		g_error_free(error);
-		return;
-	}
-
+	purple_connection_set_state(conn, PURPLE_CONNECTED);
 	chime_purple_set_idle(conn, 0);
-	printf("Device registered\n");
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Chime connected\n");
+}
+
+static void on_chime_disconnected(ChimeConnection *connection, GError *error, PurpleConnection *conn)
+{
+	if (error)
+		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, error->message);
+
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Chime disconnected: %s\n",
+		     error ? error->message : "<no error>");
 }
 
 static void on_session_token_changed(ChimeConnection *connection, GParamSpec *pspec, PurpleConnection *conn)
 {
-	printf("Session token changed\n");
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Session token changed\n");
 	purple_account_set_string(conn->account, "token", chime_connection_get_session_token(connection));
 }
 
-#define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
 static void chime_purple_login(PurpleAccount *account)
 {
 	PurpleConnection *conn = purple_account_get_connection(account);
-	ChimeConnection *cxn = chime_connection_new(conn);
-	purple_connection_set_protocol_data(conn, cxn);
-
-	g_signal_connect(cxn, "notify::session-token",
-	                 G_CALLBACK(on_session_token_changed), conn);
+	ChimeConnection *cxn;
 
 	const gchar *devtoken = purple_account_get_string(account, "devtoken", NULL);
 
@@ -189,14 +187,21 @@ static void chime_purple_login(PurpleAccount *account)
 	}
 
 	const gchar *server = purple_account_get_string(account, "server", NULL);
-	if (!server || !server[0])
-		server = SIGNIN_DEFAULT;
-
 	const gchar *token = purple_account_get_string(account, "token", NULL);
 
-	chime_connection_register_device_async(cxn, server, token, devtoken,
-	                                       NULL, on_device_registered, conn);
 	purple_connection_update_progress(conn, _("Connecting..."), 1, CONNECT_STEPS);
+
+	cxn = chime_connection_new(conn, server, devtoken, token);
+	purple_connection_set_protocol_data(conn, cxn);
+
+	g_signal_connect(cxn, "notify::session-token",
+			 G_CALLBACK(on_session_token_changed), conn);
+	g_signal_connect(cxn, "connected",
+			 G_CALLBACK(on_chime_connected), conn);
+	g_signal_connect(cxn, "disconnected",
+			 G_CALLBACK(on_chime_disconnected), conn);
+
+
 }
 
 static void chime_purple_close(PurpleConnection *conn)

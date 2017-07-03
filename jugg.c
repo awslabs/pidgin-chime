@@ -142,7 +142,6 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 				g_free(channels);
 			}
 		}
-		purple_connection_set_state(cxn->prpl_conn, PURPLE_CONNECTED);
 		cxn->jugg_resubscribe = TRUE;
 		cxn->jugg_connected = TRUE;
 		return;

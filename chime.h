@@ -89,11 +89,10 @@ extern GQuark pidgin_chime_error_quark(void);
 enum {
 	CHIME_ERROR_REQUEST_FAILED = 1,
 	CHIME_ERROR_BAD_RESPONSE,
+	CHIME_ERROR_AUTH_FAILED,
 };
 
 #define CONNECT_STEPS 3
-
-#define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
 
 /* login.c */
 void chime_initial_login(ChimeConnection *cxn);

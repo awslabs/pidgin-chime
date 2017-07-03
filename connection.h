@@ -28,14 +28,24 @@ G_BEGIN_DECLS
 #define CHIME_TYPE_CONNECTION (chime_connection_get_type ())
 G_DECLARE_FINAL_TYPE (ChimeConnection, chime_connection, CHIME, CONNECTION, GObject)
 
+enum chime_state {
+	CHIME_STATE_CONNECTING,
+	CHIME_STATE_CONNECTED,
+	CHIME_STATE_DISCONNECTED
+};
+
 // FIXME: hide this
 struct _ChimeConnection {
 	GObject parent_instance;
 
+	enum chime_state state;
+	gchar *server;
+	gchar *device_token;
+	gchar *session_token;
+
 	PurpleConnection *prpl_conn;
 
 	SoupSession *soup_sess;
-	gchar *session_token;
 
 	/* Messages queued for resubmission */
 	GQueue *msg_queue;
@@ -97,19 +107,10 @@ typedef void (*ChimeSoupMessageCallback)(ChimeConnection *cxn,
 #define CHIME_CONNECTION_ERROR (chime_connection_error_quark())
 GQuark chime_connection_error_quark (void);
 
-ChimeConnection *chime_connection_new                        (PurpleConnection *connection);
-
-void             chime_connection_register_device_async      (ChimeConnection    *self,
-                                                              const gchar        *server,
-                                                              const gchar        *token,
-                                                              const gchar        *devtoken,
-                                                              GCancellable       *cancellable,
-                                                              GAsyncReadyCallback callback,
-                                                              gpointer            user_data);
-
-gboolean         chime_connection_register_device_finish     (ChimeConnection  *self,
-                                                              GAsyncResult     *result,
-                                                              GError          **error);
+ChimeConnection *chime_connection_new                        (PurpleConnection *connection,
+							      const gchar *server,
+							      const gchar *device_token,
+							      const gchar *session_token);
 
 void             chime_connection_set_presence_async         (ChimeConnection    *self,
                                                               const gchar        *availability,
@@ -134,12 +135,18 @@ gboolean         chime_connection_set_device_status_finish   (ChimeConnection  *
 
 const gchar     *chime_connection_get_session_token          (ChimeConnection  *self);
 
+/* Internal functions */
 SoupMessage     *chime_connection_queue_http_request         (ChimeConnection         *self,
                                                               JsonNode                *node,
                                                               SoupURI                 *uri,
                                                               const gchar             *method,
                                                               ChimeSoupMessageCallback callback,
                                                               gpointer                 cb_data);
+
+void chime_connection_fail(ChimeConnection *cxn, gint code, const gchar *format, ...);
+void chime_connection_fail_error(ChimeConnection *cxn, GError *error);
+void chime_connection_connect(ChimeConnection *cxn);
+void chime_connection_disconnect(ChimeConnection *cxn);
 
 G_END_DECLS
 

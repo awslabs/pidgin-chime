@@ -27,6 +27,5 @@
 
 void chime_initial_login(ChimeConnection *cxn)
 {
-	purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_OTHER_ERROR,
-				       _("No authentication token"));
+	chime_connection_fail(cxn, CHIME_ERROR_AUTH_FAILED, _("No authentication token"));
 }

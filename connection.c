@@ -26,10 +26,20 @@ enum
     PROP_0,
     PROP_PURPLE_CONNECTION,
     PROP_SESSION_TOKEN,
+    PROP_DEVICE_TOKEN,
+    PROP_SERVER,
     LAST_PROP
 };
 
 static GParamSpec *props[LAST_PROP];
+
+enum {
+	CONNECTED,
+	DISCONNECTED,
+	LAST_SIGNAL
+};
+
+static guint signals[LAST_SIGNAL];
 
 G_DEFINE_QUARK(chime-connection-error-quark, chime_connection_error)
 G_DEFINE_TYPE(ChimeConnection, chime_connection, G_TYPE_OBJECT)
@@ -55,17 +65,15 @@ cmsg_free(struct chime_msg *cmsg)
 	g_free(cmsg);
 }
 
-static void
-chime_connection_dispose(GObject *object)
+void
+chime_connection_disconnect(ChimeConnection    *self)
 {
-	ChimeConnection *self = CHIME_CONNECTION(object);
-
-	printf("Disposing connection: %p\n", self);
+	printf("Disconnecting connection: %p\n", self);
 
 	if (self->soup_sess) {
 		soup_session_abort(self->soup_sess);
+		g_clear_object(&self->soup_sess);
 	}
-	g_clear_object(&self->soup_sess);
 
 	chime_destroy_juggernaut(self);
 	chime_destroy_buddies(self);
@@ -79,8 +87,22 @@ chime_connection_dispose(GObject *object)
 		g_queue_free_full(self->msg_queue, (GDestroyNotify)cmsg_free);
 		self->msg_queue = NULL;
 	}
-	
+
 	purple_connection_set_protocol_data(self->prpl_conn, NULL);
+	self->prpl_conn = NULL;
+
+	if (self->state != CHIME_STATE_DISCONNECTED)
+		g_signal_emit(self, signals[DISCONNECTED], 0, NULL);
+	self->state = CHIME_STATE_DISCONNECTED;
+}
+
+static void
+chime_connection_dispose(GObject *object)
+{
+	ChimeConnection *self = CHIME_CONNECTION(object);
+
+	if (self->state != CHIME_STATE_DISCONNECTED)
+		chime_connection_disconnect(self);
 
 	printf("Connection disposed: %p\n", self);
 
@@ -101,6 +123,12 @@ chime_connection_get_property(GObject    *object,
 		break;
 	case PROP_SESSION_TOKEN:
 		g_value_set_string(value, self->session_token);
+		break;
+	case PROP_DEVICE_TOKEN:
+		g_value_set_string(value, self->device_token);
+		break;
+	case PROP_SERVER:
+		g_value_set_string(value, self->server);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -123,11 +151,27 @@ chime_connection_set_property(GObject      *object,
 	case PROP_SESSION_TOKEN:
 		self->session_token = g_value_dup_string(value);
 		break;
+	case PROP_DEVICE_TOKEN:
+		self->device_token = g_value_dup_string(value);
+		break;
+	case PROP_SERVER:
+		self->server = g_value_dup_string(value);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
 		break;
 	}
 }
+
+static void chime_connection_constructed(GObject *object)
+{
+	ChimeConnection *self = CHIME_CONNECTION(object);
+
+        G_OBJECT_CLASS (chime_connection_parent_class)->constructed (object);
+
+	chime_connection_connect(self);
+}
+
 
 static void
 chime_connection_class_init(ChimeConnectionClass *klass)
@@ -136,6 +180,7 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 
 	object_class->finalize = chime_connection_finalize;
 	object_class->dispose = chime_connection_dispose;
+	object_class->constructed = chime_connection_constructed;
 	object_class->get_property = chime_connection_get_property;
 	object_class->set_property = chime_connection_set_property;
 
@@ -156,7 +201,57 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 				    G_PARAM_CONSTRUCT |
 				    G_PARAM_STATIC_STRINGS);
 
+	props[PROP_DEVICE_TOKEN] =
+		g_param_spec_string("device-token",
+				    "device token",
+				    "device token",
+				    NULL,
+				    G_PARAM_READWRITE |
+				    G_PARAM_CONSTRUCT_ONLY |
+				    G_PARAM_STATIC_STRINGS);
+
+	props[PROP_SERVER] =
+		g_param_spec_string("server",
+				    "server",
+				    "server",
+				    NULL,
+				    G_PARAM_READWRITE |
+				    G_PARAM_CONSTRUCT_ONLY |
+				    G_PARAM_STATIC_STRINGS);
+
 	g_object_class_install_properties(object_class, LAST_PROP, props);
+
+	signals[CONNECTED] =
+		g_signal_new ("connected",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      NULL, NULL, NULL, NULL, G_TYPE_NONE, 0, NULL);
+
+	signals[DISCONNECTED] =
+		g_signal_new ("disconnected",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      NULL, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_STRING);
+}
+
+void chime_connection_fail_error(ChimeConnection *cxn, GError *error)
+{
+	cxn->state = CHIME_STATE_DISCONNECTED;
+	g_signal_emit(cxn, signals[DISCONNECTED], 0, error);
+
+	/* Finish the cleanup */
+	chime_connection_disconnect(cxn);
+}
+
+void chime_connection_fail(ChimeConnection *cxn, gint code, const gchar *format, ...)
+{
+	GError *error;
+	va_list args;
+
+	va_start(args, format);
+	error = g_error_new_valist(CHIME_ERROR, code, format, args);
+	va_end(args);
+
+	chime_connection_fail_error(cxn, error);
+	g_error_free(error);
 }
 
 static void
@@ -172,13 +267,23 @@ chime_connection_init(ChimeConnection *self)
 	}
 
 	self->msg_queue = g_queue_new();
+	self->state = CHIME_STATE_DISCONNECTED;
 }
 
+#define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
+
 ChimeConnection *
-chime_connection_new(PurpleConnection *connection)
+chime_connection_new(PurpleConnection *connection, const gchar *server,
+		     const gchar *device_token, const gchar *session_token)
 {
+	if (!server)
+		server = SIGNIN_DEFAULT;
+
 	return g_object_new (CHIME_TYPE_CONNECTION,
 	                     "purple-connection", connection,
+			     "server", server ? server : SIGNIN_DEFAULT,
+			     "device-token", device_token,
+			     "session-token", session_token,
 	                     NULL);
 }
 
@@ -313,43 +418,25 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 	chime_init_conversations(self);
 	chime_init_chats(self);
 
-	g_task_return_boolean(task, TRUE);
+	g_signal_emit (self, signals[CONNECTED], 0);
 	g_object_unref(task);
 }
 
 void
-chime_connection_register_device_async(ChimeConnection    *self,
-                                       const gchar        *server,
-                                       const gchar        *token,
-                                       const gchar        *devtoken,
-                                       GCancellable       *cancellable,
-                                       GAsyncReadyCallback callback,
-                                       gpointer            user_data)
+chime_connection_connect(ChimeConnection    *self)
 {
-	g_return_if_fail(CHIME_IS_CONNECTION(self));
-	g_return_if_fail(server != NULL);
-	g_return_if_fail(token != NULL);
-	g_return_if_fail(devtoken != NULL);
+	if (self->state != CHIME_STATE_DISCONNECTED)
+		return;
 
-	GTask *task = g_task_new(self, cancellable, callback, user_data);
+	if (!self->session_token)
+		chime_initial_login(self);
 
-	JsonNode *node = chime_device_register_req(devtoken);
+	JsonNode *node = chime_device_register_req(self->device_token);
 
-	SoupURI *uri = soup_uri_new_printf(server, "/sessions");
-	soup_uri_set_query_from_fields(uri, "Token", token, NULL);
+	SoupURI *uri = soup_uri_new_printf(self->server, "/sessions");
+	soup_uri_set_query_from_fields(uri, "Token", self->session_token, NULL);
 
-	chime_connection_queue_http_request(self, node, uri, "POST", register_cb, task);
-}
-
-gboolean
-chime_connection_register_device_finish(ChimeConnection  *self,
-                                        GAsyncResult     *result,
-                                        GError          **error)
-{
-	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
-	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
-
-	return g_task_propagate_boolean(G_TASK(result), error);
+	chime_connection_queue_http_request(self, node, uri, "POST", register_cb, NULL);
 }
 
 static void set_device_status_cb(ChimeConnection *self, SoupMessage *msg,

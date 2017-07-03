@@ -116,7 +116,7 @@ static gboolean fetch_presences(gpointer _cxn)
 		ids[i++] = NULL;
 		gchar *query = g_strjoinv(",", ids);
 
-		SoupURI *uri = soup_uri_new_printf(cxn->presence_url, "/presence");
+		SoupURI *uri = soup_uri_new_printf(priv->presence_url, "/presence");
 		soup_uri_set_query_from_fields(uri, "profile-ids", query, NULL);
 		g_free(query);
 
@@ -249,7 +249,8 @@ static void buddies_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, g
 
 void fetch_buddies(ChimeConnection *cxn)
 {
-	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/contacts");
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts");
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", buddies_cb, NULL);
 }
 
@@ -297,7 +298,7 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 		update_purple_status(cxn, contact);
 	}
 
-	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/invites");
+	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/invites");
 	JsonBuilder *builder = json_builder_new();
 
 	builder = json_builder_begin_object(builder);
@@ -349,7 +350,7 @@ void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, Purpl
 	if (!contact)
 		return;
 
-	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/contacts/%s", contact->profile_id);
+	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts/%s", contact->profile_id);
 	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE", remove_buddy_cb, NULL);
 }
 

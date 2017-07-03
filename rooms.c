@@ -95,7 +95,8 @@ static void roomlist_cb(ChimeConnection *cxn, SoupMessage *msg,
 
 static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token)
 {
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms");
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms");
 
 	soup_uri_set_query_from_fields(uri, "max-results", "50",
 				       next_token ? "next-token" : NULL, next_token,
@@ -140,7 +141,7 @@ void chime_init_rooms(ChimeConnection *cxn)
 	priv->rooms_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_room);
 	priv->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
 	fetch_rooms(cxn, NULL);
-	chime_jugg_subscribe(cxn, cxn->profile_channel, "VisibleRooms", visible_rooms_jugg_cb, NULL);
+	chime_jugg_subscribe(cxn, priv->profile_channel, "VisibleRooms", visible_rooms_jugg_cb, NULL);
 }
 
 void chime_destroy_rooms(ChimeConnection *cxn)

@@ -87,7 +87,7 @@ chime_connection_disconnect(ChimeConnection    *self)
 	chime_destroy_conversations(self);
 	chime_destroy_chats(self);
 
-	g_clear_pointer(&self->reg_node, json_node_unref);
+	g_clear_pointer(&priv->reg_node, json_node_unref);
 
 	if (priv->msg_queue) {
 		g_queue_free_full(priv->msg_queue, (GDestroyNotify)cmsg_free);
@@ -304,7 +304,7 @@ chime_connection_new(PurpleConnection *connection, const gchar *server,
 static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
-	JsonObject *obj = json_node_get_object(self->reg_node);
+	JsonObject *obj = json_node_get_object(priv->reg_node);
 	JsonNode *node, *sess_node = json_object_get_member(obj, "Session");
 	const gchar *sess_tok;
 	const gchar *display_name;
@@ -320,23 +320,23 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 		g_object_notify(G_OBJECT(self), "session-token");
 	}
 
-	if (!parse_string(sess_node, "SessionId", &self->session_id))
+	if (!parse_string(sess_node, "SessionId", &priv->session_id))
 		return FALSE;
 
 	obj = json_node_get_object(sess_node);
 
 	node = json_object_get_member(obj, "Profile");
-	if (!parse_string(node, "profile_channel", &self->profile_channel) ||
-	    !parse_string(node, "presence_channel", &self->presence_channel) ||
-	    !parse_string(node, "id", &self->profile_id) ||
+	if (!parse_string(node, "profile_channel", &priv->profile_channel) ||
+	    !parse_string(node, "presence_channel", &priv->presence_channel) ||
+	    !parse_string(node, "id", &priv->profile_id) ||
 	    !parse_string(node, "display_name", &display_name))
 		return FALSE;
 
 	purple_connection_set_display_name(self->prpl_conn, display_name);
 
 	node = json_object_get_member(obj, "Device");
-	if (!parse_string(node, "DeviceId", &self->device_id) ||
-	    !parse_string(node, "Channel", &self->device_channel))
+	if (!parse_string(node, "DeviceId", &priv->device_id) ||
+	    !parse_string(node, "Channel", &priv->device_channel))
 		return FALSE;
 
 	node = json_object_get_member(obj, "ServiceConfig");
@@ -345,32 +345,32 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 	obj = json_node_get_object(node);
 
 	node = json_object_get_member(obj, "Presence");
-	if (!parse_string(node, "RestUrl", &self->presence_url))
+	if (!parse_string(node, "RestUrl", &priv->presence_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Push");
-	if (!parse_string(node, "ReachabilityUrl", &self->reachability_url) ||
-	    !parse_string(node, "WebsocketUrl", &self->websocket_url))
+	if (!parse_string(node, "ReachabilityUrl", &priv->reachability_url) ||
+	    !parse_string(node, "WebsocketUrl", &priv->websocket_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Profile");
-	if (!parse_string(node, "RestUrl", &self->profile_url))
+	if (!parse_string(node, "RestUrl", &priv->profile_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Contacts");
-	if (!parse_string(node, "RestUrl", &self->contacts_url))
+	if (!parse_string(node, "RestUrl", &priv->contacts_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Messaging");
-	if (!parse_string(node, "RestUrl", &self->messaging_url))
+	if (!parse_string(node, "RestUrl", &priv->messaging_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Presence");
-	if (!parse_string(node, "RestUrl", &self->presence_url))
+	if (!parse_string(node, "RestUrl", &priv->presence_url))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Conference");
-	if (!parse_string(node, "RestUrl", &self->conference_url))
+	if (!parse_string(node, "RestUrl", &priv->conference_url))
 		return FALSE;
 
 	return TRUE;
@@ -415,8 +415,8 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 		return;
 	}
 
-	self->reg_node = json_node_ref(node);
-	if (!parse_regnode(self, self->reg_node)) {
+	priv->reg_node = json_node_ref(node);
+	if (!parse_regnode(self, priv->reg_node)) {
 		g_task_return_new_error(task, CHIME_CONNECTION_ERROR, CHIME_CONNECTION_ERROR_NETWORK,
 		                        _("Failed to process registration response"));
 		g_object_unref(task);
@@ -425,9 +425,9 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 
 	chime_init_juggernaut(self);
 
-	chime_jugg_subscribe(self, self->profile_channel, NULL, NULL, NULL);
-	chime_jugg_subscribe(self, self->presence_channel, NULL, NULL, NULL);
-	chime_jugg_subscribe(self, self->device_channel, NULL, NULL, NULL);
+	chime_jugg_subscribe(self, priv->profile_channel, NULL, NULL, NULL);
+	chime_jugg_subscribe(self, priv->presence_channel, NULL, NULL, NULL);
+	chime_jugg_subscribe(self, priv->device_channel, NULL, NULL, NULL);
 
 	chime_init_buddies(self);
 	chime_init_rooms(self);
@@ -479,6 +479,7 @@ chime_connection_set_device_status_async(ChimeConnection    *self,
 					 gpointer            user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
 	GTask *task = g_task_new(self, cancellable, callback, user_data);
 	JsonBuilder *builder = json_builder_new();
@@ -488,7 +489,7 @@ chime_connection_set_device_status_async(ChimeConnection    *self,
 	builder = json_builder_end_object(builder);
 	JsonNode *node = json_builder_get_root(builder);
 
-	SoupURI *uri = soup_uri_new_printf(self->presence_url, "/devicestatus");
+	SoupURI *uri = soup_uri_new_printf(priv->presence_url, "/devicestatus");
 	chime_connection_queue_http_request(self, node, uri, "PUT", set_device_status_cb, task);
 
 	json_node_unref(node);
@@ -524,6 +525,7 @@ chime_connection_set_presence_async(ChimeConnection    *self,
 				    gpointer            user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
 	GTask *task = g_task_new(self, cancellable, callback, user_data);
 	JsonBuilder *builder = json_builder_new();
@@ -539,7 +541,7 @@ chime_connection_set_presence_async(ChimeConnection    *self,
 	builder = json_builder_end_object(builder);
 	JsonNode *node = json_builder_get_root(builder);
 
-	SoupURI *uri = soup_uri_new_printf(self->presence_url, "/presencesettings");
+	SoupURI *uri = soup_uri_new_printf(priv->presence_url, "/presencesettings");
 	chime_connection_queue_http_request(self, node, uri, "POST", set_presence_cb, task);
 
 	json_node_unref(node);
@@ -614,7 +616,7 @@ static void chime_renew_token(ChimeConnection *self)
 	builder = json_builder_end_object(builder);
 	node = json_builder_get_root(builder);
 
-	uri = soup_uri_new_printf(self->profile_url, "/tokens");
+	uri = soup_uri_new_printf(priv->profile_url, "/tokens");
 	soup_uri_set_query_from_fields(uri, "Token", priv->session_token, NULL);
 	chime_connection_queue_http_request(self, node, uri, "POST", renew_cb, NULL);
 

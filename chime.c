@@ -32,6 +32,7 @@
 #include <libsoup/soup.h>
 
 #include "chime.h"
+#include "chime-connection-private.h"
 
 G_DEFINE_QUARK(PidginChimeError, pidgin_chime_error);
 
@@ -343,6 +344,8 @@ void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 			   const gchar *id, const gchar *msg_time,
 			   const gchar *msg_id)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
 	gchar *key = g_strdup_printf("last-%s-%s", is_room ? "room" : "conversation", id);
 	gchar *val = g_strdup_printf("%s|%s", msg_id, msg_time);
 
@@ -356,7 +359,7 @@ void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 	jb = json_builder_add_string_value(jb, msg_id);
 	jb = json_builder_end_object(jb);
 
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url,
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url,
 					   "/%ss/%s", is_room ? "room" : "conversation",
 					   id);
 	JsonNode *node = json_builder_get_root(jb);

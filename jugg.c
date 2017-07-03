@@ -229,8 +229,8 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 static void connect_jugg(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1/websocket/%s", priv->ws_key);
-	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
+	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1/websocket/%s", priv->ws_key);
+	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
 
 	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
 	soup_uri_free(uri);
@@ -318,8 +318,9 @@ void chime_destroy_juggernaut(ChimeConnection *cxn)
 
 void chime_init_juggernaut(ChimeConnection *cxn)
 {
-	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1");
-	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1");
+	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
 
 	purple_connection_update_progress(cxn->prpl_conn, _("Obtaining WebSocket params..."),
 					  2, CONNECT_STEPS);

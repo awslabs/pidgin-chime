@@ -68,7 +68,7 @@ static int parse_inbound_mentions(ChimeConnection *cxn, const char *message, cha
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	*parsed = g_regex_replace(priv->mention_regex, message, -1, 0, MENTION_REPLACEMENT, 0, NULL);
-	return strstr(message, cxn->profile_id) || strstr(message, "&lt;@all|") ||
+	return strstr(message, priv->profile_id) || strstr(message, "&lt;@all|") ||
 		strstr(message, "&lt;@present|");
 }
 
@@ -107,6 +107,7 @@ static gchar *parse_outbound_mentions(GHashTable *members, const gchar *message)
 static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
 			       JsonNode *node, time_t msg_time)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	PurpleConnection *conn = chat->conv->account->gc;
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
 	const gchar *content, *sender;
@@ -118,7 +119,7 @@ static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
 	const gchar *from = _("Unknown sender");
 	int msg_flags;
 
-	if (!strcmp(sender, cxn->profile_id)) {
+	if (!strcmp(sender, priv->profile_id)) {
 		from = purple_connection_get_display_name(cxn->prpl_conn);
 		msg_flags = PURPLE_MESSAGE_SEND;
 	} else {
@@ -300,8 +301,9 @@ static void fetch_members_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *n
 
 void fetch_chat_memberships(ChimeConnection *cxn, struct chime_chat *chat, const gchar *next_token)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct chime_room *room = chat->room;
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/memberships", room->id);
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s/memberships", room->id);
 
 	soup_uri_set_query_from_fields(uri, "max-results", "50", next_token ? "next-token" : NULL, next_token, NULL);
 	chat->members_msg = chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_members_cb, chat);
@@ -430,7 +432,7 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	jb = json_builder_add_string_value(jb, uuid);
 	jb = json_builder_end_object(jb);
 
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/rooms/%s/messages", chat->room->id);
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s/messages", chat->room->id);
 	JsonNode *node = json_builder_get_root(jb);
 	if (chime_connection_queue_http_request(cxn, node, uri, "POST", send_msg_cb, chat)) {
 		ret = 0;
@@ -469,12 +471,12 @@ void chime_init_chats(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	priv->mention_regex = g_regex_new(MENTION_PATTERN, G_REGEX_EXTENDED, 0, NULL);
-	chime_jugg_subscribe(cxn, cxn->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
+	chime_jugg_subscribe(cxn, priv->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
 }
 
 void chime_destroy_chats(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	g_clear_pointer(&priv->mention_regex, g_regex_unref);
-	chime_jugg_unsubscribe(cxn, cxn->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
+	chime_jugg_unsubscribe(cxn, priv->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
 }

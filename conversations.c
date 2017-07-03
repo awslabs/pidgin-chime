@@ -68,7 +68,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 		return FALSE;
 	}
 
-	if (strcmp(sender, cxn->profile_id)) {
+	if (strcmp(sender, priv->profile_id)) {
 		struct chime_contact *contact = g_hash_table_lookup(priv->contacts_by_id,
 								    sender);
 		if (!contact)
@@ -88,7 +88,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 		int peer;
 
 		member_ids = (const gchar **)g_hash_table_get_keys_as_array(conv->members, NULL);
-		if (!strcmp(member_ids[0], cxn->profile_id))
+		if (!strcmp(member_ids[0], priv->profile_id))
 			peer = 1;
 		else
 			peer = 0;
@@ -206,7 +206,7 @@ static struct chime_conversation *one_conversation_cb(ChimeConnection *cxn, Json
 		member = chime_contact_new(cxn, json_array_get_element(arr, i), TRUE);
 		if (member) {
 			g_hash_table_insert(conv->members, member->profile_id, member);
-			if (len == 2 && strcmp(member->profile_id, cxn->profile_id)) {
+			if (len == 2 && strcmp(member->profile_id, priv->profile_id)) {
 				/* A two-party conversation contains only us (presumably!)
 				 * and one other. Index 1:1 conversations on that "other" */
 				g_hash_table_insert(priv->im_conversations_by_peer_id,
@@ -250,7 +250,8 @@ static void conversationlist_cb(ChimeConnection *cxn, SoupMessage *msg,
 
 static void fetch_conversations(ChimeConnection *cxn, const gchar *next_token)
 {
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations");
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/conversations");
 
 	soup_uri_set_query_from_fields(uri, "max-results", "50",
 				       next_token ? "next-token" : NULL, next_token,
@@ -349,7 +350,7 @@ static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNod
 		defer->node = json_node_ref(data_node);
 		defer->cb = conv_msg_jugg_cb;
 
-		SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s", conv_id);
+		SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/conversations/%s", conv_id);
 		if (chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_new_conv_cb, defer))
 			return TRUE;
 
@@ -398,7 +399,7 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, 
 		defer->node = json_node_ref(data_node);
 		defer->cb = conv_membership_jugg_cb;
 
-		SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s", conv_id);
+		SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/conversations/%s", conv_id);
 		if (chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_new_conv_cb, defer))
 			return TRUE;
 
@@ -472,11 +473,11 @@ void chime_init_conversations(ChimeConnection *cxn)
 	priv->im_conversations_by_peer_id = g_hash_table_new(g_str_hash, g_str_equal);
 	priv->conversations_by_name = g_hash_table_new(g_str_hash, g_str_equal);
 	priv->conversations_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_conversation);
-	chime_jugg_subscribe(cxn, cxn->device_channel, "ConversationMembership",
+	chime_jugg_subscribe(cxn, priv->device_channel, "ConversationMembership",
 			     conv_membership_jugg_cb, NULL);
-	chime_jugg_subscribe(cxn, cxn->device_channel, "ConversationMessage",
+	chime_jugg_subscribe(cxn, priv->device_channel, "ConversationMessage",
 			     conv_msg_jugg_cb, NULL);
-	chime_jugg_subscribe(cxn, cxn->device_channel, "Conversation",
+	chime_jugg_subscribe(cxn, priv->device_channel, "Conversation",
 			     conv_jugg_cb, NULL);
 	fetch_conversations(cxn, NULL);
 }
@@ -485,11 +486,11 @@ void chime_destroy_conversations(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	chime_jugg_unsubscribe(cxn, cxn->device_channel, "ConversationMembership",
+	chime_jugg_unsubscribe(cxn, priv->device_channel, "ConversationMembership",
 			       conv_membership_jugg_cb, NULL);
-	chime_jugg_unsubscribe(cxn, cxn->device_channel, "ConversationMessage",
+	chime_jugg_unsubscribe(cxn, priv->device_channel, "ConversationMessage",
 			       conv_msg_jugg_cb, NULL);
-	chime_jugg_unsubscribe(cxn, cxn->device_channel, "Conversation",
+	chime_jugg_unsubscribe(cxn, priv->device_channel, "Conversation",
 			       conv_jugg_cb, NULL);
 	g_hash_table_destroy(priv->im_conversations_by_peer_id);
 	g_hash_table_destroy(priv->conversations_by_name);
@@ -587,6 +588,8 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 
 static int send_im(ChimeConnection *cxn, struct im_send_data *im)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
 	/* For idempotency of requests. Not that we retry. */
 	gchar *uuid = purple_uuid_random();
 
@@ -599,7 +602,7 @@ static int send_im(ChimeConnection *cxn, struct im_send_data *im)
 	jb = json_builder_end_object(jb);
 
 	int ret;
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s/messages",
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/conversations/%s/messages",
 					   im->conv->id);
 	JsonNode *node = json_builder_get_root(jb);
 	if (chime_connection_queue_http_request(cxn, node, uri, "POST", send_im_cb, im))
@@ -642,6 +645,7 @@ static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *nod
 
  static int create_im_conv(ChimeConnection *cxn, struct im_send_data *im, const gchar *profile_id)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	JsonBuilder *jb = json_builder_new();
 	jb = json_builder_new();
 	jb = json_builder_begin_object(jb);
@@ -652,7 +656,7 @@ static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *nod
 	jb = json_builder_end_object(jb);
 
 	int ret;
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations");
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/conversations");
 	JsonNode *node = json_builder_get_root(jb);
 	if (chime_connection_queue_http_request(cxn, node, uri, "POST", conv_create_cb, im))
 		ret = 1;
@@ -714,7 +718,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 		return create_im_conv(cxn, im, contact->profile_id);
 	}
 
-	SoupURI *uri = soup_uri_new_printf(cxn->contacts_url, "/registered_auto_completes");
+	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/registered_auto_completes");
 	JsonBuilder *jb = json_builder_new();
 	jb = json_builder_begin_object(jb);
 	jb = json_builder_set_member_name(jb, "q");

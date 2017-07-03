@@ -33,6 +33,24 @@ typedef struct {
 	gchar *device_token;
 	gchar *session_token;
 
+	/* Service config */
+	JsonNode *reg_node;
+	const gchar *session_id;
+	const gchar *profile_id;
+	const gchar *profile_channel;
+	const gchar *presence_channel;
+
+	const gchar *device_id;
+	const gchar *device_channel;
+
+	const gchar *presence_url;
+	const gchar *websocket_url;
+	const gchar *reachability_url;
+	const gchar *profile_url;
+	const gchar *contacts_url;
+	const gchar *messaging_url;
+	const gchar *conference_url;
+
 	SoupSession *soup_sess;
 
 	/* Messages queued for resubmission */

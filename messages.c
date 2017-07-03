@@ -25,6 +25,7 @@
 #include <roomlist.h>
 
 #include "chime.h"
+#include "chime-connection-private.h"
 
 #include <libsoup/soup.h>
 
@@ -132,7 +133,8 @@ static void fetch_msgs_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node
 
 void fetch_messages(ChimeConnection *cxn, struct chime_msgs *msgs, const gchar *next_token)
 {
-	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/%ss/%s/messages",
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/%ss/%s/messages",
 					   msgs->is_room ? "room" : "conversation", msgs->id);
 	const gchar *opts[4];
 	int i = 0;

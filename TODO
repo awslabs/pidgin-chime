@@ -4,6 +4,12 @@ The code is at "prototype" quality and needs improving, and there are
 features and corner cases which are still unhandled. What se need to do
 includes...
 
+ • Meetings
+
+   Handle the incoming JoinableMeetings information. We can't actually
+   join yet but at least we could pop up a notification with a
+   clickable URL for the web client. We should use the individual PIN
+   so we join with the correct identity.
 
  • Error handling
 

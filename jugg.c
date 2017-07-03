@@ -47,13 +47,14 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 				gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	printf("websocket closed: %d %s (%d)!\n", soup_websocket_connection_get_close_code(ws),
-	       soup_websocket_connection_get_close_data(ws), cxn->jugg_connected);
+	       soup_websocket_connection_get_close_data(ws), priv->jugg_connected);
 
-	g_clear_object(&cxn->ws_conn);
+	g_clear_object(&priv->ws_conn);
 
-	if (cxn->jugg_connected)
+	if (priv->jugg_connected)
 		connect_jugg(cxn);
 	else
 		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
@@ -63,6 +64,7 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 
 static void handle_callback(ChimeConnection *cxn, gchar *msg)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	JsonParser *parser = json_parser_new();
 	gboolean handled = FALSE;
 	GError *error = NULL;
@@ -82,7 +84,7 @@ static void handle_callback(ChimeConnection *cxn, gchar *msg)
 
 		const gchar *klass;
 		if (parse_string(data_node, "klass", &klass)) {
-			    GList *l = g_hash_table_lookup(cxn->subscriptions, channel);
+			    GList *l = g_hash_table_lookup(priv->subscriptions, channel);
 			    while (l) {
 				    struct jugg_subscription *sub = l->data;
 				    if (sub->cb && (!sub->klass || !strcmp(sub->klass, klass)))
@@ -107,9 +109,10 @@ static void handle_callback(ChimeConnection *cxn, gchar *msg)
 
 static void send_subscription_message(ChimeConnection *cxn, const gchar *type, const gchar *channel)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	gchar *msg = g_strdup_printf("3:::{\"type\":\"%s\",\"channel\":\"%s\"}", type, channel);
 	printf("sub: %s\n", msg);
-	soup_websocket_connection_send_text(cxn->ws_conn, msg);
+	soup_websocket_connection_send_text(priv->ws_conn, msg);
 	g_free(msg);
 }
 
@@ -119,6 +122,7 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 				 GBytes *message, gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	gchar **parms;
 	gconstpointer data;
 
@@ -132,34 +136,34 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 	/* Ack */
 	if (!strcmp(data, "1::")) {
 		/* If we go this far, allow reconnect */
-		if (!cxn->jugg_connected && cxn->subscriptions) {
-			if (cxn->jugg_resubscribe)
+		if (!priv->jugg_connected && priv->subscriptions) {
+			if (priv->jugg_resubscribe)
 				send_resubscribe_message(cxn);
 			else {
 				guint i, len;
-				const gchar **channels = (const gchar **)g_hash_table_get_keys_as_array(cxn->subscriptions, &len);
+				const gchar **channels = (const gchar **)g_hash_table_get_keys_as_array(priv->subscriptions, &len);
 				for (i = 0;  i < len; i++)
 					send_subscription_message(cxn, "subscribe", channels[i]);
 				g_free(channels);
 			}
 		}
-		cxn->jugg_resubscribe = TRUE;
-		cxn->jugg_connected = TRUE;
+		priv->jugg_resubscribe = TRUE;
+		priv->jugg_connected = TRUE;
 		return;
 	}
 	/* Keepalive */
 	if (!strcmp(data, "2::")) {
-		soup_websocket_connection_send_text(cxn->ws_conn,  "2::");
+		soup_websocket_connection_send_text(priv->ws_conn,  "2::");
 		return;
 	}
 	parms = g_strsplit(data, ":", 4);
 	if (parms[0] && parms[1] && *parms[1] && parms[2]) {
 		/* Send an ack */
 		gchar *ack = g_strdup_printf("6:::%s", parms[1]);
-		soup_websocket_connection_send_text(cxn->ws_conn, ack);
+		soup_websocket_connection_send_text(priv->ws_conn, ack);
 		g_free(ack);
 
-		if (cxn->subscriptions && !strcmp(parms[0], "3") && parms[3])
+		if (priv->subscriptions && !strcmp(parms[0], "3") && parms[3])
 			handle_callback(cxn, parms[3]);
 	}
 	g_strfreev(parms);
@@ -174,13 +178,14 @@ static void each_chan(gpointer _chan, gpointer _sub, gpointer _builder)
 
 static void send_resubscribe_message(ChimeConnection *cxn)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	JsonBuilder *builder = json_builder_new();
 	builder = json_builder_begin_object(builder);
 	builder = json_builder_set_member_name(builder, "type");
 	builder = json_builder_add_string_value(builder, "resubscribe");
 	builder = json_builder_set_member_name(builder, "channels");
 	builder = json_builder_begin_array(builder);
-	g_hash_table_foreach(cxn->subscriptions, each_chan, &builder);
+	g_hash_table_foreach(priv->subscriptions, each_chan, &builder);
 	builder = json_builder_end_array(builder);
 	builder = json_builder_end_object(builder);
 
@@ -191,11 +196,12 @@ static void send_resubscribe_message(ChimeConnection *cxn)
 static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	GError *error = NULL;
 
-	cxn->ws_conn = soup_session_websocket_connect_finish(SOUP_SESSION(obj),
+	priv->ws_conn = soup_session_websocket_connect_finish(SOUP_SESSION(obj),
 							      res, &error);
-	if (!cxn->ws_conn) {
+	if (!priv->ws_conn) {
 		gchar *reason = g_strdup_printf(_("Websocket connection error %s"),
 						error->message);
 		g_error_free(error);
@@ -207,36 +213,37 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 
 #if SOUP_CHECK_VERSION(2, 56, 0)
 	/* Remove limit on the payload size */
-	soup_websocket_connection_set_max_incoming_payload_size(cxn->ws_conn, 0);
+	soup_websocket_connection_set_max_incoming_payload_size(priv->ws_conn, 0);
 #endif
 
-	printf("Got ws conn %p\n", cxn->ws_conn);
-	soup_websocket_connection_send_text(cxn->ws_conn,  "1::");
+	printf("Got ws conn %p\n", priv->ws_conn);
+	soup_websocket_connection_send_text(priv->ws_conn,  "1::");
 
-	cxn->closed_handler = g_signal_connect(G_OBJECT(cxn->ws_conn), "closed",
-					       G_CALLBACK(on_websocket_closed), cxn);
-	cxn->message_handler = g_signal_connect(G_OBJECT(cxn->ws_conn), "message",
-						G_CALLBACK(on_websocket_message), cxn);
+	priv->closed_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "closed",
+						G_CALLBACK(on_websocket_closed), cxn);
+	priv->message_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "message",
+						 G_CALLBACK(on_websocket_message), cxn);
 
 }
 
 static void connect_jugg(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1/websocket/%s", cxn->ws_key);
+	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1/websocket/%s", priv->ws_key);
 	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
 
 	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
 	soup_uri_free(uri);
 
 	printf("no connected\n");
-	cxn->jugg_connected = FALSE;
+	priv->jugg_connected = FALSE;
 	soup_session_websocket_connect_async(priv->soup_sess, msg, NULL, NULL, NULL, ws2_cb, cxn);
 }
 
 
 static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	gchar **ws_opts = NULL;
 
 	if (msg->status_code != 200) {
@@ -257,7 +264,7 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 		return;
 	}
 
-	cxn->ws_key = g_strdup(ws_opts[0]);
+	priv->ws_key = g_strdup(ws_opts[0]);
 	purple_connection_update_progress(cxn->prpl_conn, _("Establishing WebSocket connection..."),
 					  3, CONNECT_STEPS);
 	g_strfreev(ws_opts);
@@ -268,8 +275,9 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	if (cxn->ws_conn)
+	if (priv->ws_conn)
 		send_subscription_message(_cxn, "unsubscribe", k);
 
 	g_list_free_full(v, free_jugg_subscription);
@@ -285,25 +293,27 @@ static void on_final_ws_close(SoupWebsocketConnection *ws, gpointer _unused)
 
 void chime_destroy_juggernaut(ChimeConnection *cxn)
 {
-	if (cxn->subscriptions) {
-		g_hash_table_foreach_remove(cxn->subscriptions, chime_sublist_destroy, cxn);
-		g_hash_table_destroy(cxn->subscriptions);
-		cxn->subscriptions = NULL;
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	if (priv->subscriptions) {
+		g_hash_table_foreach_remove(priv->subscriptions, chime_sublist_destroy, cxn);
+		g_hash_table_destroy(priv->subscriptions);
+		priv->subscriptions = NULL;
 	}
 
 	/* The ChimeConnection is going away, so disconnect the signals which
 	 * refer to it...*/
-	if (cxn->ws_conn) {
-		g_signal_handler_disconnect(G_OBJECT(cxn->ws_conn), cxn->message_handler);
-		g_signal_handler_disconnect(G_OBJECT(cxn->ws_conn), cxn->closed_handler);
-		cxn->message_handler = cxn->closed_handler = 0;
+	if (priv->ws_conn) {
+		g_signal_handler_disconnect(G_OBJECT(priv->ws_conn), priv->message_handler);
+		g_signal_handler_disconnect(G_OBJECT(priv->ws_conn), priv->closed_handler);
+		priv->message_handler = priv->closed_handler = 0;
 
-		soup_websocket_connection_send_text(cxn->ws_conn, "0::");
-		g_signal_connect(G_OBJECT(cxn->ws_conn), "closed", G_CALLBACK(on_final_ws_close), NULL);
-		cxn->ws_conn = NULL;
+		soup_websocket_connection_send_text(priv->ws_conn, "0::");
+		g_signal_connect(G_OBJECT(priv->ws_conn), "closed", G_CALLBACK(on_final_ws_close), NULL);
+		priv->ws_conn = NULL;
 	}
 
-	g_clear_pointer(&cxn->ws_key, g_free);
+	g_clear_pointer(&priv->ws_key, g_free);
 }
 
 void chime_init_juggernaut(ChimeConnection *cxn)
@@ -318,7 +328,9 @@ void chime_init_juggernaut(ChimeConnection *cxn)
 
 gboolean chime_jugg_send(ChimeConnection *cxn, JsonNode *node)
 {
-	if (!cxn->ws_conn)
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	if (!priv->ws_conn)
 		return FALSE;
 
 	JsonGenerator *jg = json_generator_new();
@@ -326,7 +338,7 @@ gboolean chime_jugg_send(ChimeConnection *cxn, JsonNode *node)
 	gchar *msg = json_generator_to_data(jg, NULL);
 	gchar *msg2 = g_strdup_printf("3:::%s", msg);
 
-	soup_websocket_connection_send_text(cxn->ws_conn, msg2);
+	soup_websocket_connection_send_text(priv->ws_conn, msg2);
 	printf("jugg send: %s\n", msg2);
 	g_free(msg2);
 	g_free(msg);
@@ -339,7 +351,7 @@ gboolean chime_jugg_send(ChimeConnection *cxn, JsonNode *node)
  * We allow multiple subscribers to a channel, as long as {cb, cb_data, klass}
  * is unique.
  *
- * cxn->subscriptions is a GHashTable with 'channel' as key.
+ * priv->subscriptions is a GHashTable with 'channel' as key.
  *
  * Each value is a GList, containing the set of {cb,cb_data} subscribers.
  *
@@ -357,6 +369,7 @@ static gboolean compare_sub(gconstpointer _a, gconstpointer _b)
 void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass,
 			  JuggernautCallback cb, gpointer cb_data)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct jugg_subscription *sub = g_new0(struct jugg_subscription, 1);
 	GList *l;
 
@@ -364,12 +377,12 @@ void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gcha
 	sub->cb_data = cb_data;
 	if (klass)
 		sub->klass = g_strdup(klass);
-	if (!cxn->subscriptions)
-		cxn->subscriptions = g_hash_table_new_full(g_str_hash, g_str_equal,
+	if (!priv->subscriptions)
+		priv->subscriptions = g_hash_table_new_full(g_str_hash, g_str_equal,
 							   g_free, NULL);
 
-	l = g_hash_table_lookup(cxn->subscriptions, channel);
-	if (!l && cxn->ws_conn)
+	l = g_hash_table_lookup(priv->subscriptions, channel);
+	if (!l && priv->ws_conn)
 		send_subscription_message(cxn, "subscribe", channel);
 
 	if (g_list_find_custom(l, sub, compare_sub)) {
@@ -378,19 +391,20 @@ void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gcha
 	}
 
 	l = g_list_append(l, sub);
-	g_hash_table_replace(cxn->subscriptions, g_strdup(channel), l);
+	g_hash_table_replace(priv->subscriptions, g_strdup(channel), l);
 }
 
 void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass,
 			    JuggernautCallback cb, gpointer cb_data)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct jugg_subscription sub;
 	GList *l, *item;
 
-	if (!cxn->subscriptions)
+	if (!priv->subscriptions)
 		return;
 
-	l = g_hash_table_lookup(cxn->subscriptions, channel);
+	l = g_hash_table_lookup(priv->subscriptions, channel);
 	if (!l)
 		return;
 
@@ -402,10 +416,10 @@ void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gc
 	if (item) {
 		l = g_list_remove(l, item->data);
 		if (!l) {
-			g_hash_table_remove(cxn->subscriptions, channel);
-			if (cxn->ws_conn)
+			g_hash_table_remove(priv->subscriptions, channel);
+			if (priv->ws_conn)
 				send_subscription_message(cxn, "unsubscribe", channel);
 		} else
-			g_hash_table_replace(cxn->subscriptions, g_strdup(channel), l);
+			g_hash_table_replace(priv->subscriptions, g_strdup(channel), l);
 	}
 }

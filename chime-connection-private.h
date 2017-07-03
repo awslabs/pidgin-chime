@@ -38,6 +38,14 @@ typedef struct {
 	/* Messages queued for resubmission */
 	GQueue *msg_queue;
 
+	/* Juggernaut */
+	SoupWebsocketConnection *ws_conn;
+	gboolean jugg_connected;	/* For reconnecting, to abort on failed reconnect */
+	gboolean jugg_resubscribe;	/* After reconnect we should use 'resubscribe' */
+	gulong message_handler, closed_handler;
+	gchar *ws_key;
+	GHashTable *subscriptions;
+
 } ChimeConnectionPrivate;
 
 #define CHIME_CONNECTION_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), CHIME_TYPE_CONNECTION, ChimeConnectionPrivate))

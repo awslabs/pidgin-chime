@@ -24,6 +24,7 @@
 #include <blist.h>
 
 #include "chime.h"
+#include "chime-connection-private.h"
 
 #include <libsoup/soup.h>
 
@@ -537,6 +538,7 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 		return 0;
 
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	struct chime_contact *contact = g_hash_table_lookup(cxn->contacts_by_email, name);
 	if (!contact)
@@ -560,7 +562,7 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 	jb = json_builder_end_object(jb);
 	jb = json_builder_set_member_name(jb, "except");
 	jb = json_builder_begin_array(jb);
-	jb = json_builder_add_string_value(jb, cxn->ws_key);
+	jb = json_builder_add_string_value(jb, priv->ws_key);
 	jb = json_builder_end_array(jb);
 	jb = json_builder_set_member_name(jb, "type");
 	jb = json_builder_add_string_value(jb, "publish");

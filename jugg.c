@@ -23,6 +23,7 @@
 #include <prpl.h>
 
 #include "chime.h"
+#include "chime-connection-private.h"
 
 #include <libsoup/soup.h>
 
@@ -221,6 +222,7 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 
 static void connect_jugg(ChimeConnection *cxn)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	SoupURI *uri = soup_uri_new_printf(cxn->websocket_url, "/1/websocket/%s", cxn->ws_key);
 	soup_uri_set_query_from_fields(uri, "session_uuid", cxn->session_id, NULL);
 
@@ -229,7 +231,7 @@ static void connect_jugg(ChimeConnection *cxn)
 
 	printf("no connected\n");
 	cxn->jugg_connected = FALSE;
-	soup_session_websocket_connect_async(cxn->soup_sess, msg, NULL, NULL, NULL, ws2_cb, cxn);
+	soup_session_websocket_connect_async(priv->soup_sess, msg, NULL, NULL, NULL, ws2_cb, cxn);
 }
 
 

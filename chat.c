@@ -25,6 +25,7 @@
 #include <roomlist.h>
 
 #include "chime.h"
+#include "chime-connection-private.h"
 
 #include <libsoup/soup.h>
 
@@ -238,15 +239,16 @@ void chime_destroy_chat(struct chime_chat *chat)
 {
 	PurpleConnection *conn = chat->conv->account->gc;
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct chime_room *room = chat->room;
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(room->chat->conv));
 
 	if (chat->msgs.soup_msg) {
-		soup_session_cancel_message(cxn->soup_sess, chat->msgs.soup_msg, 1);
+		soup_session_cancel_message(priv->soup_sess, chat->msgs.soup_msg, 1);
 		chat->msgs.soup_msg = NULL;
 	}
 	if (chat->members_msg) {
-		soup_session_cancel_message(cxn->soup_sess, chat->members_msg, 1);
+		soup_session_cancel_message(priv->soup_sess, chat->members_msg, 1);
 		chat->members_msg = NULL;
 	}
 	chime_jugg_unsubscribe(cxn, room->channel, "RoomMessage", chat_msg_jugg_cb, chat);

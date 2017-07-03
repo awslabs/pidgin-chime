@@ -33,11 +33,6 @@ struct _ChimeConnection {
 
 	PurpleConnection *prpl_conn;
 
-	SoupSession *soup_sess;
-
-	/* Messages queued for resubmission */
-	GQueue *msg_queue;
-
 	/* Juggernaut */
 	SoupWebsocketConnection *ws_conn;
 	gboolean jugg_connected;	/* For reconnecting, to abort on failed reconnect */

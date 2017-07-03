@@ -76,9 +76,9 @@ chime_connection_disconnect(ChimeConnection    *self)
 
 	printf("Disconnecting connection: %p\n", self);
 
-	if (self->soup_sess) {
-		soup_session_abort(self->soup_sess);
-		g_clear_object(&self->soup_sess);
+	if (priv->soup_sess) {
+		soup_session_abort(priv->soup_sess);
+		g_clear_object(&priv->soup_sess);
 	}
 
 	chime_destroy_juggernaut(self);
@@ -89,9 +89,9 @@ chime_connection_disconnect(ChimeConnection    *self)
 
 	g_clear_pointer(&self->reg_node, json_node_unref);
 
-	if (self->msg_queue) {
-		g_queue_free_full(self->msg_queue, (GDestroyNotify)cmsg_free);
-		self->msg_queue = NULL;
+	if (priv->msg_queue) {
+		g_queue_free_full(priv->msg_queue, (GDestroyNotify)cmsg_free);
+		priv->msg_queue = NULL;
 	}
 
 	purple_connection_set_protocol_data(self->prpl_conn, NULL);
@@ -271,16 +271,16 @@ static void
 chime_connection_init(ChimeConnection *self)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
-	self->soup_sess = soup_session_new();
+	priv->soup_sess = soup_session_new();
 
 	if (getenv("CHIME_DEBUG") && atoi(getenv("CHIME_DEBUG")) > 0) {
 		SoupLogger *l = soup_logger_new(SOUP_LOGGER_LOG_BODY, -1);
-		soup_session_add_feature(self->soup_sess, SOUP_SESSION_FEATURE(l));
+		soup_session_add_feature(priv->soup_sess, SOUP_SESSION_FEATURE(l));
 		g_object_unref(l);
-		g_object_set(self->soup_sess, "ssl-strict", FALSE, NULL);
+		g_object_set(priv->soup_sess, "ssl-strict", FALSE, NULL);
 	}
 
-	self->msg_queue = g_queue_new();
+	priv->msg_queue = g_queue_new();
 	priv->state = CHIME_STATE_DISCONNECTED;
 }
 
@@ -592,9 +592,9 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
 
 	struct chime_msg *cmsg = NULL;
-	while ( (cmsg = g_queue_pop_head(self->msg_queue)) ) {
+	while ( (cmsg = g_queue_pop_head(priv->msg_queue)) ) {
 		soup_message_headers_replace(cmsg->msg->request_headers, "Cookie", cookie_hdr);
-		soup_session_queue_message(self->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
+		soup_session_queue_message(priv->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
 	}
 
 	g_free(cookie_hdr);
@@ -629,14 +629,15 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 {
 	struct chime_msg *cmsg = _cmsg;
 	ChimeConnection *cxn = cmsg->cxn;
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	JsonParser *parser = NULL;
 	JsonNode *node = NULL;
 
 	/* Special case for renew_cb itself, which mustn't recurse! */
 	if ((cmsg->cb != renew_cb) && msg->status_code == 401) {
 		g_object_ref(msg);
-		gboolean already_renewing = !g_queue_is_empty(cxn->msg_queue);
-		g_queue_push_tail(cxn->msg_queue, cmsg);
+		gboolean already_renewing = !g_queue_is_empty(priv->msg_queue);
+		g_queue_push_tail(priv->msg_queue, cmsg);
 		if (!already_renewing)
 			chime_renew_token(cxn);
 		return;
@@ -699,10 +700,10 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 	/* If we are already renewing the token, don't bother submitting it with the
 	 * old token just for it to fail (and perhaps trigger *another* token reneawl
 	 * which isn't even needed. */
-	if (cmsg->cb != renew_cb && !g_queue_is_empty(self->msg_queue))
-		g_queue_push_tail(self->msg_queue, cmsg);
+	if (cmsg->cb != renew_cb && !g_queue_is_empty(priv->msg_queue))
+		g_queue_push_tail(priv->msg_queue, cmsg);
 	else
-		soup_session_queue_message(self->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
+		soup_session_queue_message(priv->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
 
 	return cmsg->msg;
 }

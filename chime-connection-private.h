@@ -32,6 +32,12 @@ typedef struct {
 	gchar *server;
 	gchar *device_token;
 	gchar *session_token;
+
+	SoupSession *soup_sess;
+
+	/* Messages queued for resubmission */
+	GQueue *msg_queue;
+
 } ChimeConnectionPrivate;
 
 #define CHIME_CONNECTION_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), CHIME_TYPE_CONNECTION, ChimeConnectionPrivate))

@@ -35,7 +35,7 @@ plugindir=
 PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0],
 			  [purple_pkg=purple],
 			  [PKG_CHECK_MODULES(PURPLE, purple-3,
-					    [AC_ERROR([ERROR: Pidgin 3.0 is not yet released. Do not use it. It has nothing interesting that I didn't already backport to Pidgin 2.11.])])])
+					    [AC_MSG_ERROR([Pidgin 3.0 is not yet released. Do not use it. It has nothing you need for Lync support that I didn't already backport to Pidgin 2.11.])])])
 
 
 plugindir="$($PKG_CONFIG --variable=plugindir $purple_pkg)"
@@ -51,7 +51,7 @@ PKG_CHECK_MODULES(JSON, [json-glib-1.0])
 
 AC_PATH_PROG(MSGFMT, msgfmt)
 if test "$MSGFMT" = ""; then
-   AC_ERROR([msgfmt could not be found. Try configuring with --disable-nls])
+   AC_MSG_ERROR([msgfmt could not be found. Try configuring with --disable-nls])
 fi
 
 AC_SUBST([CONFIG_STATUS_DEPENDENCIES],

@@ -32,10 +32,14 @@ AS_COMPILER_FLAGS(WFLAGS,
 AC_SUBST(WFLAGS, [$WFLAGS])
 
 plugindir=
-PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0])
-plugindir="$($PKG_CONFIG --variable=plugindir purple)"
-purple_datadir="$($PKG_CONFIG --variable=datadir purple)"
+PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0],
+			  [purple_pkg=purple],
+			  [PKG_CHECK_MODULES(PURPLE, purple-3,
+					    [AC_ERROR([ERROR: Pidgin 3.0 is not yet released. Do not use it. It has nothing interesting that I didn't already backport to Pidgin 2.11.])])])
 
+
+plugindir="$($PKG_CONFIG --variable=plugindir $purple_pkg)"
+purple_datadir="$($PKG_CONFIG --variable=datadir $purple_pkg)"
 
 AC_SUBST(plugindir, $plugindir)
 if test "$purple_datadir" = "" ; then

@@ -300,9 +300,11 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 	builder = json_builder_end_object(builder);
 	builder = json_builder_end_object(builder);
 
+	JsonNode *node = json_builder_get_root(builder);
 	/* For cancellation if the buddy is deleted before the request completes */
-	chime_connection_queue_http_request(cxn, json_builder_get_root(builder), uri, "POST", add_buddy_cb, buddy);
+	chime_connection_queue_http_request(cxn, node, uri, "POST", add_buddy_cb, buddy);
 
+	json_node_unref(node);
 	g_object_unref(builder);
 }
 

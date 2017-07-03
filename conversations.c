@@ -588,7 +588,8 @@ static int send_im(ChimeConnection *cxn, struct im_send_data *im)
 	int ret;
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations/%s/messages",
 					   im->conv->id);
-	if (chime_connection_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", send_im_cb, im))
+	JsonNode *node = json_builder_get_root(jb);
+	if (chime_connection_queue_http_request(cxn, node, uri, "POST", send_im_cb, im))
 		ret = 1;
 	else {
 		ret = -1;
@@ -597,6 +598,7 @@ static int send_im(ChimeConnection *cxn, struct im_send_data *im)
 		g_free(im);
 	}
 
+	json_node_unref(node);
 	g_object_unref(jb);
 	return ret;
 }
@@ -638,7 +640,8 @@ static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *nod
 
 	int ret;
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url, "/conversations");
-	if (chime_connection_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", conv_create_cb, im))
+	JsonNode *node = json_builder_get_root(jb);
+	if (chime_connection_queue_http_request(cxn, node, uri, "POST", conv_create_cb, im))
 		ret = 1;
 	else {
 		ret = -1;
@@ -647,6 +650,7 @@ static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *nod
 		g_free(im);
 	}
 
+	json_node_unref(node);
 	g_object_unref(jb);
 	return ret;
 }
@@ -704,7 +708,8 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 	jb = json_builder_end_object(jb);
 
 	int ret;
-	if (chime_connection_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", autocomplete_im_cb, im))
+	JsonNode *node = json_builder_get_root(jb);
+	if (chime_connection_queue_http_request(cxn, node, uri, "POST", autocomplete_im_cb, im))
 		ret = 1;
 	else {
 		ret = -1;
@@ -713,6 +718,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 		g_free(im);
 	}
 
+	json_node_unref(node);
 	g_object_unref(jb);
 	return ret;
 }

@@ -359,7 +359,9 @@ void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 	SoupURI *uri = soup_uri_new_printf(cxn->messaging_url,
 					   "/%ss/%s", is_room ? "room" : "conversation",
 					   id);
-	chime_connection_queue_http_request(cxn, json_builder_get_root(jb), uri, "POST", NULL, NULL);
+	JsonNode *node = json_builder_get_root(jb);
+	chime_connection_queue_http_request(cxn, node, uri, "POST", NULL, NULL);
+	json_node_unref(node);
 	g_object_unref(jb);
 }
 

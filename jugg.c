@@ -62,7 +62,7 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 
 }
 
-static void handle_callback(ChimeConnection *cxn, gchar *msg)
+static void handle_callback(ChimeConnection *cxn, const gchar *msg)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	JsonParser *parser = json_parser_new();
@@ -98,10 +98,10 @@ static void handle_callback(ChimeConnection *cxn, gchar *msg)
 		json_generator_set_root(gen, r);
 		json_generator_set_pretty(gen, TRUE);
 
-		gchar *msg = json_generator_to_data(gen, NULL);
-		printf("incoming %s : %s\n", channel, msg);
+		gchar *data = json_generator_to_data(gen, NULL);
+		printf("incoming %s : %s\n", channel, data);
 
-		g_free(msg);
+		g_free(data);
 		g_object_unref(gen);
 	}
 	g_object_unref(parser);

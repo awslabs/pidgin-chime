@@ -157,13 +157,34 @@ static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, 
 	purple_connection_set_display_name(conn, display_name);
 	purple_connection_set_state(conn, PURPLE_CONNECTED);
 	chime_purple_set_idle(conn, 0);
+
+	/* We don't want this before we are connected and have them all */
+	g_signal_connect(cxn, "new-contact",
+			 G_CALLBACK(on_chime_new_contact), conn);
+
+	/* Remove any contacts that don't exist */
+	GSList *l = purple_find_buddies(cxn->prpl_conn->account, NULL);
+	while (l) {
+		PurpleBuddy *buddy = l->data;
+		ChimeContact *contact = chime_connection_contact_by_email(cxn,
+									  purple_buddy_get_name(buddy));
+		if (contact)
+			purple_blist_remove_buddy(buddy);
+
+		l = g_slist_remove(l, buddy);
+	}
+
+	/* And add any that do, and monitor status for all */
+	chime_connection_foreach_contact(cxn, (ChimeContactCB)on_chime_new_contact, conn);
 }
 
-static void on_chime_disconnected(ChimeConnection *connection, GError *error, PurpleConnection *conn)
+static void on_chime_disconnected(ChimeConnection *cxn, GError *error, PurpleConnection *conn)
 {
 	if (error)
 		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, error->message);
 
+	g_signal_handlers_disconnect_matched(cxn, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, on_chime_new_contact, conn);
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Chime disconnected: %s\n",
 		     error ? error->message : "<no error>");
 }
@@ -215,8 +236,8 @@ static void chime_purple_close(PurpleConnection *conn)
 }
 
 
-const gchar *chime_statuses[CHIME_MAX_STATUS] = {
-	"zero", "offline", "Automatic", "three", "Busy", "Mobile"
+const gchar *chime_statuses[CHIME_AVAILABILITY_LAST] = {
+	"zero", "offline", "Automatic", "three", "Busy", "Mobile", "six"
 };
 
 static GList *chime_purple_status_types(PurpleAccount *account)
@@ -238,6 +259,9 @@ static GList *chime_purple_status_types(PurpleAccount *account)
 	types = g_list_append(types, type);
 	type = purple_status_type_new(PURPLE_STATUS_MOBILE, chime_statuses[5],
 				      _("Mobile"), FALSE);
+	types = g_list_append(types, type);
+	type = purple_status_type_new(PURPLE_STATUS_UNAVAILABLE, chime_statuses[6],
+				      _("Six"), FALSE);
 	types = g_list_append(types, type);
 
 	return types;

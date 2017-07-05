@@ -19,6 +19,7 @@
 #define __CHIME_CONNECTION_PRIVATE_H__
 
 #include "chime-connection.h"
+#include "chime-contact.h"
 
 typedef enum {
 	CHIME_STATE_CONNECTING,
@@ -90,5 +91,12 @@ typedef struct {
 
 void chime_connection_fail(ChimeConnection *cxn, gint code, const gchar *format, ...);
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error);
+
+void chime_connection_new_contact(ChimeConnection *cxn, ChimeContact *contact);
+
+
+/* chime-contact.c */
+void chime_init_contacts(ChimeConnection *cxn);
+void chime_destroy_contacts(ChimeConnection *cxn);
 
 #endif /* __CHIME_CONNECTION_PRIVATE_H__ */

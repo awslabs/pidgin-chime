@@ -36,7 +36,8 @@ struct _ChimeConnection {
 
 typedef enum
 {
-	CHIME_CONNECTION_ERROR_NETWORK
+	CHIME_CONNECTION_ERROR_NETWORK,
+	CHIME_CONNECTION_ERROR_PARSE,
 } ChimeConnectionErrorEnum;
 
 typedef void (*ChimeSoupMessageCallback)(ChimeConnection *cxn,

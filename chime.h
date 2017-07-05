@@ -22,13 +22,14 @@
 #include <json-glib/json-glib.h>
 
 #include "chime-connection.h"
+#include "chime-contact.h"
 
 #define CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS		(1<<1)
 #define CHIME_DEVICE_CAP_PRESENCE_PUSH			(1<<2)
 #define CHIME_DEVICE_CAP_WEBINAR			(1<<3)
 #define CHIME_DEVICE_CAP_PRESENCE_SUBSCRIPTION		(1<<4)
 
-#define CHIME_MAX_STATUS 6
+#define CHIME_MAX_STATUS 7
 const gchar *chime_statuses[CHIME_MAX_STATUS];
 
 /* SoupMessage handling for Chime communication, with retry on re-auth
@@ -39,21 +40,6 @@ struct chime_msg {
 	gpointer cb_data;
 	SoupMessage *msg;
 	gboolean auto_renew;
-};
-
-struct chime_contact
-{
-	ChimeConnection *cxn;
-
-	gchar *profile_id;
-	gchar *presence_channel;
-	gchar *profile_channel;
-	gchar *email;
-	gchar *full_name;
-	gchar *display_name;
-
-	int availability;
-	gint64 avail_revision;
 };
 
 struct chime_msgs;
@@ -92,7 +78,7 @@ enum {
 	CHIME_ERROR_AUTH_FAILED,
 };
 
-#define CONNECT_STEPS 3
+#define CONNECT_STEPS 4
 
 /* login.c */
 void chime_initial_login(ChimeConnection *cxn);
@@ -123,6 +109,8 @@ void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gc
 void chime_purple_keepalive(PurpleConnection *conn);
 
 /* buddy.c */
+void on_chime_new_contact(ChimeConnection *cxn, ChimeContact *contact, PurpleConnection *conn);
+
 void fetch_buddies(ChimeConnection *cxn);
 void chime_purple_buddy_free(PurpleBuddy *buddy);
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);

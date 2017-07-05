@@ -322,7 +322,8 @@ void chime_init_juggernaut(ChimeConnection *cxn)
 	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1");
 	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
 
-	purple_connection_update_progress(cxn->prpl_conn, _("Obtaining WebSocket params..."),
+	purple_connection_update_progress(cxn->prpl_conn
+					  , _("Obtaining WebSocket params..."),
 					  2, CONNECT_STEPS);
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", ws_cb, NULL);
 }

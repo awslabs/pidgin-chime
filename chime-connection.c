@@ -37,6 +37,7 @@ static GParamSpec *props[LAST_PROP];
 enum {
 	CONNECTED,
 	DISCONNECTED,
+	NEW_CONTACT,
 	LAST_SIGNAL
 };
 
@@ -82,7 +83,7 @@ chime_connection_disconnect(ChimeConnection    *self)
 	}
 
 	chime_destroy_juggernaut(self);
-	chime_destroy_buddies(self);
+	chime_destroy_contacts(self);
 	chime_destroy_rooms(self);
 	chime_destroy_conversations(self);
 	chime_destroy_chats(self);
@@ -241,6 +242,11 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 		g_signal_new ("disconnected",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_ERROR);
+
+	signals[NEW_CONTACT] =
+		g_signal_new ("new-contact",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, CHIME_TYPE_CONTACT);
 }
 
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error)
@@ -403,20 +409,17 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 			JsonNode *node, gpointer user_data)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
-	GTask *task = G_TASK(user_data);
 
 	if (!node) {
-		g_task_return_new_error(task, CHIME_CONNECTION_ERROR, CHIME_CONNECTION_ERROR_NETWORK,
-		                        _("Device registration failed"));
-		g_object_unref(task);
+		chime_connection_fail(self, CHIME_CONNECTION_ERROR_NETWORK,
+				      _("Device registration failed"));
 		return;
 	}
 
 	priv->reg_node = json_node_ref(node);
 	if (!parse_regnode(self, priv->reg_node)) {
-		g_task_return_new_error(task, CHIME_CONNECTION_ERROR, CHIME_CONNECTION_ERROR_NETWORK,
-		                        _("Failed to process registration response"));
-		g_object_unref(task);
+		chime_connection_fail(self, CHIME_CONNECTION_ERROR_PARSE,
+				      _("Failed to process registration response"));
 		return;
 	}
 
@@ -426,14 +429,13 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 	chime_jugg_subscribe(self, priv->presence_channel, NULL, NULL, NULL);
 	chime_jugg_subscribe(self, priv->device_channel, NULL, NULL, NULL);
 
-	chime_init_buddies(self);
+	chime_init_contacts(self);
 	chime_init_rooms(self);
 	chime_init_conversations(self);
 	chime_init_chats(self);
 
 	g_signal_emit (self, signals[CONNECTED], 0, priv->display_name);
 	priv->state = CHIME_STATE_CONNECTED;
-	g_object_unref(task);
 }
 
 void
@@ -705,4 +707,10 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 		soup_session_queue_message(priv->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
 
 	return cmsg->msg;
+}
+
+void chime_connection_new_contact(ChimeConnection *cxn, ChimeContact *contact)
+{
+	printf("Emitting NEW_CONTACT for %p\n", contact);
+	g_signal_emit(cxn, signals[NEW_CONTACT], 0, contact);
 }

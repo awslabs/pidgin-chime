@@ -16,7 +16,7 @@
  * Lesser General Public License for more details.
  */
 
-#include "connection.h"
+#include "chime-connection.h"
 #include "chime-connection-private.h"
 #include "chime.h"
 

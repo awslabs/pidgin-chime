@@ -18,7 +18,7 @@
 #ifndef __CHIME_CONNECTION_PRIVATE_H__
 #define __CHIME_CONNECTION_PRIVATE_H__
 
-#include "connection.h"
+#include "chime-connection.h"
 
 typedef enum {
 	CHIME_STATE_CONNECTING,

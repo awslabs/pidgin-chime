@@ -21,7 +21,7 @@
 #include <libsoup/soup.h>
 #include <json-glib/json-glib.h>
 
-#include "connection.h"
+#include "chime-connection.h"
 
 #define CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS		(1<<1)
 #define CHIME_DEVICE_CAP_PRESENCE_PUSH			(1<<2)

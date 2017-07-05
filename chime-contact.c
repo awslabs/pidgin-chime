@@ -25,17 +25,17 @@
 
 enum
 {
-    PROP_0,
-    PROP_CONNECTION,
-    PROP_PROFILE_ID,
-    PROP_PROFILE_CHANNEL,
-    PROP_PRESENCE_CHANNEL,
-    PROP_EMAIL,
-    PROP_FULL_NAME,
-    PROP_DISPLAY_NAME,
-    PROP_AVAILABILITY,
-    PROP_CONTACTS_LIST,
-    LAST_PROP,
+	PROP_0,
+	PROP_CONNECTION,
+	PROP_PROFILE_ID,
+	PROP_PROFILE_CHANNEL,
+	PROP_PRESENCE_CHANNEL,
+	PROP_EMAIL,
+	PROP_FULL_NAME,
+	PROP_DISPLAY_NAME,
+	PROP_AVAILABILITY,
+	PROP_CONTACTS_LIST,
+	LAST_PROP,
 };
 
 static GParamSpec *props[LAST_PROP];
@@ -60,7 +60,6 @@ struct _ChimeContact {
 	gboolean contacts_list;
 };
 
-
 G_DEFINE_TYPE(ChimeContact, chime_contact, G_TYPE_OBJECT)
 
 static void
@@ -78,17 +77,18 @@ chime_contact_finalize(GObject *object)
 	G_OBJECT_CLASS(chime_contact_parent_class)->finalize(object);
 }
 
-static gboolean contact_presence_jugg_cb(ChimeConnection *cxn, gpointer _self, JsonNode *data_node);
+static gboolean contact_presence_jugg_cb(ChimeConnection *cxn, gpointer _self,
+					 JsonNode *data_node);
 static gboolean fetch_presences(gpointer _cxn);
 
-static void
-chime_contact_dispose(GObject *object)
+static void chime_contact_dispose(GObject *object)
 {
 	ChimeContact *self = CHIME_CONTACT(object);
 
 	chime_jugg_unsubscribe (self->cxn, self->presence_channel, "Presence",
 				contact_presence_jugg_cb, self);
-	chime_jugg_unsubscribe (self->cxn, self->profile_channel, NULL, NULL, NULL);
+	chime_jugg_unsubscribe (self->cxn, self->profile_channel, NULL, NULL,
+				NULL);
 
 #if 0	/* Actually for now contacts will last for the entire lifetime of the
 	   ChimeConnection so they'll be unreffed by the destructor on the
@@ -103,8 +103,8 @@ chime_contact_dispose(GObject *object)
 	G_OBJECT_CLASS(chime_contact_parent_class)->dispose(object);
 }
 
-static void
-chime_contact_get_property(GObject *object, guint prop_id, GValue *value, GParamSpec *pspec)
+static void chime_contact_get_property(GObject *object, guint prop_id,
+				       GValue *value, GParamSpec *pspec)
 {
 	ChimeContact *self = CHIME_CONTACT(object);
 
@@ -142,11 +142,8 @@ chime_contact_get_property(GObject *object, guint prop_id, GValue *value, GParam
 	}
 }
 
-static void
-chime_contact_set_property(GObject      *object,
-                              guint         prop_id,
-                              const GValue *value,
-                              GParamSpec   *pspec)
+static void chime_contact_set_property(GObject *object, guint prop_id,
+				       const GValue *value, GParamSpec *pspec)
 {
 	ChimeContact *self = CHIME_CONTACT(object);
 
@@ -198,9 +195,11 @@ static void chime_contact_constructed(GObject *object)
         G_OBJECT_CLASS (chime_contact_parent_class)->constructed (object);
 
 	chime_jugg_subscribe (self->cxn, self->presence_channel, "Presence",
-				contact_presence_jugg_cb, self);
+			      contact_presence_jugg_cb, self);
+
 	if (self->profile_channel)
-		chime_jugg_subscribe (self->cxn, self->profile_channel, NULL, NULL, NULL);
+		chime_jugg_subscribe (self->cxn, self->profile_channel,
+				      NULL, NULL, NULL);
 
 	/* As well as subscribing to the channel, we'll need to fetch the
 	 * initial presence information for this contact */
@@ -215,8 +214,7 @@ static void chime_contact_constructed(GObject *object)
 }
 
 
-static void
-chime_contact_class_init(ChimeContactClass *klass)
+static void chime_contact_class_init(ChimeContactClass *klass)
 {
 	GObjectClass *object_class = G_OBJECT_CLASS(klass);
 
@@ -310,8 +308,7 @@ chime_contact_class_init(ChimeContactClass *klass)
 	g_object_class_install_properties(object_class, LAST_PROP, props);
 }
 
-static void
-chime_contact_init(ChimeContact *self)
+static void chime_contact_init(ChimeContact *self)
 {
 }
 
@@ -364,10 +361,11 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 }
 
 
-ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn, JsonNode *node, GError **error)
+ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
+					     JsonNode *node, GError **error)
 {
-	const gchar *email, *full_name, *presence_channel, *display_name, *profile_id;
-	const gchar *profile_channel = NULL;
+	const gchar *email, *full_name, *presence_channel, *display_name,
+		*profile_id, *profile_channel;
 
 	if (!parse_string(node, "email", &email) ||
 	    !parse_string(node, "full_name", &full_name) ||
@@ -375,42 +373,48 @@ ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn, JsonNode *nod
 	    !parse_string(node, "profile_channel", &profile_channel) ||
 	    !parse_string(node, "display_name", &display_name) ||
 	    !parse_string(node, "id", &profile_id)) {
-		g_set_error(error, CHIME_CONNECTION_ERROR, CHIME_CONNECTION_ERROR_PARSE,
+		g_set_error(error, CHIME_CONNECTION_ERROR,
+			    CHIME_CONNECTION_ERROR_PARSE,
 			    _("Failed to parse Contact node"));
 		return NULL;
 	}
 
-	return find_or_create_contact(cxn,
-				      profile_id, presence_channel, profile_channel,
-				      email, full_name, display_name, TRUE, error);
+	return find_or_create_contact(cxn, profile_id, presence_channel,
+				      profile_channel, email, full_name,
+				      display_name, TRUE, error);
 }
 
-ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn, JsonNode *node,
+ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
+							  JsonNode *node,
 							  GError **error)
 {
-	const gchar *email, *full_name, *presence_channel, *display_name, *profile_id;
+	const gchar *email, *full_name, *presence_channel, *display_name,
+		*profile_id;
 
 	if (!parse_string(node, "Email", &email) ||
 	    !parse_string(node, "FullName", &full_name) ||
 	    !parse_string(node, "PresenceChannel", &presence_channel) ||
 	    !parse_string(node, "DisplayName", &display_name) ||
 	    !parse_string(node, "ProfileId", &profile_id)) {
-		g_set_error(error, CHIME_CONNECTION_ERROR, CHIME_CONNECTION_ERROR_PARSE,
+		g_set_error(error, CHIME_CONNECTION_ERROR,
+			    CHIME_CONNECTION_ERROR_PARSE,
 			    _("Failed to parse Contact node"));
 		return NULL;
 	}
 
 	return find_or_create_contact(cxn, profile_id, presence_channel, NULL,
-				      email, full_name, display_name, FALSE, error);
+				      email, full_name, display_name, FALSE,
+				      error);
 }
 
 /* Update contact presence with a node obtained with via a juggernaut
  * channel or explicit request. */
-static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node, GError **error)
+static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node,
+				     GError **error)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	const gchar *id;
 	gint64 availability, revision;
+	const gchar *id;
 
 	if (!priv->contacts_by_id) {
 		g_set_error(error, CHIME_CONNECTION_ERROR,
@@ -449,7 +453,8 @@ static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node, GErro
 }
 
 /* Callback for Juggernaut notifications about status */
-static gboolean contact_presence_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
+static gboolean contact_presence_jugg_cb(ChimeConnection *cxn, gpointer _unused,
+					 JsonNode *data_node)
 {
 	JsonObject *obj = json_node_get_object(data_node);
 	JsonNode *record = json_object_get_member(obj, "record");
@@ -488,7 +493,8 @@ static gboolean fetch_presences(gpointer _cxn)
 	i = 0;
 	while (priv->contacts_needed) {
 		ChimeContact *contact = priv->contacts_needed->data;
-		priv->contacts_needed = g_slist_remove(priv->contacts_needed, priv->contacts_needed->data);
+		priv->contacts_needed = g_slist_remove(priv->contacts_needed,
+						       contact);
 		if (!contact || contact->avail_revision)
 			continue;
 
@@ -503,21 +509,24 @@ static gboolean fetch_presences(gpointer _cxn)
 		soup_uri_set_query_from_fields(uri, "profile-ids", query, NULL);
 		g_free(query);
 
-		chime_connection_queue_http_request(cxn, NULL, uri, "GET", presence_cb, NULL);
+		chime_connection_queue_http_request(cxn, NULL, uri, "GET",
+						    presence_cb, NULL);
 	}
 	g_free(ids);
 	return FALSE;
 }
 
 
-
-static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
+static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
+			gpointer _unused)
 {
 	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
 		JsonArray *arr = json_node_get_array(node);
 		guint i, len = json_array_get_length(arr);
 		for (i = 0; i < len; i++)
-			chime_connection_parse_contact(cxn, json_array_get_element(arr, i), NULL);
+			chime_connection_parse_contact(cxn,
+						       json_array_get_element(arr, i),
+						       NULL);
 	}
 }
 
@@ -525,14 +534,16 @@ static void fetch_contacts(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts");
-	chime_connection_queue_http_request(cxn, NULL, uri, "GET", contacts_cb, NULL);
+	chime_connection_queue_http_request(cxn, NULL, uri, "GET", contacts_cb,
+					    NULL);
 }
 
 
 void chime_init_contacts(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	priv->contacts_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_object_unref);
+	priv->contacts_by_id = g_hash_table_new_full(g_str_hash, g_str_equal,
+						     NULL, g_object_unref);
 	priv->contacts_by_email = g_hash_table_new(g_str_hash, g_str_equal);
 
 	fetch_contacts(cxn);
@@ -546,7 +557,8 @@ void chime_destroy_contacts(ChimeConnection *cxn)
 	priv->contacts_by_email = priv->contacts_by_id = NULL;
 }
 
-ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn, const gchar *email)
+ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn,
+						const gchar *email)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
@@ -566,7 +578,8 @@ static void foreach_contact_cb(gpointer key, gpointer value, gpointer _data)
 	data->cb(contact->cxn, contact, data->cbdata);
 }
 
-void chime_connection_foreach_contact(ChimeConnection *cxn, ChimeContactCB cb, gpointer cbdata)
+void chime_connection_foreach_contact(ChimeConnection *cxn, ChimeContactCB cb,
+				      gpointer cbdata)
 {
 	struct foreach_contact_st data = {
 		.cb = cb,
@@ -577,7 +590,8 @@ void chime_connection_foreach_contact(ChimeConnection *cxn, ChimeContactCB cb, g
 	g_hash_table_foreach(priv->contacts_by_id, foreach_contact_cb, &data);
 }
 
-static void contact_invited_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer user_data)
+static void contact_invited_cb(ChimeConnection *cxn, SoupMessage *msg,
+			       JsonNode *node, gpointer user_data)
 {
 	GTask *task = G_TASK(user_data);
 
@@ -587,7 +601,8 @@ static void contact_invited_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode 
 		parse_string(node, "error", &reason);
 		g_task_return_new_error(task, CHIME_CONNECTION_ERROR,
 					CHIME_CONNECTION_ERROR_NETWORK,
-					_("Failed to add/invite contact: %s"), reason);
+					_("Failed to add/invite contact: %s"),
+					reason);
 		return;
 	}
 
@@ -623,7 +638,8 @@ void chime_connection_invite_contact_async(ChimeConnection *cxn,
 	JsonNode *node = json_builder_get_root(builder);
 
 	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/invites");
-	chime_connection_queue_http_request(cxn, node, uri, "POST", contact_invited_cb, task);
+	chime_connection_queue_http_request(cxn, node, uri, "POST",
+					    contact_invited_cb, task);
 
 	json_node_unref(node);
 	g_object_unref(builder);
@@ -639,7 +655,8 @@ gboolean chime_connection_invite_contact_finish(ChimeConnection *self,
 	return g_task_propagate_boolean(G_TASK(result), error);
 }
 
-static void contact_removed_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer user_data)
+static void contact_removed_cb(ChimeConnection *cxn, SoupMessage *msg,
+			       JsonNode *node, gpointer user_data)
 {
 	GTask *task = G_TASK(user_data);
 
@@ -649,7 +666,8 @@ static void contact_removed_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode 
 		parse_string(node, "error", &reason);
 		g_task_return_new_error(task, CHIME_CONNECTION_ERROR,
 					CHIME_CONNECTION_ERROR_NETWORK,
-					_("Failed to remove contact: %s"), reason);
+					_("Failed to remove contact: %s"),
+					reason);
 
 		/* We'll put it back */
 		fetch_contacts(cxn);
@@ -670,11 +688,13 @@ void chime_connection_remove_contact_async(ChimeConnection *cxn,
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
-	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_email, email);
+	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_email,
+						    email);
 	if (!contact) {
 		g_task_return_new_error(task, CHIME_CONNECTION_ERROR,
 					CHIME_CONNECTION_ERROR_NETWORK,
-					_("Failed to remove unknown contact %s"), email);
+					_("Failed to remove unknown contact %s"),
+					email);
 		return;
 	}
 
@@ -682,8 +702,10 @@ void chime_connection_remove_contact_async(ChimeConnection *cxn,
 	contact->contacts_list = FALSE;
 	g_object_notify(G_OBJECT(contact), "contacts-list");
 
-	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts/%s", contact->profile_id);
-	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE", contact_removed_cb, task);
+	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts/%s",
+					   contact->profile_id);
+	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE",
+					    contact_removed_cb, task);
 }
 
 gboolean chime_connection_remove_contact_finish(ChimeConnection *self,

@@ -42,13 +42,13 @@ typedef enum {
 struct _ChimeContact;
 typedef struct _ChimeContact ChimeContact;
 
-ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn, JsonNode *node, GError **error);
-ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn, JsonNode *node, GError **error);
+ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn,
+						const gchar *email);
 
-ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn, const gchar *email);
-
+/* Designed to match the NEW_CONTACT signal handler */
 typedef void (*ChimeContactCB) (ChimeConnection *, ChimeContact *, gpointer);
-void chime_connection_foreach_contact(ChimeConnection *cxn, ChimeContactCB cb, gpointer cbdata);
+void chime_connection_foreach_contact(ChimeConnection *cxn, ChimeContactCB cb,
+				      gpointer cbdata);
 
 void chime_connection_invite_contact_async(ChimeConnection *self,
 					   const gchar *email,

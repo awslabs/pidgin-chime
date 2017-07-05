@@ -87,16 +87,23 @@ typedef struct {
 
 } ChimeConnectionPrivate;
 
-#define CHIME_CONNECTION_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), CHIME_TYPE_CONNECTION, ChimeConnectionPrivate))
+#define CHIME_CONNECTION_GET_PRIVATE(o) \
+	(G_TYPE_INSTANCE_GET_PRIVATE ((o), CHIME_TYPE_CONNECTION, \
+				      ChimeConnectionPrivate))
 
-void chime_connection_fail(ChimeConnection *cxn, gint code, const gchar *format, ...);
+void chime_connection_fail(ChimeConnection *cxn, gint code,
+			   const gchar *format, ...);
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error);
-
 void chime_connection_new_contact(ChimeConnection *cxn, ChimeContact *contact);
-
 
 /* chime-contact.c */
 void chime_init_contacts(ChimeConnection *cxn);
 void chime_destroy_contacts(ChimeConnection *cxn);
+ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
+					     JsonNode *node, GError **error);
+ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
+							  JsonNode *node,
+							  GError **error);
+
 
 #endif /* __CHIME_CONNECTION_PRIVATE_H__ */

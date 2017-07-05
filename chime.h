@@ -110,14 +110,11 @@ void chime_purple_keepalive(PurpleConnection *conn);
 
 /* buddy.c */
 void on_chime_new_contact(ChimeConnection *cxn, ChimeContact *contact, PurpleConnection *conn);
-
-void fetch_buddies(ChimeConnection *cxn);
 void chime_purple_buddy_free(PurpleBuddy *buddy);
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
 void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
 void chime_init_buddies(ChimeConnection *cxn);
 void chime_destroy_buddies(ChimeConnection *cxn);
-struct chime_contact *chime_contact_new(ChimeConnection *cxn, JsonNode *node, gboolean conv);
 
 /* rooms.c */
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);

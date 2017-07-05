@@ -29,10 +29,8 @@
 
 #include <libsoup/soup.h>
 
-static void one_room_cb(JsonArray *array, guint index_,
-			JsonNode *node, gpointer _cxn)
+static void one_room_cb(ChimeConnection *cxn, JsonNode *node)
 {
-	ChimeConnection *cxn = _cxn;
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct chime_room *room;
 	const gchar *channel, *id, *type, *name, *privacy, *visibility;
@@ -83,7 +81,9 @@ static void roomlist_cb(ChimeConnection *cxn, SoupMessage *msg,
 		rooms_node = json_object_get_member(obj, "Rooms");
 		if (rooms_node) {
 			rooms_arr = json_node_get_array(rooms_node);
-			json_array_foreach_element(rooms_arr, one_room_cb, cxn);
+			guint i, len = json_array_get_length(rooms_arr);
+			for (i = 0; i < len; i++)
+				one_room_cb(cxn, json_array_get_element(rooms_arr, i));
 		}
 		if (parse_string(node, "NextToken", &next_token))
 			fetch_rooms(cxn, next_token);

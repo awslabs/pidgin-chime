@@ -90,9 +90,13 @@ chime_connection_disconnect(ChimeConnection    *self)
 
 	g_clear_pointer(&priv->reg_node, json_node_unref);
 
-	if (priv->msg_queue) {
-		g_queue_free_full(priv->msg_queue, (GDestroyNotify)cmsg_free);
-		priv->msg_queue = NULL;
+	if (priv->msgs_pending_auth) {
+		g_queue_free_full(priv->msgs_pending_auth, (GDestroyNotify)cmsg_free);
+		priv->msgs_pending_auth = NULL;
+	}
+	if (priv->msgs_queued) {
+		g_queue_free_full(priv->msgs_queued, (GDestroyNotify)cmsg_free);
+		priv->msgs_queued = NULL;
 	}
 
 	purple_connection_set_protocol_data(self->prpl_conn, NULL);
@@ -286,7 +290,8 @@ chime_connection_init(ChimeConnection *self)
 		g_object_set(priv->soup_sess, "ssl-strict", FALSE, NULL);
 	}
 
-	priv->msg_queue = g_queue_new();
+	priv->msgs_pending_auth = g_queue_new();
+	priv->msgs_queued = g_queue_new();
 	priv->state = CHIME_STATE_DISCONNECTED;
 }
 
@@ -593,7 +598,7 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
 
 	struct chime_msg *cmsg = NULL;
-	while ( (cmsg = g_queue_pop_head(priv->msg_queue)) ) {
+	while ( (cmsg = g_queue_pop_head(priv->msgs_pending_auth)) ) {
 		soup_message_headers_replace(cmsg->msg->request_headers, "Cookie", cookie_hdr);
 		soup_session_queue_message(priv->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
 	}
@@ -634,13 +639,26 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 	JsonParser *parser = NULL;
 	JsonNode *node = NULL;
 
+	g_queue_remove(priv->msgs_queued, cmsg);
+
 	/* Special case for renew_cb itself, which mustn't recurse! */
-	if ((cmsg->cb != renew_cb) && msg->status_code == 401) {
+	if (cmsg->cb != renew_cb && cmsg->cb != register_cb &&
+	    (msg->status_code == 401 /*||
+	     (msg->status_code == 7 && !g_queue_is_empty(priv->msgs_pending_auth))*/)) {
 		g_object_ref(msg);
-		gboolean already_renewing = !g_queue_is_empty(priv->msg_queue);
-		g_queue_push_tail(priv->msg_queue, cmsg);
-		if (!already_renewing)
+		gboolean already_renewing = !g_queue_is_empty(priv->msgs_pending_auth);
+		g_queue_push_tail(priv->msgs_pending_auth, cmsg);
+		if (!already_renewing) {
+#if 0 /* Not working; we can catch statue_code==7 above but it's also breaking
+	 the websocket connection too. */
+			while (!g_queue_is_empty(priv->msgs_queued)) {
+				cmsg = g_queue_pop_head(priv->msgs_queued);
+				soup_session_cancel_message(priv->soup_sess, cmsg->msg, 401);
+				// They should requeue themselves
+			}
+#endif
 			chime_renew_token(cxn);
+		}
 		return;
 	}
 
@@ -701,10 +719,12 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 	/* If we are already renewing the token, don't bother submitting it with the
 	 * old token just for it to fail (and perhaps trigger *another* token reneawl
 	 * which isn't even needed. */
-	if (cmsg->cb != renew_cb && !g_queue_is_empty(priv->msg_queue))
-		g_queue_push_tail(priv->msg_queue, cmsg);
-	else
+	if (cmsg->cb != renew_cb && !g_queue_is_empty(priv->msgs_pending_auth))
+		g_queue_push_tail(priv->msgs_pending_auth, cmsg);
+	else {
+		g_queue_push_tail(priv->msgs_queued, cmsg);
 		soup_session_queue_message(priv->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
+	}
 
 	return cmsg->msg;
 }

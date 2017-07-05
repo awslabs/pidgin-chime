@@ -230,6 +230,9 @@ static void chime_purple_login(PurpleAccount *account)
 static void chime_purple_close(PurpleConnection *conn)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+
+	g_signal_handlers_disconnect_matched(cxn, G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, NULL, conn);
 	g_clear_object(&cxn);
 
 	printf("Chime close\n");

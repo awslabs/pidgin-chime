@@ -57,7 +57,8 @@ typedef struct {
 	SoupSession *soup_sess;
 
 	/* Messages queued for resubmission */
-	GQueue *msg_queue;
+	GQueue *msgs_queued;
+	GQueue *msgs_pending_auth;
 
 	/* Juggernaut */
 	SoupWebsocketConnection *ws_conn;

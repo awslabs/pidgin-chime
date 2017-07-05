@@ -182,9 +182,13 @@ void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, Purpl
 		}
 		buddies = g_slist_remove(buddies, b);
 	}
-
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
-	chime_connection_remove_contact_async(cxn, purple_buddy_get_name(buddy),
+	ChimeContact *contact = chime_connection_contact_by_email(cxn,
+								  buddy->name);
+	g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, NULL, conn);
+
+	chime_connection_remove_contact_async(cxn, buddy->name,
 					      NULL, on_buddy_removed, conn);
 }
 

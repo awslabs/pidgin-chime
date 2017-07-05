@@ -683,7 +683,7 @@ void chime_connection_remove_contact_async(ChimeConnection *cxn,
 	g_object_notify(G_OBJECT(contact), "contacts-list");
 
 	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts/%s", contact->profile_id);
-	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE", contact_removed_cb, NULL);
+	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE", contact_removed_cb, task);
 }
 
 gboolean chime_connection_remove_contact_finish(ChimeConnection *self,

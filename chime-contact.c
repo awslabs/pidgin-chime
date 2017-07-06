@@ -604,18 +604,19 @@ static void contact_invited_cb(ChimeConnection *cxn, SoupMessage *msg,
 					CHIME_CONNECTION_ERROR_NETWORK,
 					_("Failed to add/invite contact: %s"),
 					reason);
-		return;
+	} else {
+		g_task_return_boolean(task, TRUE);
+
+		/* There is weirdness here. If this is a known person, then we can
+		 * *immediately* fetch their full name and other information by
+		 * refetching *all* buddies. So why in $DEITY's name does it not
+		 * get returned to us in the reply? I can't even see any way to
+		 * fetch just this single buddy, either; we have to refetch them
+		 * all. */
+		fetch_contacts(cxn);
 	}
 
-	g_task_return_boolean(task, TRUE);
-
-	/* There is weirdness here. If this is a known person, then we can
-	 * *immediately* fetch their full name and other information by
-	 * refetching *all* buddies. So why in $DEITY's name does it not
-	 * get returned to us in the reply? I can't even see any way to
-	 * fetch just this single buddy, either; we have to refetch them
-	 * all. */
-	fetch_contacts(cxn);
+	g_object_unref(task);
 }
 
 void chime_connection_invite_contact_async(ChimeConnection *cxn,
@@ -672,10 +673,11 @@ static void contact_removed_cb(ChimeConnection *cxn, SoupMessage *msg,
 
 		/* We'll put it back */
 		fetch_contacts(cxn);
-		return;
+	} else {
+		g_task_return_boolean(task, TRUE);
 	}
 
-	g_task_return_boolean(task, TRUE);
+	g_object_unref(task);
 }
 
 
@@ -688,17 +690,19 @@ void chime_connection_remove_contact_async(ChimeConnection *cxn,
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_email,
 						    email);
 	if (!contact) {
-		g_task_return_new_error(task, CHIME_CONNECTION_ERROR,
+		g_task_report_new_error(cxn, callback, user_data,
+		                        chime_connection_remove_contact_async,
+		                        CHIME_CONNECTION_ERROR,
 					CHIME_CONNECTION_ERROR_NETWORK,
 					_("Failed to remove unknown contact %s"),
 					email);
 		return;
 	}
 
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	/* Assume success; we'll refetch and reinstate it on failure */
 	contact->contacts_list = FALSE;
 	g_object_notify(G_OBJECT(contact), "contacts-list");

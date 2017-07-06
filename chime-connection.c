@@ -38,6 +38,7 @@ enum {
 	CONNECTED,
 	DISCONNECTED,
 	NEW_CONTACT,
+	NEW_ROOM,
 	LAST_SIGNAL
 };
 
@@ -251,6 +252,11 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 		g_signal_new ("new-contact",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, CHIME_TYPE_CONTACT);
+
+	signals[NEW_ROOM] =
+		g_signal_new ("new-room",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, CHIME_TYPE_ROOM);
 }
 
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error)
@@ -742,6 +748,10 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 
 void chime_connection_new_contact(ChimeConnection *cxn, ChimeContact *contact)
 {
-	printf("Emitting NEW_CONTACT for %p\n", contact);
 	g_signal_emit(cxn, signals[NEW_CONTACT], 0, contact);
+}
+
+void chime_connection_new_room(ChimeConnection *cxn, ChimeRoom *room)
+{
+	g_signal_emit(cxn, signals[NEW_ROOM], 0, room);
 }

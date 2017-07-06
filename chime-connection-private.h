@@ -20,6 +20,7 @@
 
 #include "chime-connection.h"
 #include "chime-contact.h"
+#include "chime-room.h"
 
 typedef enum {
 	CHIME_STATE_CONNECTING,
@@ -85,11 +86,17 @@ typedef struct {
 	ChimeSyncState contacts_sync;
 
 	/* Rooms */
-	gint64 rooms_generation;
 	GHashTable *rooms_by_id;
 	GHashTable *rooms_by_name;
+	gint64 rooms_generation;
+	ChimeSyncState rooms_sync;
+
+	/* These parts really do belong to Pidgin code */
+	GHashTable *chats_by_room;
 	GHashTable *live_chats;
 	int chat_id;
+
+
 	GRegex *mention_regex;
 
 	/* Conversations */
@@ -107,6 +114,7 @@ void chime_connection_fail(ChimeConnection *cxn, gint code,
 			   const gchar *format, ...);
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error);
 void chime_connection_new_contact(ChimeConnection *cxn, ChimeContact *contact);
+void chime_connection_new_room(ChimeConnection *cxn, ChimeRoom *room);
 
 /* chime-contact.c */
 void chime_init_contacts(ChimeConnection *cxn);

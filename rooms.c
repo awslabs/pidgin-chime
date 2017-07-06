@@ -26,156 +26,33 @@
 
 #include "chime.h"
 #include "chime-connection-private.h"
+#include "chime-room.h"
 
 #include <libsoup/soup.h>
 
-static void one_room_cb(ChimeConnection *cxn, JsonNode *node)
+static void add_room_to_list(ChimeConnection *cxn, ChimeRoom *room, gpointer _roomlist)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	struct chime_room *room;
-	const gchar *channel, *id, *type, *name, *privacy, *visibility;
-
-	if (!parse_string(node, "Channel", &channel) ||
-	    !parse_string(node, "RoomId", &id) ||
-	    !parse_string(node, "Type", &type) ||
-	    !parse_string(node, "Name", &name) ||
-	    !parse_string(node, "Privacy", &privacy) ||
-	    !parse_string(node, "Visibility", &visibility))
-		return;
-
-	room = g_hash_table_lookup(priv->rooms_by_id, id);
-	if (room) {
-		g_hash_table_remove(priv->rooms_by_name, room->name);
-		g_free(room->channel);
-		g_free(room->type);
-		g_free(room->name);
-		g_free(room->privacy);
-		g_free(room->visibility);
-	} else {
-		room = g_new0(struct chime_room, 1);
-		room->id = g_strdup(id);
-		g_hash_table_insert(priv->rooms_by_id, room->id, room);
-	}
-
-	room->channel = g_strdup(channel);
-	room->type = g_strdup(type);
-	room->name = g_strdup(name);
-	room->privacy = g_strdup(privacy);
-	room->visibility = g_strdup(visibility);
-
-	g_hash_table_insert(priv->rooms_by_name, room->name, room);
-}
-
-static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token);
-static void roomlist_cb(ChimeConnection *cxn, SoupMessage *msg,
-			JsonNode *node, gpointer _roomlist)
-{
-	const gchar *next_token;
-
-	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
-		JsonNode *rooms_node;
-		JsonObject *obj;
-		JsonArray *rooms_arr;
-
-		obj = json_node_get_object(node);
-		rooms_node = json_object_get_member(obj, "Rooms");
-		if (rooms_node) {
-			rooms_arr = json_node_get_array(rooms_node);
-			guint i, len = json_array_get_length(rooms_arr);
-			for (i = 0; i < len; i++)
-				one_room_cb(cxn, json_array_get_element(rooms_arr, i));
-		}
-		if (parse_string(node, "NextToken", &next_token))
-			fetch_rooms(cxn, next_token);
-		else {
-			ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-			if (!priv->rooms_online) {
-				priv->rooms_online = TRUE;
-				chime_connection_calculate_online(cxn);
-			}
-		}
-	}
-}
-
-static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token)
-{
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms");
-
-	soup_uri_set_query_from_fields(uri, "max-results", "50",
-				       next_token ? "next-token" : NULL, next_token,
-				       NULL);
-	chime_connection_queue_http_request(cxn, NULL, uri, "GET", roomlist_cb, NULL);
-}
-
-static void destroy_room(gpointer _room)
-{
-	struct chime_room *room = _room;
-
-	if (room->chat)
-		chime_destroy_chat(room->chat);
-
-	g_free(room->channel);
-	g_free(room->id);
-	g_free(room->type);
-	g_free(room->name);
-	g_free(room->privacy);
-	g_free(room->visibility);
-	g_free(room);
-}
-
-static gboolean visible_rooms_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
-{
-	const gchar *type;
-	if (!parse_string(data_node, "type", &type))
-		return FALSE;
-
-	if (strcmp(type, "update"))
-		return FALSE;
-
-	fetch_rooms(cxn, NULL);
-	return TRUE;
-}
-
-void chime_init_rooms(ChimeConnection *cxn)
-{
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-
-	priv->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
-	priv->rooms_by_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, destroy_room);
-	priv->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
-	fetch_rooms(cxn, NULL);
-	chime_jugg_subscribe(cxn, priv->profile_channel, "VisibleRooms", visible_rooms_jugg_cb, NULL);
-}
-
-void chime_destroy_rooms(ChimeConnection *cxn)
-{
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-
-	g_clear_pointer(&priv->rooms_by_name, g_hash_table_unref);
-	g_clear_pointer(&priv->rooms_by_id, g_hash_table_unref);
-	g_clear_pointer(&priv->live_chats, g_hash_table_unref);
-}
-
-static void get_room(gpointer _id, gpointer _room, gpointer _roomlist)
-{
-	struct chime_room *room = _room;
 	PurpleRoomlist *roomlist = _roomlist;
-	PurpleRoomlistRoom *proom = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM, room->name, NULL);
+	const gchar *name, *id;
+	gboolean visibility, privacy;
 
-	purple_roomlist_room_add_field(roomlist, proom, room->id);
-	purple_roomlist_room_add_field(roomlist, proom,
-				       GUINT_TO_POINTER(!strcmp(room->visibility, "visible")));
-	purple_roomlist_room_add_field(roomlist, proom,
-				       GUINT_TO_POINTER(!strcmp(room->privacy, "private")));
+	g_object_get(G_OBJECT(room),
+		     "name", &name,
+		     "id", &id,
+		     "visibility", &visibility,
+		     "privacy", &privacy,
+		     NULL);
+
+	PurpleRoomlistRoom *proom = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM, name, NULL);
+	purple_roomlist_room_add_field(roomlist, proom, id);
+	purple_roomlist_room_add_field(roomlist, proom, GUINT_TO_POINTER(visibility));
+	purple_roomlist_room_add_field(roomlist, proom, GUINT_TO_POINTER(privacy));
 	purple_roomlist_room_add(roomlist, proom);
-	printf("Added room %s to %p\n", room->name, roomlist);
 }
 
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	PurpleRoomlist *roomlist;
 	GList *fields = NULL;
 
@@ -185,14 +62,11 @@ PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
 	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_BOOL, _("Private"), "Privacy", FALSE));
 	purple_roomlist_set_fields(roomlist, fields);
 
-
-	if (priv->rooms_by_id)
-		g_hash_table_foreach(priv->rooms_by_id, get_room, roomlist);
+	chime_connection_foreach_room(cxn, add_room_to_list, roomlist);
 
 	purple_roomlist_set_in_progress(roomlist, FALSE);
 	return roomlist;
 }
-
 
 
 GList *chime_purple_chat_info(PurpleConnection *conn)
@@ -219,21 +93,22 @@ GList *chime_purple_chat_info(PurpleConnection *conn)
 GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	struct chime_room *room = NULL;
+	ChimeRoom *room;
 	GHashTable *hash;
 
 	if (!name)
 		return NULL;
 
-	if (priv->rooms_by_name)
-		room = g_hash_table_lookup(priv->rooms_by_name, name);
+	room = chime_connection_room_by_name(cxn, name);
 	if (!room)
 		return NULL;
 
+	const gchar *id;
+	g_object_get(G_OBJECT(room), "id", &id, "name", &name, NULL);
+
 	hash = g_hash_table_new(g_str_hash, g_str_equal);
-	g_hash_table_insert(hash, (char *)"Name", room->name);
-	g_hash_table_insert(hash, (char *)"RoomId", room->id);
+	g_hash_table_insert(hash, (char *)"Name", (char *)name);
+	g_hash_table_insert(hash, (char *)"RoomId", (char *)id);
 	return hash;
 }
 

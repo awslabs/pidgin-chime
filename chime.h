@@ -56,19 +56,6 @@ struct chime_msgs {
 	chime_msg_cb cb;
 };
 
-struct chime_chat;
-
-struct chime_room {
-	struct chime_chat *chat;
-
-	gchar *channel;
-	gchar *id;
-	gchar *type;
-	gchar *name;
-	gchar *privacy;
-	gchar *visibility;
-};
-
 extern GQuark pidgin_chime_error_quark(void);
 #define CHIME_ERROR pidgin_chime_error_quark()
 
@@ -124,6 +111,8 @@ GList *chime_purple_chat_info(PurpleConnection *conn);
 GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name);
 
 /* chat.c */
+struct chime_chat;
+
 void chime_init_chats(ChimeConnection *cxn);
 void chime_destroy_chats(ChimeConnection *cxn);
 void chime_destroy_chat(struct chime_chat *chat);

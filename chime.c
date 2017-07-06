@@ -122,7 +122,7 @@ static gboolean chime_purple_plugin_unload(PurplePlugin *plugin)
 
 static void chime_purple_plugin_destroy(PurplePlugin *plugin)
 {
-	printf("Pkugin destroy\n");
+	printf("Plugin destroy\n");
 }
 
 static const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)

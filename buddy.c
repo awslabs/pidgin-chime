@@ -85,6 +85,13 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 			}
 		}
 	} else {
+		/* Is there a better way to do this? In the absence of somewhere to
+		 * easily store the handler ID returned from g_signal_connect()?
+		 * We don't want to connect the same handler multiple times. */
+		g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+						     0, 0, NULL, on_contact_availability, conn);
+		g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+						     0, 0, NULL, on_contact_display_name, conn);
 		g_signal_connect(contact, "notify::availability",
 				 G_CALLBACK(on_contact_availability), conn);
 		g_signal_connect(contact, "notify::display-name",
@@ -115,11 +122,17 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 
 void on_chime_new_contact(ChimeConnection *cxn, ChimeContact *contact, PurpleConnection *conn)
 {
-	/* Since we get invoked from the ChimeContact's 'constructed' method,
-	 * this is going to get invoked immediately. Don't invoke it directly
-	 * or we'll subscribe to the other signals twice. */
 	g_signal_connect(contact, "notify::contacts-list",
 			 G_CALLBACK(on_buddystatus_changed), conn);
+
+	/* When invoked for all contacts on the CONNECTED signal, we don't immediately
+	   get the above signal invoked because they're not actually *new* contacts.
+	   So run it manually. */
+	gboolean is_buddy;
+	g_object_get(contact, "contacts-list", &is_buddy, NULL);
+	if (is_buddy)
+		on_buddystatus_changed(contact, NULL, conn);
+
 }
 
 

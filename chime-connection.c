@@ -301,7 +301,7 @@ ChimeConnection *
 chime_connection_new(PurpleConnection *connection, const gchar *server,
 		     const gchar *device_token, const gchar *session_token)
 {
-	if (!server)
+	if (!server || !*server)
 		server = SIGNIN_DEFAULT;
 
 	return g_object_new (CHIME_TYPE_CONNECTION,
@@ -687,6 +687,9 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 				    ChimeSoupMessageCallback callback,
 				    gpointer cb_data)
 {
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
+	g_return_val_if_fail(SOUP_URI_IS_VALID(uri), NULL);
+
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	struct chime_msg *cmsg = g_new0(struct chime_msg, 1);
 

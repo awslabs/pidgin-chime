@@ -227,9 +227,18 @@ static void chime_purple_login(PurpleAccount *account)
 
 }
 
+static void disconnect_contact(ChimeConnection *cxn, ChimeContact *contact,
+			       PurpleConnection *conn)
+{
+	g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, NULL, conn);
+}
+
 static void chime_purple_close(PurpleConnection *conn)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+
+	chime_connection_foreach_contact(cxn, (ChimeContactCB)disconnect_contact, conn);
 
 	g_signal_handlers_disconnect_matched(cxn, G_SIGNAL_MATCH_DATA,
 					     0, 0, NULL, NULL, conn);

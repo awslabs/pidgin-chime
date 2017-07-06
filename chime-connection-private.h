@@ -27,12 +27,20 @@ typedef enum {
 	CHIME_STATE_DISCONNECTED
 } ChimeConnectionState;
 
+typedef enum {
+	CHIME_SYNC_IDLE,
+	CHIME_SYNC_STALE,
+	CHIME_SYNC_FETCHING,
+} ChimeSyncState;
+
 typedef struct {
 	ChimeConnectionState state;
 
 	gchar *server;
 	gchar *device_token;
 	gchar *session_token;
+
+	gboolean jugg_online, contacts_online, rooms_online, convs_online;
 
 	/* Service config */
 	JsonNode *reg_node;
@@ -72,6 +80,9 @@ typedef struct {
 	GHashTable *contacts_by_id;
 	GHashTable *contacts_by_email;
 	GSList *contacts_needed;
+	gint64 contacts_generation;	/* Pureky internal revision number, indicating the
+					 * generation last fetched or being fetched now. */
+	ChimeSyncState contacts_sync;
 
 	/* Rooms */
 	gint64 rooms_generation;
@@ -105,6 +116,6 @@ ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
 ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 							  JsonNode *node,
 							  GError **error);
-
+void chime_connection_calculate_online(ChimeConnection *cxn);
 
 #endif /* __CHIME_CONNECTION_PRIVATE_H__ */

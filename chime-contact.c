@@ -58,6 +58,7 @@ struct _ChimeContact {
 
 	/* Is this contact from contacts list (as opposed to a conversation)? */
 	gboolean contacts_list;
+	gint64 contacts_generation;
 };
 
 G_DEFINE_TYPE(ChimeContact, chime_contact, G_TYPE_OBJECT)
@@ -517,23 +518,81 @@ static gboolean fetch_presences(gpointer _cxn)
 	return FALSE;
 }
 
+static void obsolete_contact_cb(gpointer key, gpointer value, gpointer _cxn)
+{
+	ChimeConnection *cxn = CHIME_CONNECTION (_cxn);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	ChimeContact *contact = CHIME_CONTACT(value);
+
+	if (priv->contacts_sync != CHIME_SYNC_IDLE ||
+	    !contact->contacts_list || contact->contacts_generation == priv->contacts_generation)
+		return;
+
+	contact->contacts_list = FALSE;
+	g_object_notify(G_OBJECT(contact), "contacts-list");
+}
+
+static void fetch_contacts(ChimeConnection *cxn);
 
 static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 			gpointer _unused)
 {
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	/* If it got invalidated while in transit, refetch */
+	if (priv->contacts_sync != CHIME_SYNC_FETCHING) {
+		fetch_contacts(cxn);
+		return;
+	}
+
+	priv->contacts_sync = CHIME_SYNC_IDLE;
+
 	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
 		JsonArray *arr = json_node_get_array(node);
 		guint i, len = json_array_get_length(arr);
-		for (i = 0; i < len; i++)
-			chime_connection_parse_contact(cxn,
-						       json_array_get_element(arr, i),
-						       NULL);
+		ChimeContact *contact;
+
+		priv->contacts_generation++;
+
+		for (i = 0; i < len; i++) {
+			contact = chime_connection_parse_contact(cxn,
+								 json_array_get_element(arr, i),
+								 NULL);
+			contact->contacts_generation = priv->contacts_generation;
+		}
+		/* Anything which *wasn't* seen this time round, but which was previously
+		   in the contacts list, needs to have its 'contacts-list' flag cleared */
+		g_hash_table_foreach(priv->contacts_by_id, obsolete_contact_cb, cxn);
+		if (!priv->contacts_online) {
+			priv->contacts_online = TRUE;
+			chime_connection_calculate_online(cxn);
+		}
+	} else {
+		const gchar *reason = msg->reason_phrase;
+
+		parse_string(node, "error", &reason);
+
+		chime_connection_fail(cxn, CHIME_CONNECTION_ERROR_NETWORK,
+				      _("Failed to fetch contacts (%d): %s\n"),
+				      msg->status_code, reason);
 	}
 }
 
 static void fetch_contacts(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	/* Actually we could listen for the 'starting' flag on the message,
+	 * and as long as *that* hasn't happened yet we don't need to refetch
+	 * as it'll get up-to-date information. */
+	if (priv->contacts_sync == CHIME_SYNC_FETCHING) {
+		priv->contacts_sync = CHIME_SYNC_STALE;
+		return;
+	}
+
+	priv->contacts_sync = CHIME_SYNC_FETCHING;
+
 	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts");
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", contacts_cb,
 					    NULL);

@@ -55,7 +55,6 @@ static void on_contact_display_name(ChimeContact *contact, GParamSpec *ignored, 
 		purple_blist_server_alias_buddy(buddy, display_name);
 		buddies = g_slist_remove(buddies, buddy);
 	}
-
 }
 
 static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, PurpleConnection *conn)
@@ -68,21 +67,30 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 	g_object_get(contact, "contacts-list", &is_buddy, "availability", &availability,
 		     "email", &email, "display-name", &display_name, NULL);
 
-	GSList *buddies = purple_find_buddies(conn->account, email);
 	if (!is_buddy) {
 		g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
 						     0, 0, NULL, on_contact_availability, conn);
 		g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
 						     0, 0, NULL, on_contact_display_name, conn);
-		while (buddies) {
-			purple_blist_remove_buddy(buddies->data);
-			buddies = g_slist_remove(buddies, buddies->data);
+		/* Don't remove from blist until we're fully connected because
+		 * some contacts may appear first from conversations and only
+		 * later from the contacts list. We don't want to delete them
+		 * here only to add them back to the default "Chime Contacts"
+		 * group later. */
+		if (PURPLE_CONNECTION_IS_CONNECTED(conn)) {
+			GSList *buddies = purple_find_buddies(conn->account, email);
+			while (buddies) {
+				purple_blist_remove_buddy(buddies->data);
+				buddies = g_slist_remove(buddies, buddies->data);
+			}
 		}
 	} else {
 		g_signal_connect(contact, "notify::availability",
 				 G_CALLBACK(on_contact_availability), conn);
 		g_signal_connect(contact, "notify::display-name",
 				 G_CALLBACK(on_contact_display_name), conn);
+
+		GSList *buddies = purple_find_buddies(conn->account, email);
 		if (buddies) {
 			while (buddies) {
 				PurpleBuddy *buddy = buddies->data;
@@ -107,15 +115,11 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 
 void on_chime_new_contact(ChimeConnection *cxn, ChimeContact *contact, PurpleConnection *conn)
 {
-	gboolean is_buddy;
-	printf("Got NEW_CONTACT For %p\n", contact);
+	/* Since we get invoked from the ChimeContact's 'constructed' method,
+	 * this is going to get invoked immediately. Don't invoke it directly
+	 * or we'll subscribe to the other signals twice. */
 	g_signal_connect(contact, "notify::contacts-list",
 			 G_CALLBACK(on_buddystatus_changed), conn);
-
-	g_object_get(contact, "contacts-list", &is_buddy, NULL);
-	if (is_buddy)
-		on_buddystatus_changed(contact, NULL, conn);
-	printf("Done\n");
 }
 
 

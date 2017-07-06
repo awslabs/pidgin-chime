@@ -439,8 +439,21 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 	chime_init_conversations(self);
 	chime_init_chats(self);
 
+	/* Still do it here for now until everything is coordinating with
+	   chime_connection_calculate_online() */
 	g_signal_emit (self, signals[CONNECTED], 0, priv->display_name);
 	priv->state = CHIME_STATE_CONNECTED;
+}
+
+void chime_connection_calculate_online(ChimeConnection *self)
+{
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+
+	if (priv->contacts_online && priv->rooms_online &&
+	    priv->convs_online && priv->jugg_online) {
+		g_signal_emit (self, signals[CONNECTED], 0, priv->display_name);
+		priv->state = CHIME_STATE_CONNECTED;
+	}
 }
 
 void

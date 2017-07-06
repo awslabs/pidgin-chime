@@ -110,7 +110,7 @@ static void chime_contact_get_property(GObject *object, guint prop_id,
 
 	switch (prop_id) {
 	case PROP_CONNECTION:
-		g_value_set_pointer(value, self->cxn);
+		g_value_set_object(value, self->cxn);
 		break;
 	case PROP_PROFILE_ID:
 		g_value_set_string(value, self->profile_id);
@@ -149,7 +149,7 @@ static void chime_contact_set_property(GObject *object, guint prop_id,
 
 	switch (prop_id) {
 	case PROP_CONNECTION:
-		self->cxn = g_value_get_pointer(value);
+		self->cxn = g_value_get_object(value);
 		break;
 	case PROP_PROFILE_ID:
 		g_free(self->profile_id);
@@ -225,12 +225,13 @@ static void chime_contact_class_init(ChimeContactClass *klass)
 	object_class->set_property = chime_contact_set_property;
 
 	props[PROP_CONNECTION] =
-		g_param_spec_pointer("connection",
-				     "connection",
-				     "connection",
-				     G_PARAM_READWRITE |
-				     G_PARAM_CONSTRUCT_ONLY |
-				     G_PARAM_STATIC_STRINGS);
+		g_param_spec_object("connection",
+				    "connection",
+				    "connection",
+				    CHIME_TYPE_CONNECTION,
+				    G_PARAM_READWRITE |
+				    G_PARAM_CONSTRUCT_ONLY |
+				    G_PARAM_STATIC_STRINGS);
 
 	props[PROP_PROFILE_ID] =
 		g_param_spec_string("profile-id",

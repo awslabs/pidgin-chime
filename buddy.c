@@ -24,7 +24,6 @@
 #include <blist.h>
 
 #include "chime.h"
-#include "chime-connection-private.h"
 
 #include <libsoup/soup.h>
 

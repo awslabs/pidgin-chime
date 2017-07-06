@@ -251,7 +251,11 @@ static void conversationlist_cb(ChimeConnection *cxn, SoupMessage *msg,
 		if (parse_string(node, "NextToken", &next_token))
 			fetch_conversations(cxn, next_token);
 		else {
-			/* Aren't we supposed to do something to indicate we're done? */
+			ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+			if (!priv->convs_online) {
+				priv->convs_online = TRUE;
+				chime_connection_calculate_online(cxn);
+			}
 		}
 	}
 }

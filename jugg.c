@@ -133,8 +133,12 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 
 	printf("websocket message received:\n'%s'\n", (char *)data);
 
-	/* Ack */
+	/* CONNECT */
 	if (!strcmp(data, "1::")) {
+		if (!priv->jugg_online) {
+			priv->jugg_online = TRUE;
+			chime_connection_calculate_online(cxn);
+		}
 		/* If we go this far, allow reconnect */
 		if (!priv->jugg_connected && priv->subscriptions) {
 			if (priv->jugg_resubscribe)

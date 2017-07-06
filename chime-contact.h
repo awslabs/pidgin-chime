@@ -39,9 +39,6 @@ typedef enum {
 	CHIME_AVAILABILITY_LAST
 } ChimeAvailability;
 
-struct _ChimeContact;
-typedef struct _ChimeContact ChimeContact;
-
 ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn,
 						const gchar *email);
 

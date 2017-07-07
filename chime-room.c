@@ -407,6 +407,41 @@ static void chime_room_init(ChimeRoom *self)
 {
 }
 
+const gchar *chime_room_get_id(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
+
+	return self->id;
+}
+
+const gchar *chime_room_get_name(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
+
+	return self->name;
+}
+
+gboolean chime_room_get_privacy(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), FALSE);
+
+	return self->privacy;
+}
+
+gboolean chime_room_get_visibility(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), FALSE);
+
+	return self->visibility;
+}
+
+const gchar *chime_room_get_channel(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
+
+	return self->channel;
+}
+
 static gboolean parse_boolean(JsonNode *node, const gchar *member, gboolean *val)
 {
 	gint64 intval;

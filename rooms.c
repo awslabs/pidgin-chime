@@ -33,20 +33,12 @@
 static void add_room_to_list(ChimeConnection *cxn, ChimeRoom *room, gpointer _roomlist)
 {
 	PurpleRoomlist *roomlist = _roomlist;
-	const gchar *name, *id;
-	gboolean visibility, privacy;
 
-	g_object_get(G_OBJECT(room),
-		     "name", &name,
-		     "id", &id,
-		     "visibility", &visibility,
-		     "privacy", &privacy,
-		     NULL);
-
-	PurpleRoomlistRoom *proom = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM, name, NULL);
-	purple_roomlist_room_add_field(roomlist, proom, id);
-	purple_roomlist_room_add_field(roomlist, proom, GUINT_TO_POINTER(visibility));
-	purple_roomlist_room_add_field(roomlist, proom, GUINT_TO_POINTER(privacy));
+	PurpleRoomlistRoom *proom = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM,
+	                                                     chime_room_get_name(room), NULL);
+	purple_roomlist_room_add_field(roomlist, proom, chime_room_get_id(room));
+	purple_roomlist_room_add_field(roomlist, proom, GUINT_TO_POINTER(chime_room_get_visibility(room)));
+	purple_roomlist_room_add_field(roomlist, proom, GUINT_TO_POINTER(chime_room_get_privacy(room)));
 	purple_roomlist_room_add(roomlist, proom);
 }
 
@@ -103,12 +95,9 @@ GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *
 	if (!room)
 		return NULL;
 
-	const gchar *id;
-	g_object_get(G_OBJECT(room), "id", &id, "name", &name, NULL);
-
 	hash = g_hash_table_new(g_str_hash, g_str_equal);
-	g_hash_table_insert(hash, (char *)"Name", (char *)name);
-	g_hash_table_insert(hash, (char *)"RoomId", (char *)id);
+	g_hash_table_insert(hash, (char *)"Name", (char *)chime_room_get_name(room));
+	g_hash_table_insert(hash, (char *)"RoomId", (char *)chime_room_get_id(room));
 	return hash;
 }
 

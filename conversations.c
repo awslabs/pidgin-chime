@@ -597,7 +597,10 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 	jb = json_builder_add_string_value(jb, "publish");
 	jb = json_builder_end_object(jb);
 
-	chime_jugg_send(cxn, json_builder_get_root(jb));
+	JsonNode *node = json_builder_get_root(jb);
+	chime_jugg_send(cxn, node);
+
+	json_node_unref(node);
 	g_object_unref(jb);
 
 	return 0;

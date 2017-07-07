@@ -193,7 +193,10 @@ static void send_resubscribe_message(ChimeConnection *cxn)
 	builder = json_builder_end_array(builder);
 	builder = json_builder_end_object(builder);
 
-	chime_jugg_send(cxn, json_builder_get_root(builder));
+	JsonNode *node = json_builder_get_root(builder);
+	chime_jugg_send(cxn, node);
+
+	json_node_unref(node);
 	g_object_unref(builder);
 }
 

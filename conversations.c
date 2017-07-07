@@ -73,12 +73,10 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 							    sender);
 		if (!contact)
 			return FALSE;
-		gchar *email;
-		g_object_get(contact, "email", &email, NULL);
 
+		const gchar *email = chime_contact_get_email(contact);
 		gchar *escaped = g_markup_escape_text(message, -1);
 		serv_got_im(cxn->prpl_conn, email, escaped, flags, msg_time);
-		g_free(email);
 		g_free(escaped);
 	} else {
 		const gchar *msg_id;
@@ -101,8 +99,8 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 		g_free(member_ids);
 		if (!contact)
 			return FALSE;
-		const gchar *email;
-		g_object_get(contact, "email", &email, NULL);
+
+		const gchar *email = chime_contact_get_email(contact);
 
 		/* Ick, how do we inject a message from ourselves? */
 		PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
@@ -212,8 +210,7 @@ static struct chime_conversation *one_conversation_cb(ChimeConnection *cxn, Json
 		ChimeContact *member = chime_connection_parse_conversation_contact(cxn,
 										   json_array_get_element(arr, i), NULL);
 		if (member) {
-			const gchar *id;
-			g_object_get(member, "profile-id", &id, NULL);
+			const gchar *id = chime_contact_get_profile_id(member);
 			g_hash_table_insert(conv->members, (gpointer)id, member);
 			if (len == 2 && strcmp(id, priv->profile_id)) {
 				/* A two-party conversation contains only us (presumably!)
@@ -468,17 +465,18 @@ static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNo
 	if (!contact)
 		return FALSE;
 
-	const gchar *email;
-	g_object_get(contact, "email", &email, NULL);
-
 	if (g_hash_table_size(conv->members) != 2) {
 		/* Only 1:1 so far */
 		return FALSE;
 	}
+
+	const gchar *email = chime_contact_get_email(contact);
+
 	if (state)
 		serv_got_typing(cxn->prpl_conn, email, 0, PURPLE_TYPING);
 	else
 		serv_got_typing_stopped(cxn->prpl_conn, email);
+
 	return TRUE;
 }
 
@@ -572,8 +570,7 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 	if (!contact)
 		return 0;
 
-	const gchar *id;
-	g_object_get(contact, "profile-id", &id, NULL);
+	const gchar *id = chime_contact_get_profile_id(contact);
 	struct chime_conversation *conv = g_hash_table_lookup(priv->im_conversations_by_peer_id,
 							      id);
 	if (!conv)
@@ -731,8 +728,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 
 	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_email, who);
 	if (contact) {
-		const gchar *id;
-		g_object_get(contact, "profile-id", &id, NULL);
+		const gchar *id = chime_contact_get_profile_id(contact);
 		im->conv = g_hash_table_lookup(priv->im_conversations_by_peer_id,
 					       id);
 		if (im->conv)

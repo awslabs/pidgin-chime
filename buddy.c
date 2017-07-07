@@ -33,28 +33,18 @@
 
 static void on_contact_availability(ChimeContact *contact, GParamSpec *ignored, PurpleConnection *conn)
 {
-	gchar *email;
-	ChimeAvailability availability;
-
-	g_object_get(contact, "availability", &availability, "email", &email, NULL);
+	ChimeAvailability availability = chime_contact_get_availability(contact);
 
 	if (availability)
-		purple_prpl_got_user_status(conn->account, email, chime_statuses[availability], NULL);
-
-	g_free(email);
+		purple_prpl_got_user_status(conn->account, chime_contact_get_email(contact), chime_statuses[availability], NULL);
 }
 
 static void on_contact_display_name(ChimeContact *contact, GParamSpec *ignored, PurpleConnection *conn)
 {
-	const gchar *email;
-	const gchar *display_name;
-
-	g_object_get(contact, "email", &email, "display-name", &display_name, NULL);
-
-	GSList *buddies = purple_find_buddies(conn->account, email);
+	GSList *buddies = purple_find_buddies(conn->account, chime_contact_get_email(contact));
 	while (buddies) {
 		PurpleBuddy *buddy = buddies->data;
-		purple_blist_server_alias_buddy(buddy, display_name);
+		purple_blist_server_alias_buddy(buddy, chime_contact_get_display_name(contact));
 		buddies = g_slist_remove(buddies, buddy);
 	}
 }
@@ -63,11 +53,11 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 {
 	gboolean is_buddy;
 	const gchar *email;
-	const gchar *display_name;
 	ChimeAvailability availability;
 
-	g_object_get(contact, "contacts-list", &is_buddy, "availability", &availability,
-		     "email", &email, "display-name", &display_name, NULL);
+	email = chime_contact_get_email(contact);
+	availability = chime_contact_get_availability(contact);
+	is_buddy = chime_contact_get_contacts_list(contact);
 
 	if (!is_buddy) {
 		g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
@@ -87,6 +77,8 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 			}
 		}
 	} else {
+		const gchar *display_name = chime_contact_get_display_name(contact);
+
 		/* Is there a better way to do this? In the absence of somewhere to
 		 * easily store the handler ID returned from g_signal_connect()?
 		 * We don't want to connect the same handler multiple times. */
@@ -130,13 +122,9 @@ void on_chime_new_contact(ChimeConnection *cxn, ChimeContact *contact, PurpleCon
 	/* When invoked for all contacts on the CONNECTED signal, we don't immediately
 	   get the above signal invoked because they're not actually *new* contacts.
 	   So run it manually. */
-	gboolean is_buddy;
-	g_object_get(contact, "contacts-list", &is_buddy, NULL);
-	if (is_buddy)
+	if (chime_contact_get_contacts_list(contact))
 		on_buddystatus_changed(contact, NULL, conn);
-
 }
-
 
 void chime_purple_buddy_free(PurpleBuddy *buddy)
 {
@@ -160,18 +148,13 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 	ChimeContact *contact = chime_connection_contact_by_email(cxn,
 								  purple_buddy_get_name(buddy));
 	if (contact) {
-		ChimeAvailability availability;
-		const gchar *display_name;
-		gboolean is_buddy;
+		ChimeAvailability availability = chime_contact_get_availability(contact);
 
-		g_object_get(contact, "contacts-list", &is_buddy, "availability", &availability,
-			     "display-name", &display_name, NULL);
-
-		purple_blist_server_alias_buddy(buddy, display_name);
+		purple_blist_server_alias_buddy(buddy, chime_contact_get_display_name(contact));
 		if (availability)
 			purple_prpl_got_user_status(conn->account, purple_buddy_get_name(buddy),
 						    chime_statuses[availability], NULL);
-		if (is_buddy)
+		if (chime_contact_get_contacts_list(contact))
 			return;
 	}
 	chime_connection_invite_contact_async(cxn, purple_buddy_get_name(buddy),

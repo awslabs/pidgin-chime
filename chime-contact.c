@@ -314,6 +314,48 @@ static void chime_contact_init(ChimeContact *self)
 {
 }
 
+const gchar *chime_contact_get_profile_id(ChimeContact *contact)
+{
+	g_return_val_if_fail(CHIME_IS_CONTACT(contact), NULL);
+
+	return contact->profile_id;
+}
+
+const gchar *chime_contact_get_email(ChimeContact *contact)
+{
+	g_return_val_if_fail(CHIME_IS_CONTACT(contact), NULL);
+
+	return contact->email;
+}
+
+const gchar *chime_contact_get_full_name(ChimeContact *contact)
+{
+	g_return_val_if_fail(CHIME_IS_CONTACT(contact), NULL);
+
+	return contact->full_name;
+}
+
+const gchar *chime_contact_get_display_name(ChimeContact *contact)
+{
+	g_return_val_if_fail(CHIME_IS_CONTACT(contact), NULL);
+
+	return contact->display_name;
+}
+
+ChimeAvailability chime_contact_get_availability(ChimeContact *contact)
+{
+	g_return_val_if_fail(CHIME_IS_CONTACT(contact), CHIME_AVAILABILITY_UNKNOWN);
+
+	return contact->availability;
+}
+
+gboolean chime_contact_get_contacts_list(ChimeContact *contact)
+{
+	g_return_val_if_fail(CHIME_IS_CONTACT(contact), FALSE);
+
+	return contact->contacts_list;
+}
+
 static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *id,
 					    const gchar *presence_channel,
 					    const gchar *profile_channel,

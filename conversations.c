@@ -73,11 +73,12 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 							    sender);
 		if (!contact)
 			return FALSE;
-		const gchar *email;
+		gchar *email;
 		g_object_get(contact, "email", &email, NULL);
 
 		gchar *escaped = g_markup_escape_text(message, -1);
 		serv_got_im(cxn->prpl_conn, email, escaped, flags, msg_time);
+		g_free(email);
 		g_free(escaped);
 	} else {
 		const gchar *msg_id;

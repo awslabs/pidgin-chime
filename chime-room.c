@@ -26,7 +26,6 @@
 enum
 {
 	PROP_0,
-	PROP_CONNECTION,
 	PROP_ID,
 	PROP_NAME,
 	PROP_PRIVACY,
@@ -49,9 +48,6 @@ static GParamSpec *props[LAST_PROP];
 
 struct _ChimeRoom {
 	GObject parent_instance;
-
-	/* We don't hold a reference on this because it references us */
-	ChimeConnection *cxn;
 
 	gchar *id;
 	gchar *name;
@@ -117,30 +113,12 @@ chime_room_finalize(GObject *object)
 	G_OBJECT_CLASS(chime_room_parent_class)->finalize(object);
 }
 
-static void chime_room_dispose(GObject *object)
-{
-	ChimeRoom *self = CHIME_ROOM(object);
-
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(self->cxn);
-
-	printf("Dispose room %s %s\n", self->name, self->id);
-	if (priv->rooms_by_id)
-		g_hash_table_remove(priv->rooms_by_id, self->id);
-	if (priv->rooms_by_name)
-		g_hash_table_remove(priv->rooms_by_name, self->name);
-
-	G_OBJECT_CLASS(chime_room_parent_class)->dispose(object);
-}
-
 static void chime_room_get_property(GObject *object, guint prop_id,
 				    GValue *value, GParamSpec *pspec)
 {
 	ChimeRoom *self = CHIME_ROOM(object);
 
 	switch (prop_id) {
-	case PROP_CONNECTION:
-		g_value_set_object(value, self->cxn);
-		break;
 	case PROP_ID:
 		g_value_set_string(value, self->id);
 		break;
@@ -198,9 +176,6 @@ static void chime_room_set_property(GObject *object, guint prop_id,
 	ChimeRoom *self = CHIME_ROOM(object);
 
 	switch (prop_id) {
-	case PROP_CONNECTION:
-		self->cxn = g_value_get_object(value);
-		break;
 	case PROP_ID:
 		g_free(self->id);
 		self->id = g_value_dup_string(value);
@@ -260,39 +235,13 @@ static void chime_room_set_property(GObject *object, guint prop_id,
 	}
 }
 
-static void chime_room_constructed(GObject *object)
-{
-	ChimeRoom *self = CHIME_ROOM(object);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(self->cxn);
-
-        G_OBJECT_CLASS (chime_room_parent_class)->constructed (object);
-
-	g_hash_table_insert(priv->rooms_by_id, self->id, self);
-	g_hash_table_insert(priv->rooms_by_name, self->name, self);
-
-	/* Emit signal on ChimeConnection to admit existence of new room */
-	chime_connection_new_room(self->cxn, self);
-}
-
-
 static void chime_room_class_init(ChimeRoomClass *klass)
 {
 	GObjectClass *object_class = G_OBJECT_CLASS(klass);
 
 	object_class->finalize = chime_room_finalize;
-	object_class->dispose = chime_room_dispose;
-	object_class->constructed = chime_room_constructed;
 	object_class->get_property = chime_room_get_property;
 	object_class->set_property = chime_room_set_property;
-
-	props[PROP_CONNECTION] =
-		g_param_spec_object("connection",
-				    "connection",
-				    "connection",
-				    CHIME_TYPE_CONNECTION,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
 
 	props[PROP_ID] =
 		g_param_spec_string("id",
@@ -594,9 +543,8 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 		goto eparse;
 
 	ChimeRoom *room = g_hash_table_lookup(priv->rooms_by_id, id);
-	if (!room)
-		return g_object_new(CHIME_TYPE_ROOM,
-				    "connection", cxn,
+	if (!room) {
+		room = g_object_new(CHIME_TYPE_ROOM,
 				    "id", id,
 				    "name", name,
 				    "privacy", privacy,
@@ -612,6 +560,15 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 				    "desktop-notification-prefs", desktop,
 				    "mobile-notification-prefs", mobile,
 				    NULL);
+
+		g_hash_table_insert(priv->rooms_by_id, room->id, room);
+		g_hash_table_insert(priv->rooms_by_name, room->name, room);
+
+		/* Emit signal on ChimeConnection to admit existence of new room */
+		chime_connection_new_room(cxn, room);
+
+		return room;
+	}
 
 	if (name && g_strcmp0(name, room->name)) {
 		g_hash_table_remove(priv->rooms_by_name, room->name);
@@ -680,8 +637,8 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 		room->is_dead = FALSE;
 		g_object_notify(G_OBJECT(room), "dead");
 	}
-	return room;
 
+	return room;
 }
 
 static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token);
@@ -782,7 +739,6 @@ static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token)
 					    NULL);
 }
 
-
 static gboolean visible_rooms_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
 	const gchar *type;
@@ -808,9 +764,11 @@ static void unhash_room(gpointer _room)
 void chime_init_rooms(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
 	priv->rooms_by_id = g_hash_table_new_full(g_str_hash, g_str_equal,
 						     NULL, unhash_room);
 	priv->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
+
 	chime_jugg_subscribe(cxn, priv->profile_channel, "VisibleRooms", visible_rooms_jugg_cb, NULL);
 
 	fetch_rooms(cxn, NULL);
@@ -819,6 +777,7 @@ void chime_init_rooms(ChimeConnection *cxn)
 void chime_destroy_rooms(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
 	g_clear_pointer(&priv->rooms_by_name, g_hash_table_unref);
 	g_clear_pointer(&priv->rooms_by_id, g_hash_table_unref);
 }
@@ -840,6 +799,7 @@ ChimeRoom *chime_connection_room_by_id(ChimeConnection *cxn,
 }
 
 struct foreach_room_st {
+	ChimeConnection *cxn;
 	ChimeRoomCB cb;
 	gpointer cbdata;
 };
@@ -849,13 +809,14 @@ static void foreach_room_cb(gpointer key, gpointer value, gpointer _data)
 	struct foreach_room_st *data = _data;
 	ChimeRoom *room = CHIME_ROOM(value);
 
-	data->cb(room->cxn, room, data->cbdata);
+	data->cb(data->cxn, room, data->cbdata);
 }
 
 void chime_connection_foreach_room(ChimeConnection *cxn, ChimeRoomCB cb,
 				      gpointer cbdata)
 {
 	struct foreach_room_st data = {
+		.cxn = cxn,
 		.cb = cb,
 		.cbdata = cbdata,
 	};

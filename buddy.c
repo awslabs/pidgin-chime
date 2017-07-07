@@ -33,13 +33,15 @@
 
 static void on_contact_availability(ChimeContact *contact, GParamSpec *ignored, PurpleConnection *conn)
 {
-	const gchar *email;
+	gchar *email;
 	ChimeAvailability availability;
 
 	g_object_get(contact, "availability", &availability, "email", &email, NULL);
 
 	if (availability)
 		purple_prpl_got_user_status(conn->account, email, chime_statuses[availability], NULL);
+
+	g_free(email);
 }
 
 static void on_contact_display_name(ChimeContact *contact, GParamSpec *ignored, PurpleConnection *conn)

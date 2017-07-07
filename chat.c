@@ -273,6 +273,7 @@ void chime_destroy_chat(struct chime_chat *chat)
 		g_hash_table_destroy(chat->members);
 	if (chat->sent_msgs)
 		g_hash_table_destroy(chat->sent_msgs);
+	g_object_unref(chat->room);
 	g_free(chat);
 	printf("Destroyed chat %p\n", chat);
 }
@@ -335,7 +336,7 @@ static struct chime_chat *do_join_chat(ChimeConnection *cxn, ChimeRoom *room)
 		return chat;
 
 	chat = g_new0(struct chime_chat, 1);
-	chat->room = room;
+	chat->room = g_object_ref(room);
 	gchar *name, *channel;
 	g_object_get(G_OBJECT(room), "id", &chat->id,
 		     "name", &name, "channel", &channel, NULL);
@@ -475,14 +476,18 @@ static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _unused, Js
 		return FALSE;
 
 	ChimeRoom *room = chime_connection_room_by_id(cxn, room_id);
-	if (!room)
+	if (!room) {
+		printf("No room %s for RoomMessage\n", room_id);
 		return FALSE;
+	}
 
 	struct chime_chat *chat = g_hash_table_lookup(priv->chats_by_room, room);
 	if (!chat)
 		chat = do_join_chat(cxn, room);
-	if (!chat)
+	if (!chat) {
+		printf("No chat for room %s\n", room_id);
 		return FALSE;
+	}
 	return chat_msg_jugg_cb(cxn, chat, data_node);
 }
 

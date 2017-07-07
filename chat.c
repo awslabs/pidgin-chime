@@ -336,12 +336,14 @@ static struct chime_chat *do_join_chat(ChimeConnection *cxn, ChimeRoom *room)
 
 	chat = g_new0(struct chime_chat, 1);
 	chat->room = room;
-	const gchar *name, *channel;
+	gchar *name, *channel;
 	g_object_get(G_OBJECT(room), "id", &chat->id,
 		     "name", &name, "channel", &channel, NULL);
 
 	int chat_id = ++priv->chat_id;
 	chat->conv = serv_got_joined_chat(cxn->prpl_conn, chat_id, name);
+	g_free(name);
+
 	g_hash_table_insert(priv->live_chats, GUINT_TO_POINTER(chat_id), chat);
 	g_hash_table_insert(priv->chats_by_room, room, chat);
 	chat->sent_msgs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
@@ -350,6 +352,7 @@ static struct chime_chat *do_join_chat(ChimeConnection *cxn, ChimeRoom *room)
 
 	chime_jugg_subscribe(cxn, channel, "RoomMessage", chat_msg_jugg_cb, chat);
 	chime_jugg_subscribe(cxn, channel, "RoomMembership", chat_membership_jugg_cb, chat);
+	g_free(channel);
 
 	chat->msgs.is_room = TRUE;
 	chat->msgs.id = chat->id;

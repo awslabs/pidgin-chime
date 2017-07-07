@@ -547,7 +547,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 				    "mobile-notification-prefs", mobile,
 				    NULL);
 
-	if (name && g_strcmp0(name, room->name)) {
+	if (name && !g_strcmp0(name, room->name)) {
 		g_hash_table_remove(priv->rooms_by_name, room->name);
 		/* XX: If there is another room with the same name, we should add it */
 		g_free(room->name);

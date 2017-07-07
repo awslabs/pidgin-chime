@@ -438,6 +438,41 @@ static void chime_room_init(ChimeRoom *self)
 {
 }
 
+const gchar *chime_room_get_id(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
+
+	return self->id;
+}
+
+const gchar *chime_room_get_name(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
+
+	return self->name;
+}
+
+gboolean chime_room_get_privacy(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), FALSE);
+
+	return self->privacy;
+}
+
+gboolean chime_room_get_visibility(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), FALSE);
+
+	return self->visibility;
+}
+
+const gchar *chime_room_get_channel(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
+
+	return self->channel;
+}
+
 static gboolean parse_boolean(JsonNode *node, const gchar *member, gboolean *val)
 {
 	gint64 intval;
@@ -578,7 +613,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 				    "mobile-notification-prefs", mobile,
 				    NULL);
 
-	if (name && !g_strcmp0(name, room->name)) {
+	if (name && g_strcmp0(name, room->name)) {
 		g_hash_table_remove(priv->rooms_by_name, room->name);
 		/* XX: If there is another room with the same name, we should add it */
 		g_free(room->name);
@@ -646,15 +681,6 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 		g_object_notify(G_OBJECT(room), "dead");
 	}
 	return room;
-
-}
-
-static void obsolete_room_cb(gpointer key, gpointer value, gpointer _cxn)
-{
-	ChimeConnection *cxn = CHIME_CONNECTION (_cxn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-
-	ChimeRoom *room = CHIME_ROOM(value);
 
 }
 

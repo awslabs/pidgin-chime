@@ -39,6 +39,18 @@ typedef enum {
 	CHIME_AVAILABILITY_LAST
 } ChimeAvailability;
 
+const gchar *chime_contact_get_profile_id(ChimeContact *contact);
+
+const gchar *chime_contact_get_email(ChimeContact *contact);
+
+const gchar *chime_contact_get_full_name(ChimeContact *contact);
+
+const gchar *chime_contact_get_display_name(ChimeContact *contact);
+
+ChimeAvailability chime_contact_get_availability(ChimeContact *contact);
+
+gboolean chime_contact_get_contacts_list(ChimeContact *contact);
+
 ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn,
 						const gchar *email);
 

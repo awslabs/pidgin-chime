@@ -62,6 +62,16 @@ typedef enum {
 #define CHIME_TYPE_ROOM_NOTIFY_PREF (chime_room_notify_pref_get_type ())
 GType chime_room_notify_pref_get_type (void) G_GNUC_CONST;
 
+const gchar *chime_room_get_id(ChimeRoom *self);
+
+const gchar *chime_room_get_name(ChimeRoom *self);
+
+gboolean chime_room_get_privacy(ChimeRoom *self);
+
+gboolean chime_room_get_visibility(ChimeRoom *self);
+
+const gchar *chime_room_get_channel(ChimeRoom *self);
+
 ChimeRoom *chime_connection_room_by_name(ChimeConnection *cxn,
 					 const gchar *name);
 ChimeRoom *chime_connection_room_by_id(ChimeConnection *cxn,

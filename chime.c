@@ -163,7 +163,7 @@ static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, 
 			 G_CALLBACK(on_chime_new_contact), conn);
 
 	/* Remove any contacts that don't exist */
-	GSList *l = purple_find_buddies(cxn->prpl_conn->account, NULL);
+	GSList *l = purple_find_buddies(conn->account, NULL);
 	while (l) {
 		PurpleBuddy *buddy = l->data;
 		ChimeContact *contact = chime_connection_contact_by_email(cxn,

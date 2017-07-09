@@ -62,7 +62,6 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 	if (sys)
 		flags |= PURPLE_MESSAGE_SYSTEM;
 
-
 	if (g_hash_table_size(conv->members) != 2) {
 		/* Only 1:1 IM so far; representing multi-party conversations as chats comes later */
 		return FALSE;
@@ -103,12 +102,11 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 		const gchar *email = chime_contact_get_email(contact);
 
 		/* Ick, how do we inject a message from ourselves? */
+		PurpleAccount *account = cxn->prpl_conn->account;
 		PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
-										  email,
-										  cxn->prpl_conn->account);
+										  email, account);
 		if (!pconv) {
-			pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM, cxn->prpl_conn->account,
-							email);
+			pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM, account, email);
 			if (!pconv) {
 				printf("\n***** NO CONV FOR %s\n", email);
 
@@ -133,7 +131,7 @@ static void conv_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	do_conv_deliver_msg(cxn, conv, node, msg_time);
 }
 
-static void fetch_conversation_messages(ChimeConnection *cxn, struct chime_conversation *conv)
+static void fetch_conversation_messages(struct chime_conversation *conv)
 {
 	if (conv->msgs) {
 		if (conv->msgs->msgs_done)
@@ -147,7 +145,7 @@ static void fetch_conversation_messages(ChimeConnection *cxn, struct chime_conve
 		conv->msgs->cb = conv_deliver_msg;
 	}
 	printf("Fetch conv messages for %s\n", conv->id);
-	fetch_messages(cxn, conv->msgs, NULL);
+	fetch_messages(conv->cxn, conv->msgs, NULL);
 }
 
 static struct chime_conversation *one_conversation_cb(ChimeConnection *cxn, JsonNode *node)
@@ -191,8 +189,7 @@ static struct chime_conversation *one_conversation_cb(ChimeConnection *cxn, Json
 
 		if (!parse_string(node, "LastSent", &last_sent) ||
 		    strcmp(last_seen, last_sent))
-			fetch_conversation_messages(cxn, conv);
-
+			fetch_conversation_messages(conv);
 	}
 
 	conv->channel = g_strdup(channel);
@@ -435,7 +432,7 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _unused, 
 	if (!parse_string(member, "LastDelivered", &last_delivered) ||
 	    strcmp(last_seen, last_delivered)) {
 		printf("WTF refetching messages for ConversationMembership update\n");
-		fetch_conversation_messages(cxn, conv);
+		fetch_conversation_messages(conv);
 	} else printf("no fetch last %s\n", last_seen);
 #endif
 	return TRUE;

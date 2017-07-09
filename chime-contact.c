@@ -368,6 +368,7 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
 					     JsonNode *node, GError **error)
 {
+	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	const gchar *email, *full_name, *presence_channel, *display_name,
 		*profile_id, *profile_channel;
 
@@ -392,6 +393,7 @@ ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 							  JsonNode *node,
 							  GError **error)
 {
+	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	const gchar *email, *full_name, *presence_channel, *display_name,
 		*profile_id;
 
@@ -602,6 +604,7 @@ static void fetch_contacts(ChimeConnection *cxn)
 
 void chime_init_contacts(ChimeConnection *cxn)
 {
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	priv->contacts_by_id = g_hash_table_new_full(g_str_hash, g_str_equal,
@@ -623,6 +626,7 @@ static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
 
 void chime_destroy_contacts(ChimeConnection *cxn)
 {
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	g_hash_table_foreach(priv->contacts_by_id, unsubscribe_contact, cxn);
@@ -634,6 +638,8 @@ void chime_destroy_contacts(ChimeConnection *cxn)
 ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn,
 						const gchar *email)
 {
+	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
+	g_return_val_if_fail(email != NULL, NULL);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	return g_hash_table_lookup(priv->contacts_by_email, email);
@@ -656,6 +662,7 @@ static void foreach_contact_cb(gpointer key, gpointer value, gpointer _data)
 void chime_connection_foreach_contact(ChimeConnection *cxn, ChimeContactCB cb,
 				      gpointer cbdata)
 {
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	struct foreach_contact_st data = {
 		.cxn = cxn,
 		.cb = cb,

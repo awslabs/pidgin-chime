@@ -43,6 +43,8 @@ struct chime_chat {
 	gboolean got_members;
 	GHashTable *members;
 
+	GRegex *mention_regex;
+
 	GHashTable *sent_msgs;
 };
 
@@ -66,11 +68,10 @@ struct chat_member {
  * Returns whether `me` was mentioned in the Chime `message`, and allocates a
  * new string in `*parsed`.
  */
-static int parse_inbound_mentions(ChimeConnection *cxn, const char *message, char **parsed)
+static int parse_inbound_mentions(ChimeConnection *cxn, GRegex *mention_regex, const char *message, char **parsed)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-
-	*parsed = g_regex_replace(priv->mention_regex, message, -1, 0, MENTION_REPLACEMENT, 0, NULL);
+	*parsed = g_regex_replace(mention_regex, message, -1, 0, MENTION_REPLACEMENT, 0, NULL);
 	return strstr(message, priv->profile_id) || strstr(message, "&lt;@all|") ||
 		strstr(message, "&lt;@present|");
 }
@@ -135,7 +136,7 @@ static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
 	gchar *escaped = g_markup_escape_text(content, -1);
 
 	gchar *parsed = NULL;
-	if (parse_inbound_mentions(cxn, escaped, &parsed) &&
+	if (parse_inbound_mentions(cxn, chat->mention_regex, escaped, &parsed) &&
 	    (msg_flags & PURPLE_MESSAGE_RECV)) {
 		// Presumably this will trigger a notification.
 		msg_flags |= PURPLE_MESSAGE_NICK;
@@ -274,6 +275,7 @@ void chime_destroy_chat(struct chime_chat *chat)
 	if (chat->sent_msgs)
 		g_hash_table_destroy(chat->sent_msgs);
 	g_object_unref(chat->room);
+	g_regex_unref(chat->mention_regex);
 	g_free(chat);
 	printf("Destroyed chat %p\n", chat);
 }
@@ -354,6 +356,8 @@ static struct chime_chat *do_join_chat(ChimeConnection *cxn, ChimeRoom *room)
 	chime_jugg_subscribe(cxn, channel, "RoomMessage", chat_msg_jugg_cb, chat);
 	chime_jugg_subscribe(cxn, channel, "RoomMembership", chat_membership_jugg_cb, chat);
 	g_free(channel);
+
+	chat->mention_regex = g_regex_new(MENTION_PATTERN, G_REGEX_EXTENDED, 0, NULL);
 
 	chat->msgs.is_room = TRUE;
 	chat->msgs.id = chat->id;
@@ -496,14 +500,12 @@ void chime_init_chats(ChimeConnection *cxn)
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	priv->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
 	priv->chats_by_room = g_hash_table_new(g_direct_hash, g_direct_equal);
-	priv->mention_regex = g_regex_new(MENTION_PATTERN, G_REGEX_EXTENDED, 0, NULL);
 	chime_jugg_subscribe(cxn, priv->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
 }
 
 void chime_destroy_chats(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	g_clear_pointer(&priv->mention_regex, g_regex_unref);
 	g_clear_pointer(&priv->live_chats, g_hash_table_unref);
 	g_clear_pointer(&priv->chats_by_room, g_hash_table_unref);
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);

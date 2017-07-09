@@ -76,6 +76,9 @@ gboolean         chime_connection_set_device_status_finish   (ChimeConnection  *
 
 const gchar     *chime_connection_get_session_token          (ChimeConnection  *self);
 
+void             chime_connection_set_session_token          (ChimeConnection  *self,
+                                                              const gchar      *sess_tok);
+
 /* Internal functions */
 SoupMessage     *chime_connection_queue_http_request         (ChimeConnection         *self,
                                                               JsonNode                *node,

@@ -463,8 +463,11 @@ chime_connection_connect(ChimeConnection    *self)
 
 	priv->state = CHIME_STATE_CONNECTING;
 
-	if (!priv->session_token)
+	if (!priv->session_token || !*priv->session_token) {
+		priv->state = CHIME_STATE_DISCONNECTED;
 		chime_initial_login(self);
+		return;
+	}
 
 	JsonNode *node = chime_device_register_req(priv->device_token);
 

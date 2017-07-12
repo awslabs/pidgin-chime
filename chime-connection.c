@@ -330,11 +330,7 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 	if (!parse_string(sess_node, "SessionToken", &sess_tok))
 		return FALSE;
 
-	if (g_strcmp0(priv->session_token, sess_tok) != 0) {
-		g_free(priv->session_token);
-		priv->session_token = g_strdup(sess_tok);
-		g_object_notify(G_OBJECT(self), "session-token");
-	}
+	chime_connection_set_session_token(self, sess_tok);
 
 	if (!parse_string(sess_node, "SessionId", &priv->session_id))
 		return FALSE;
@@ -469,8 +465,11 @@ chime_connection_connect(ChimeConnection    *self)
 
 	priv->state = CHIME_STATE_CONNECTING;
 
-	if (!priv->session_token)
+	if (!priv->session_token || !*priv->session_token) {
+		priv->state = CHIME_STATE_DISCONNECTED;
 		chime_initial_login(self);
+		return;
+	}
 
 	JsonNode *node = chime_device_register_req(priv->device_token);
 
@@ -588,6 +587,20 @@ chime_connection_get_session_token(ChimeConnection *self)
 	return priv->session_token;
 }
 
+void
+chime_connection_set_session_token(ChimeConnection *self,
+				   const gchar *sess_tok)
+{
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	g_return_if_fail(CHIME_IS_CONNECTION(self));
+
+	if (g_strcmp0(priv->session_token, sess_tok) != 0) {
+		g_free(priv->session_token);
+		priv->session_token = g_strdup(sess_tok);
+		g_object_notify_by_pspec(G_OBJECT(self), props[PROP_SESSION_TOKEN]);
+	}
+}
+
 /* If we get an auth failure on a standard request, we automatically attempt
  * to renew the authentication token and resubmit the request. */
 static void renew_cb(ChimeConnection *self, SoupMessage *msg,
@@ -605,11 +618,7 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 		return;
 	}
 
-	if (g_strcmp0(priv->session_token, sess_tok) != 0) {
-		g_free(priv->session_token);
-		priv->session_token = g_strdup(sess_tok);
-		g_object_notify(G_OBJECT(self), "session-token");
-	}
+	chime_connection_set_session_token(self, sess_tok);
 
 	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
 

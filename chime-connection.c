@@ -404,6 +404,8 @@ chime_device_register_req(const gchar *devtoken)
 	jb = json_builder_add_string_value(jb, "osx");
 	jb = json_builder_set_member_name(jb, "DeviceToken");
 	jb = json_builder_add_string_value(jb, devtoken);
+	jb = json_builder_set_member_name(jb, "PlatformDeviceId");
+	jb = json_builder_add_string_value(jb, devtoken);
 	jb = json_builder_set_member_name(jb, "Capabilities");
 	jb = json_builder_add_int_value(jb, CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS |
 					CHIME_DEVICE_CAP_PRESENCE_PUSH |

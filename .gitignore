@@ -22,3 +22,4 @@ ltmain.sh
 missing
 .deps
 .libs
+/m4/

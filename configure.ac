@@ -48,6 +48,7 @@ fi
 AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
 PKG_CHECK_MODULES(SOUP, [libsoup-2.4])
 PKG_CHECK_MODULES(JSON, [json-glib-1.0])
+PKG_CHECK_MODULES(LIBXML, [libxml-2.0])
 
 AC_PATH_PROG(MSGFMT, msgfmt)
 if test "$MSGFMT" = ""; then

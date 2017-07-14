@@ -611,9 +611,10 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 	const gchar *sess_tok;
 	gchar *cookie_hdr;
 
-	chime_connection_set_session_token(self, sess_tok);
-
-	if (priv->state == CHIME_STATE_DISCONNECTED) {
+	if (!node || !parse_string(node, "SessionToken", &sess_tok)) {
+		purple_connection_error_reason(self->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+					       _("Failed to renew session token"));
+	teardown:
 		while ( (cmsg = g_queue_pop_head(priv->msgs_pending_auth)) ) {
 			/* It was already in 'failed, unauthorised' state */
 			cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);
@@ -623,13 +624,10 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 		return;
 	}
 
-	if (!node || !parse_string(node, "SessionToken", &sess_tok)) {
-		purple_connection_error_reason(self->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
-					       _("Failed to renew session token"));
-		/* No need to cancel the outstanding requests; the session
-		   will be torn down anyway. */
-		return;
-	}
+	chime_connection_set_session_token(self, sess_tok);
+
+	if (priv->state == CHIME_STATE_DISCONNECTED)
+		goto teardown;
 
 	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
 

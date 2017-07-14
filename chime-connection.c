@@ -607,8 +607,21 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 		     JsonNode *node, gpointer _unused)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	struct chime_msg *cmsg = NULL;
 	const gchar *sess_tok;
 	gchar *cookie_hdr;
+
+	chime_connection_set_session_token(self, sess_tok);
+
+	if (priv->state == CHIME_STATE_DISCONNECTED) {
+		while ( (cmsg = g_queue_pop_head(priv->msgs_pending_auth)) ) {
+			/* It was already in 'failed, unauthorised' state */
+			cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);
+			g_object_unref(cmsg->msg);
+			g_free(cmsg);
+		}
+		return;
+	}
 
 	if (!node || !parse_string(node, "SessionToken", &sess_tok)) {
 		purple_connection_error_reason(self->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
@@ -618,14 +631,15 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 		return;
 	}
 
-	chime_connection_set_session_token(self, sess_tok);
-
 	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
 
-	struct chime_msg *cmsg = NULL;
 	while ( (cmsg = g_queue_pop_head(priv->msgs_pending_auth)) ) {
-		soup_message_headers_replace(cmsg->msg->request_headers, "Cookie", cookie_hdr);
-		soup_session_queue_message(priv->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
+		soup_message_headers_replace(cmsg->msg->request_headers,
+					     "Cookie", cookie_hdr);
+		printf("Requeued %p to %s\n", cmsg->msg,
+		       soup_uri_get_path(soup_message_get_uri(cmsg->msg)));
+		soup_session_queue_message(priv->soup_sess, cmsg->msg,
+					   soup_msg_cb, cmsg);
 	}
 
 	g_free(cookie_hdr);

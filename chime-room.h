@@ -29,21 +29,6 @@ G_BEGIN_DECLS
 #define CHIME_TYPE_ROOM (chime_room_get_type ())
 G_DECLARE_FINAL_TYPE (ChimeRoom, chime_room, CHIME, ROOM, GObject)
 
-#define CHIME_ENUM_VALUE(val, nick) { val, #val, nick },
-#define CHIME_DEFINE_ENUM_TYPE(TypeName, type_name, values)		\
-	GType type_name ## _get_type(void) {				\
-		static volatile gsize chime_define_id__volatile = 0;	\
-		if (g_once_init_enter(&chime_define_id__volatile)) {	\
-			static const GEnumValue v[] = {			\
-				values					\
-				{ 0, NULL, NULL },			\
-			};						\
-			GType chime_define_id = g_enum_register_static(g_intern_static_string(#TypeName), v); \
-			g_once_init_leave(&chime_define_id__volatile, chime_define_id); \
-		}							\
-		return chime_define_id__volatile;			\
-	}
-
 typedef enum {
 	CHIME_ROOM_TYPE_STANDARD,
 	CHIME_ROOM_TYPE_MEETING,
@@ -52,15 +37,6 @@ typedef enum {
 
 #define CHIME_TYPE_ROOM_TYPE (chime_room_type_get_type ())
 GType chime_room_type_get_type (void) G_GNUC_CONST;
-
-typedef enum {
-	CHIME_ROOM_NOTIFY_ALWAYS,
-	CHIME_ROOM_NOTIFY_DIRECT_ONLY,
-	CHIME_ROOM_NOTIFY_NEVER
-} ChimeRoomNotifyPref;
-
-#define CHIME_TYPE_ROOM_NOTIFY_PREF (chime_room_notify_pref_get_type ())
-GType chime_room_notify_pref_get_type (void) G_GNUC_CONST;
 
 const gchar *chime_room_get_id(ChimeRoom *self);
 

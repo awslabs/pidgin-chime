@@ -22,6 +22,30 @@
 #include "chime-contact.h"
 #include "chime-room.h"
 
+#define CHIME_ENUM_VALUE(val, nick) { val, #val, nick },
+#define CHIME_DEFINE_ENUM_TYPE(TypeName, type_name, values)		\
+	GType type_name ## _get_type(void) {				\
+		static volatile gsize chime_define_id__volatile = 0;	\
+		if (g_once_init_enter(&chime_define_id__volatile)) {	\
+			static const GEnumValue v[] = {			\
+				values					\
+				{ 0, NULL, NULL },			\
+			};						\
+			GType chime_define_id = g_enum_register_static(g_intern_static_string(#TypeName), v); \
+			g_once_init_leave(&chime_define_id__volatile, chime_define_id); \
+		}							\
+		return chime_define_id__volatile;			\
+	}
+
+typedef enum {
+	CHIME_NOTIFY_PREF_ALWAYS,
+	CHIME_NOTIFY_PREF_DIRECT_ONLY,
+	CHIME_NOTIFY_PREF_NEVER
+} ChimeNotifyPref;
+
+#define CHIME_TYPE_NOTIFY_PREF (chime_notify_pref_get_type ())
+GType chime_notify_pref_get_type (void) G_GNUC_CONST;
+
 typedef enum {
 	CHIME_STATE_CONNECTING,
 	CHIME_STATE_CONNECTED,
@@ -122,5 +146,10 @@ ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 							  JsonNode *node,
 							  GError **error);
 void chime_connection_calculate_online(ChimeConnection *cxn);
+
+/* XXX: move these from chime.c */
+gboolean parse_notify_pref(JsonNode *node, const gchar *member,
+			   ChimeNotifyPref *type);
+gboolean parse_visibility(JsonNode *node, const gchar *member, gboolean *val);
 
 #endif /* __CHIME_CONNECTION_PRIVATE_H__ */

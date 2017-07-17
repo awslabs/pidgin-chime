@@ -61,8 +61,8 @@ struct _ChimeRoom {
 	gchar *last_mentioned;
 	gchar *created_on;
 	gchar *updated_on;
-	ChimeRoomNotifyPref mobile_notification;
-	ChimeRoomNotifyPref desktop_notification;
+	ChimeNotifyPref mobile_notification;
+	ChimeNotifyPref desktop_notification;
 
 	gint64 rooms_generation;
 
@@ -91,10 +91,10 @@ CHIME_DEFINE_ENUM_TYPE(ChimeRoomType, chime_room_type,			\
        CHIME_ENUM_VALUE(CHIME_ROOM_TYPE_MEETING,	"meeting")	\
        CHIME_ENUM_VALUE(CHIME_ROOM_TYPE_ORGANIZATION,	"organization"))
 
-CHIME_DEFINE_ENUM_TYPE(ChimeRoomNotifyPref, chime_room_notify_pref,	\
-       CHIME_ENUM_VALUE(CHIME_ROOM_NOTIFY_ALWAYS,	"always")	\
-       CHIME_ENUM_VALUE(CHIME_ROOM_NOTIFY_DIRECT_ONLY,	"directOnly")	\
-       CHIME_ENUM_VALUE(CHIME_ROOM_NOTIFY_NEVER,	"always"))
+CHIME_DEFINE_ENUM_TYPE(ChimeNotifyPref, chime_notify_pref,		\
+       CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_ALWAYS,	"always")	\
+       CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_DIRECT_ONLY,	"directOnly")	\
+       CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_NEVER,	"nevers"))
 
 static void
 chime_room_finalize(GObject *object)
@@ -355,8 +355,8 @@ static void chime_room_class_init(ChimeRoomClass *klass)
 		g_param_spec_enum("mobile-notification-prefs",
 				  "mobile-notification-prefs",
 				  "mobile-notification-prefs",
-				  CHIME_TYPE_ROOM_NOTIFY_PREF,
-				  CHIME_ROOM_NOTIFY_ALWAYS,
+				  CHIME_TYPE_NOTIFY_PREF,
+				  CHIME_NOTIFY_PREF_ALWAYS,
 				  G_PARAM_READWRITE |
 				  G_PARAM_CONSTRUCT |
 				  G_PARAM_STATIC_STRINGS);
@@ -365,8 +365,8 @@ static void chime_room_class_init(ChimeRoomClass *klass)
 		g_param_spec_enum("desktop-notification-prefs",
 				  "desktop-notification-prefs",
 				  "desktop-notification-prefs",
-				  CHIME_TYPE_ROOM_NOTIFY_PREF,
-				  CHIME_ROOM_NOTIFY_ALWAYS,
+				  CHIME_TYPE_NOTIFY_PREF,
+				  CHIME_NOTIFY_PREF_ALWAYS,
 				  G_PARAM_READWRITE |
 				  G_PARAM_CONSTRUCT |
 				  G_PARAM_STATIC_STRINGS);
@@ -433,23 +433,6 @@ static gboolean parse_boolean(JsonNode *node, const gchar *member, gboolean *val
 	return TRUE;
 }
 
-static gboolean parse_visibility(JsonNode *node, const gchar *member, gboolean *val)
-{
-	const gchar *str;
-
-	if (!parse_string(node, member, &str))
-		return FALSE;
-
-	if (!strcmp(str, "visible"))
-		*val = TRUE;
-	else if (!strcmp(str, "hidden"))
-		*val = FALSE;
-	else
-		return FALSE;
-
-	return TRUE;
-}
-
 static gboolean parse_privacy(JsonNode *node, const gchar *member, gboolean *val)
 {
 	const gchar *str;
@@ -484,23 +467,6 @@ static gboolean parse_room_type(JsonNode *node, const gchar *member, ChimeRoomTy
 	return TRUE;
 }
 
-static gboolean parse_room_notify_pref(JsonNode *node, const gchar *member, ChimeRoomNotifyPref *type)
-{
-	const gchar *str;
-
-	if (!parse_string(node, member, &str))
-		return FALSE;
-
-	gpointer klass = g_type_class_ref(CHIME_TYPE_ROOM_NOTIFY_PREF);
-	GEnumValue *val = g_enum_get_value_by_nick(klass, str);
-	g_type_class_unref(klass);
-
-	if (!val)
-		return FALSE;
-	*type = val->value;
-	return TRUE;
-}
-
 static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *node,
 					      GError **error)
 {
@@ -509,7 +475,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 		*last_sent = NULL, *last_read = NULL, *last_mentioned = NULL;
 	gboolean privacy, visibility, is_open;
 	ChimeRoomType type;
-	ChimeRoomNotifyPref desktop, mobile;
+	ChimeNotifyPref desktop, mobile;
 
 	if (!parse_string(node, "RoomId", &id) ||
 	    !parse_string(node, "Name", &name) ||
@@ -538,8 +504,8 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 	node = json_object_get_member(obj, "NotificationPreferences");
 	if (!node)
 		goto eparse;
-	if (!parse_room_notify_pref(node, "DesktopNotificationPreferences", &desktop) ||
-	    !parse_room_notify_pref(node, "MobileNotificationPreferences", &mobile))
+	if (!parse_notify_pref(node, "DesktopNotificationPreferences", &desktop) ||
+	    !parse_notify_pref(node, "MobileNotificationPreferences", &mobile))
 		goto eparse;
 
 	ChimeRoom *room = g_hash_table_lookup(priv->rooms_by_id, id);

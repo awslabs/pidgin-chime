@@ -55,6 +55,41 @@ SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...)
 	return uri;
 }
 
+gboolean parse_visibility(JsonNode *node, const gchar *member, gboolean *val)
+{
+	const gchar *str;
+
+	if (!parse_string(node, member, &str))
+		return FALSE;
+
+	if (!strcmp(str, "visible"))
+		*val = TRUE;
+	else if (!strcmp(str, "hidden"))
+		*val = FALSE;
+	else
+		return FALSE;
+
+	return TRUE;
+}
+
+gboolean parse_notify_pref(JsonNode *node, const gchar *member,
+			   ChimeNotifyPref *type)
+{
+	const gchar *str;
+
+	if (!parse_string(node, member, &str))
+		return FALSE;
+
+	gpointer klass = g_type_class_ref(CHIME_TYPE_NOTIFY_PREF);
+	GEnumValue *val = g_enum_get_value_by_nick(klass, str);
+	g_type_class_unref(klass);
+
+	if (!val)
+		return FALSE;
+	*type = val->value;
+	return TRUE;
+}
+
 gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val)
 {
 	node = json_object_get_member(json_node_get_object(node), member);

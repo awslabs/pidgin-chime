@@ -195,17 +195,52 @@ static void on_session_token_changed(ChimeConnection *connection, GParamSpec *ps
 	purple_account_set_string(conn->account, "token", chime_connection_get_session_token(connection));
 }
 
+/* Hm, doesn't GLib have something that'll do this for us? */
+static void get_machine_id(unsigned char *id, int len)
+{
+	int i = 0;
+
+	memset(id, 0, len);
+
+	gchar *machine_id;
+	if (g_file_get_contents("/etc/machine-id", &machine_id, NULL, NULL)) {
+		while (i < len * 2 && g_ascii_isxdigit(machine_id[i]) &&
+		       g_ascii_isxdigit(machine_id[i+1])) {
+			id[i / 2] = (g_ascii_xdigit_value(machine_id[i]) << 4) + g_ascii_xdigit_value(machine_id[i+1]);
+			i += 2;
+		}
+		return;
+	}
+#ifdef _WIN32
+	/* XXX: On Windows, try HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography\MachineGuid */
+#endif
+	/* XXX: We could actually try to cobble one together from things like
+	 * the FSID of the root file system (see how OpenConnect does that). */
+	g_warning("No /etc/machine-id; faking");
+	for (i = 0; i < len; i++)
+		id[i] = g_random_int_range(0, 256);
+}
+
 static void chime_purple_login(PurpleAccount *account)
 {
 	PurpleConnection *conn = purple_account_get_connection(account);
 	ChimeConnection *cxn;
 
 	const gchar *devtoken = purple_account_get_string(account, "devtoken", NULL);
-
+	/* Generate a stable device-id based on on the host identity and account name.
+	 * This helps prevent an explosion of separate "devices" being tracked on
+	 * the Chime service side, as we delete and recreate accounts. */
 	if (!devtoken || !devtoken[0]) {
-		gchar *uuid = purple_uuid_random();
-		purple_account_set_string(account, "devtoken", uuid);
-		g_free(uuid);
+		unsigned char machine_id[16];
+		get_machine_id(machine_id, sizeof(machine_id));
+
+		GChecksum *sum = g_checksum_new(G_CHECKSUM_SHA1);
+		g_checksum_update(sum, machine_id, sizeof(machine_id));
+
+		const char *user = purple_account_get_username(account);
+		g_checksum_update(sum, (void *)user, strlen(user));
+		purple_account_set_string(account, "devtoken", g_checksum_get_string(sum));
+		g_checksum_free(sum);
 		devtoken = purple_account_get_string(account, "devtoken", NULL);
 	}
 

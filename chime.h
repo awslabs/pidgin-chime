@@ -23,6 +23,7 @@
 
 #include "chime-connection.h"
 #include "chime-contact.h"
+#include "chime-room.h"
 
 #define CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS		(1<<1)
 #define CHIME_DEVICE_CAP_PRESENCE_PUSH			(1<<2)
@@ -119,6 +120,7 @@ void chime_destroy_chat(struct chime_chat *chat);
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data);
 void chime_purple_chat_leave(PurpleConnection *conn, int id);
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags);
+void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn);
 
 /* conversations.c */
 void chime_init_conversations(ChimeConnection *cxn);

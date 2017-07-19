@@ -211,6 +211,8 @@ static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, 
 
 	/* And add any that do, and monitor status for all */
 	chime_connection_foreach_contact(cxn, (ChimeContactCB)on_chime_new_contact, conn);
+
+	chime_connection_foreach_room(cxn, (ChimeRoomCB)on_chime_new_room, conn);
 }
 
 static void on_chime_disconnected(ChimeConnection *cxn, GError *error, PurpleConnection *conn)

@@ -510,3 +510,29 @@ void chime_destroy_chats(ChimeConnection *cxn)
 	g_clear_pointer(&priv->chats_by_room, g_hash_table_unref);
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
 }
+
+
+void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn)
+{
+	const gchar *id, *last_mentioned;
+	GTimeVal mention_tv;
+
+	/* If no LastMentioned or we can't parse it, nothing to do */
+	g_object_get(room, "id", &id, "last-mentioned", &last_mentioned, NULL);
+	if (!last_mentioned || !g_time_val_from_iso8601(last_mentioned, &mention_tv))
+		return;
+
+	const gchar *msg_time;
+	GTimeVal msg_tv;
+
+	if (chime_read_last_msg(cxn, TRUE, id, &msg_time, NULL) &&
+	    g_time_val_from_iso8601(msg_time, &msg_tv) &&
+	    (mention_tv.tv_sec < msg_tv.tv_sec ||
+	     (mention_tv.tv_sec == msg_tv.tv_sec && mention_tv.tv_usec <= msg_tv.tv_usec))) {
+		/* LastMentioned is older than we've already seen. Nothing to do. */
+		return;
+	}
+
+	/* We have been mentioned since we last looked at this room. Open it now. */
+	do_join_chat(cxn, room);
+}

@@ -707,13 +707,6 @@ static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token)
 
 static gboolean visible_rooms_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
-	const gchar *type;
-	if (!parse_string(data_node, "type", &type))
-		return FALSE;
-
-	if (strcmp(type, "update"))
-		return FALSE;
-
 	fetch_rooms(cxn, NULL);
 	return TRUE;
 }
@@ -762,6 +755,8 @@ void chime_init_rooms(ChimeConnection *cxn)
 
 	chime_jugg_subscribe(cxn, priv->profile_channel, "VisibleRooms",
 			     visible_rooms_jugg_cb, NULL);
+	chime_jugg_subscribe(cxn, priv->device_channel, "JoinableMeetings",
+			     visible_rooms_jugg_cb, NULL);
 	chime_jugg_subscribe(cxn, priv->device_channel, "Room",
 			     room_jugg_cb, NULL);
 	fetch_rooms(cxn, NULL);
@@ -776,6 +771,8 @@ void chime_destroy_rooms(ChimeConnection *cxn)
 
 	chime_jugg_unsubscribe(cxn, priv->profile_channel, "VisibleRooms",
 			       visible_rooms_jugg_cb, NULL);
+	chime_jugg_unsubscribe(cxn, priv->device_channel, "JoinableMeetings",
+			     visible_rooms_jugg_cb, NULL);
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "Room",
 			       room_jugg_cb, NULL);
 }

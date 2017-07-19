@@ -718,6 +718,31 @@ static gboolean visible_rooms_jugg_cb(ChimeConnection *cxn, gpointer _unused, Js
 	return TRUE;
 }
 
+static gboolean room_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
+{
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	const gchar *type;
+	if (!parse_string(data_node, "type", &type))
+		return FALSE;
+
+	if (strcmp(type, "update"))
+		return FALSE;
+
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record_node = json_object_get_member(obj, "record");
+	if (!record_node)
+		return FALSE;
+
+	ChimeRoom *room = chime_connection_parse_room(cxn, record_node, NULL);
+	if (room) {
+		room->rooms_generation = priv->rooms_generation;
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
 static void unhash_room(gpointer _room)
 {
 	ChimeRoom *room = CHIME_ROOM(_room);
@@ -735,8 +760,10 @@ void chime_init_rooms(ChimeConnection *cxn)
 						     NULL, unhash_room);
 	priv->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
 
-	chime_jugg_subscribe(cxn, priv->profile_channel, "VisibleRooms", visible_rooms_jugg_cb, NULL);
-
+	chime_jugg_subscribe(cxn, priv->profile_channel, "VisibleRooms",
+			     visible_rooms_jugg_cb, NULL);
+	chime_jugg_subscribe(cxn, priv->device_channel, "Room",
+			     room_jugg_cb, NULL);
 	fetch_rooms(cxn, NULL);
 }
 
@@ -746,6 +773,11 @@ void chime_destroy_rooms(ChimeConnection *cxn)
 
 	g_clear_pointer(&priv->rooms_by_name, g_hash_table_unref);
 	g_clear_pointer(&priv->rooms_by_id, g_hash_table_unref);
+
+	chime_jugg_unsubscribe(cxn, priv->profile_channel, "VisibleRooms",
+			       visible_rooms_jugg_cb, NULL);
+	chime_jugg_unsubscribe(cxn, priv->device_channel, "Room",
+			       room_jugg_cb, NULL);
 }
 
 ChimeRoom *chime_connection_room_by_name(ChimeConnection *cxn,

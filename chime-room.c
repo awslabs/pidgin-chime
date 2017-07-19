@@ -82,6 +82,8 @@ struct _ChimeRoom {
 	 * be deleted.
 	 */
 	gboolean is_dead;
+	/* And we keep this *purely* so we can unhash on that final dispose() */
+	ChimeConnection *cxn;
 };
 
 G_DEFINE_TYPE(ChimeRoom, chime_room, G_TYPE_OBJECT)
@@ -95,6 +97,22 @@ CHIME_DEFINE_ENUM_TYPE(ChimeNotifyPref, chime_notify_pref,		\
        CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_ALWAYS,	"always")	\
        CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_DIRECT_ONLY,	"directOnly")	\
        CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_NEVER,	"nevers"))
+
+static void
+chime_room_dispose(GObject *object)
+{
+	ChimeRoom *self = CHIME_ROOM(object);
+
+	if (self->cxn) {
+		ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(self->cxn);
+		g_hash_table_remove(priv->rooms_by_name, self->name);
+		g_hash_table_remove(priv->rooms_by_id, self->id);
+	}
+
+	printf("Room disposed: %p\n", self);
+
+	G_OBJECT_CLASS(chime_room_parent_class)->dispose(object);
+}
 
 static void
 chime_room_finalize(GObject *object)
@@ -240,6 +258,7 @@ static void chime_room_class_init(ChimeRoomClass *klass)
 	GObjectClass *object_class = G_OBJECT_CLASS(klass);
 
 	object_class->finalize = chime_room_finalize;
+	object_class->dispose = chime_room_dispose;
 	object_class->get_property = chime_room_get_property;
 	object_class->set_property = chime_room_set_property;
 
@@ -527,6 +546,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 				    "mobile-notification-prefs", mobile,
 				    NULL);
 
+		room->cxn = cxn;
 		g_hash_table_insert(priv->rooms_by_id, room->id, room);
 		g_hash_table_insert(priv->rooms_by_name, room->name, room);
 
@@ -601,6 +621,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 	if (room->is_dead) {
 		g_object_ref(room);
 		room->is_dead = FALSE;
+		room->cxn = cxn;
 		g_object_notify(G_OBJECT(room), "dead");
 	}
 
@@ -739,6 +760,10 @@ static gboolean room_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *d
 static void unhash_room(gpointer _room)
 {
 	ChimeRoom *room = CHIME_ROOM(_room);
+
+	/* Now it's unhashed, it doesn't need to unhash itself on dispose() */
+	room->cxn = NULL;
+
 	if (!room->is_dead) {
 		room->is_dead = TRUE;
 		g_object_unref(room);

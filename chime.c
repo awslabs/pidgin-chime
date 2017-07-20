@@ -226,6 +226,13 @@ static void on_chime_disconnected(ChimeConnection *cxn, GError *error, PurpleCon
 		     error ? error->message : "<no error>");
 }
 
+static void on_chime_progress(ChimeConnection *cxn, int percent, const gchar *msg, PurpleConnection *conn)
+{
+	printf("CHIME PROGRESS %p %d %s\n", conn, percent, msg);
+	purple_connection_update_progress(conn, msg, percent, 100);
+}
+
+
 static int purple_level_from_chime(ChimeLogLevel lvl)
 {
 	return lvl + 1; /* Because it is. We only maintain the *fiction* that we do
@@ -297,7 +304,7 @@ static void chime_purple_login(PurpleAccount *account)
 	const gchar *server = purple_account_get_string(account, "server", NULL);
 	const gchar *token = purple_account_get_string(account, "token", NULL);
 
-	purple_connection_update_progress(conn, _("Connecting..."), 1, CONNECT_STEPS);
+	purple_connection_update_progress(conn, _("Connecting..."), 0, 100);
 
 	cxn = chime_connection_new(conn, server, devtoken, token);
 	purple_connection_set_protocol_data(conn, cxn);
@@ -308,6 +315,8 @@ static void chime_purple_login(PurpleAccount *account)
 			 G_CALLBACK(on_chime_connected), conn);
 	g_signal_connect(cxn, "disconnected",
 			 G_CALLBACK(on_chime_disconnected), conn);
+	g_signal_connect(cxn, "progress",
+			 G_CALLBACK(on_chime_progress), conn);
 	/* We don't use 'conn' for this one as we don't want it disconnected
 	   on close, and it doesn't use it anyway. */
 	g_signal_connect(cxn, "log-message",

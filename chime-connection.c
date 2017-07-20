@@ -40,6 +40,7 @@ enum {
 	NEW_CONTACT,
 	NEW_ROOM,
 	LOG_MESSAGE,
+	PROGRESS,
 	LAST_SIGNAL
 };
 
@@ -261,6 +262,11 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 
 	signals[LOG_MESSAGE] =
 		g_signal_new ("log-message",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_STRING);
+
+	signals[PROGRESS] =
+		g_signal_new ("progress",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_STRING);
 }
@@ -795,4 +801,9 @@ void chime_connection_log(ChimeConnection *cxn, ChimeLogLevel level, const gchar
 	va_end(args);
 	g_signal_emit(cxn, signals[LOG_MESSAGE], 0, level, str);
 	g_free(str);
+}
+
+void chime_connection_progress(ChimeConnection *cxn, int percent, const gchar *message)
+{
+	g_signal_emit(cxn, signals[PROGRESS], 0, percent, message);
 }

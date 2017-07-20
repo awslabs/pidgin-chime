@@ -267,8 +267,7 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 	}
 
 	priv->ws_key = g_strdup(ws_opts[0]);
-	purple_connection_update_progress(cxn->prpl_conn, _("Establishing WebSocket connection..."),
-					  3, CONNECT_STEPS);
+	chime_connection_progress(cxn, 30, _("Establishing WebSocket connection..."));
 	g_strfreev(ws_opts);
 
 	connect_jugg(cxn);
@@ -323,9 +322,7 @@ void chime_init_juggernaut(ChimeConnection *cxn)
 	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1");
 	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
 
-	purple_connection_update_progress(cxn->prpl_conn
-					  , _("Obtaining WebSocket params..."),
-					  2, CONNECT_STEPS);
+	chime_connection_progress(cxn, 20, _("Obtaining WebSocket params..."));
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", ws_cb, NULL);
 }
 

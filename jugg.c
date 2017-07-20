@@ -49,17 +49,17 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 	ChimeConnection *cxn = _cxn;
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	printf("websocket closed: %d %s (%d)!\n", soup_websocket_connection_get_close_code(ws),
-	       soup_websocket_connection_get_close_data(ws), priv->jugg_connected);
+	chime_connection_log(cxn, CHIME_LOGLVL_INFO, "WebSocket closed (%d: '%s')\n",
+			     soup_websocket_connection_get_close_code(ws),
+			     soup_websocket_connection_get_close_data(ws));
 
 	g_clear_object(&priv->ws_conn);
 
 	if (priv->jugg_connected)
 		connect_jugg(cxn);
 	else
-		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
-					       _("Failed to establish WebSocket connection"));
-
+		chime_connection_fail(cxn, CHIME_CONNECTION_ERROR_NETWORK,
+				      _("Failed to establish WebSocket connection"));
 }
 
 static void handle_callback(ChimeConnection *cxn, const gchar *msg)
@@ -70,7 +70,8 @@ static void handle_callback(ChimeConnection *cxn, const gchar *msg)
 	GError *error = NULL;
 
 	if (!json_parser_load_from_data(parser, msg, strlen(msg), &error)) {
-		g_warning("Error loading data: %s", error->message);
+		chime_connection_log(cxn, CHIME_LOGLVL_WARNING, "Error parsing juggernaut message: '%s'\n",
+				     error->message);
 		g_error_free(error);
 		g_object_unref(parser);
 		return;
@@ -99,8 +100,8 @@ static void handle_callback(ChimeConnection *cxn, const gchar *msg)
 		json_generator_set_pretty(gen, TRUE);
 
 		gchar *data = json_generator_to_data(gen, NULL);
-		printf("incoming %s : %s\n", channel, data);
-
+		chime_connection_log(cxn, CHIME_LOGLVL_INFO, "Unhandled jugg msg on channel '%s': %s\n",
+				     channel, data);
 		g_free(data);
 		g_object_unref(gen);
 	}
@@ -131,7 +132,8 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 
 	data = g_bytes_get_data(message, NULL);
 
-	printf("websocket message received:\n'%s'\n", (char *)data);
+	chime_connection_log(cxn, CHIME_LOGLVL_MISC,
+			     "websocket message received:\n'%s'\n", (char *)data);
 
 	/* CONNECT */
 	if (!strcmp(data, "1::")) {
@@ -209,12 +211,8 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	priv->ws_conn = soup_session_websocket_connect_finish(SOUP_SESSION(obj),
 							      res, &error);
 	if (!priv->ws_conn) {
-		gchar *reason = g_strdup_printf(_("Websocket connection error %s"),
-						error->message);
+		chime_connection_fail_error(cxn, error);
 		g_error_free(error);
-		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
-					       reason);
-		g_free(reason);
 		return;
 	}
 
@@ -223,7 +221,6 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	soup_websocket_connection_set_max_incoming_payload_size(priv->ws_conn, 0);
 #endif
 
-	printf("Got ws conn %p\n", priv->ws_conn);
 	soup_websocket_connection_send_text(priv->ws_conn,  "1::");
 
 	priv->closed_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "closed",
@@ -242,7 +239,6 @@ static void connect_jugg(ChimeConnection *cxn)
 	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
 	soup_uri_free(uri);
 
-	printf("no connected\n");
 	priv->jugg_connected = FALSE;
 	soup_session_websocket_connect_async(priv->soup_sess, msg, NULL, NULL, NULL, ws2_cb, cxn);
 }
@@ -254,11 +250,9 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 	gchar **ws_opts = NULL;
 
 	if (msg->status_code != 200) {
-		gchar *reason = g_strdup_printf(_("Websocket connection error (%d): %s"),
-						msg->status_code, msg->reason_phrase);
-		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
-					       reason);
-		g_free(reason);
+		chime_connection_fail(cxn, CHIME_CONNECTION_ERROR_NETWORK,
+				      _("Websocket connection error (%d): %s"),
+				      msg->status_code, msg->reason_phrase);
 		return;
 	}
 	if (msg->response_body->data)
@@ -266,8 +260,9 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 
 	if (!ws_opts || !ws_opts[1] || !ws_opts[2] || !ws_opts[3] ||
 	    strncmp(ws_opts[3], "websocket,", 10)) {
-		purple_connection_error_reason(cxn->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
-					       _("Unexpected response in WebSocket setup"));
+		chime_connection_fail(cxn, CHIME_CONNECTION_ERROR_NETWORK,
+				      _("Unexpected response in WebSocket setup: '%s'"),
+				      msg->response_body->data);
 		return;
 	}
 
@@ -295,7 +290,6 @@ static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer _cxn)
 static void on_final_ws_close(SoupWebsocketConnection *ws, gpointer _unused)
 {
 	g_object_unref(ws);
-	printf("Final unref of websocket\n");
 }
 
 void chime_destroy_juggernaut(ChimeConnection *cxn)
@@ -347,8 +341,8 @@ gboolean chime_jugg_send(ChimeConnection *cxn, JsonNode *node)
 	gchar *msg = json_generator_to_data(jg, NULL);
 	gchar *msg2 = g_strdup_printf("3:::%s", msg);
 
+	chime_connection_log(cxn, CHIME_LOGLVL_MISC, "Send juggernaut msg: %s\n", msg2);
 	soup_websocket_connection_send_text(priv->ws_conn, msg2);
-	printf("jugg send: %s\n", msg2);
 	g_free(msg2);
 	g_free(msg);
 	g_object_unref(jg);

@@ -226,6 +226,19 @@ static void on_chime_disconnected(ChimeConnection *cxn, GError *error, PurpleCon
 		     error ? error->message : "<no error>");
 }
 
+static int purple_level_from_chime(ChimeLogLevel lvl)
+{
+	return lvl + 1; /* Because it is. We only maintain the *fiction* that we do
+			   a proper lookup/translation, and call this out into a
+			   separate function to make it 100% clear. */
+}
+
+static void on_chime_log_message(ChimeConnection *cxn, ChimeLogLevel lvl, const gchar *str,
+				 PurpleConnection *conn)
+{
+	purple_debug(purple_level_from_chime(lvl), "chime", "%s", str);
+}
+
 static void on_session_token_changed(ChimeConnection *connection, GParamSpec *pspec, PurpleConnection *conn)
 {
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Session token changed\n");
@@ -295,6 +308,10 @@ static void chime_purple_login(PurpleAccount *account)
 			 G_CALLBACK(on_chime_connected), conn);
 	g_signal_connect(cxn, "disconnected",
 			 G_CALLBACK(on_chime_disconnected), conn);
+	/* We don't use 'conn' for this one as we don't want it disconnected
+	   on close, and it doesn't use it anyway. */
+	g_signal_connect(cxn, "log-message",
+			 G_CALLBACK(on_chime_log_message), NULL);
 
 
 }

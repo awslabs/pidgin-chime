@@ -136,6 +136,7 @@ void chime_connection_fail(ChimeConnection *cxn, gint code,
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error);
 void chime_connection_new_contact(ChimeConnection *cxn, ChimeContact *contact);
 void chime_connection_new_room(ChimeConnection *cxn, ChimeRoom *room);
+void chime_connection_log(ChimeConnection *cxn, ChimeLogLevel level, const gchar *format, ...);
 
 /* chime-contact.c */
 void chime_init_contacts(ChimeConnection *cxn);

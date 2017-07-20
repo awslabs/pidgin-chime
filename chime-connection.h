@@ -40,6 +40,15 @@ typedef enum
 	CHIME_CONNECTION_ERROR_PARSE,
 } ChimeConnectionErrorEnum;
 
+/* Shamelessly matching (by name) the Pidgin loglevels. */
+typedef enum {
+	CHIME_LOGLVL_MISC,
+	CHIME_LOGLVL_INFO,
+	CHIME_LOGLVL_WARNING,
+	CHIME_LOGLVL_ERROR,
+	CHIME_LOGLVL_FATAL
+} ChimeLogLevel;
+
 typedef void (*ChimeSoupMessageCallback)(ChimeConnection *cxn,
 					 SoupMessage *msg,
 					 JsonNode *node,

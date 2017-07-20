@@ -39,6 +39,7 @@ enum {
 	DISCONNECTED,
 	NEW_CONTACT,
 	NEW_ROOM,
+	LOG_MESSAGE,
 	LAST_SIGNAL
 };
 
@@ -59,7 +60,7 @@ chime_connection_finalize(GObject *object)
 	g_free(priv->device_token);
 	g_free(priv->server);
 
-	printf("Connection finalized: %p\n", self);
+	chime_connection_log(self, CHIME_LOGLVL_MISC, "Connection finalized: %p\n", self);
 
 	G_OBJECT_CLASS(chime_connection_parent_class)->finalize(object);
 }
@@ -76,7 +77,7 @@ chime_connection_disconnect(ChimeConnection    *self)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
-	printf("Disconnecting connection: %p\n", self);
+	chime_connection_log(self, CHIME_LOGLVL_MISC, "Disconnecting connection: %p\n", self);
 
 	if (priv->soup_sess) {
 		soup_session_abort(priv->soup_sess);
@@ -117,7 +118,7 @@ chime_connection_dispose(GObject *object)
 	if (priv->state != CHIME_STATE_DISCONNECTED)
 		chime_connection_disconnect(self);
 
-	printf("Connection disposed: %p\n", self);
+	chime_connection_log(self, CHIME_LOGLVL_MISC, "Connection disposed: %p\n", self);
 
 	G_OBJECT_CLASS(chime_connection_parent_class)->dispose(object);
 }
@@ -257,6 +258,11 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 		g_signal_new ("new-room",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, CHIME_TYPE_ROOM);
+
+	signals[LOG_MESSAGE] =
+		g_signal_new ("log-message",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_STRING);
 }
 
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error)
@@ -634,8 +640,8 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 	while ( (cmsg = g_queue_pop_head(priv->msgs_pending_auth)) ) {
 		soup_message_headers_replace(cmsg->msg->request_headers,
 					     "Cookie", cookie_hdr);
-		printf("Requeued %p to %s\n", cmsg->msg,
-		       soup_uri_get_path(soup_message_get_uri(cmsg->msg)));
+		chime_connection_log(self, CHIME_LOGLVL_MISC, "Requeued %p to %s\n", cmsg->msg,
+				     soup_uri_get_path(soup_message_get_uri(cmsg->msg)));
 		soup_session_queue_message(priv->soup_sess, cmsg->msg,
 					   soup_msg_cb, cmsg);
 	}
@@ -777,4 +783,16 @@ void chime_connection_new_contact(ChimeConnection *cxn, ChimeContact *contact)
 void chime_connection_new_room(ChimeConnection *cxn, ChimeRoom *room)
 {
 	g_signal_emit(cxn, signals[NEW_ROOM], 0, room);
+}
+
+void chime_connection_log(ChimeConnection *cxn, ChimeLogLevel level, const gchar *format, ...)
+{
+	va_list args;
+	gchar *str;
+
+	va_start(args, format);
+	str = g_strdup_vprintf(format, args);
+	va_end(args);
+	g_signal_emit(cxn, signals[LOG_MESSAGE], 0, level, str);
+	g_free(str);
 }

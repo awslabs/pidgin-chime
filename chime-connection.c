@@ -102,7 +102,6 @@ chime_connection_disconnect(ChimeConnection    *self)
 		priv->msgs_queued = NULL;
 	}
 
-	purple_connection_set_protocol_data(self->prpl_conn, NULL);
 	self->prpl_conn = NULL;
 
 	if (priv->state != CHIME_STATE_DISCONNECTED)
@@ -624,8 +623,8 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 	gchar *cookie_hdr;
 
 	if (!node || !parse_string(node, "SessionToken", &sess_tok)) {
-		purple_connection_error_reason(self->prpl_conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
-					       _("Failed to renew session token"));
+		chime_connection_fail(self, CHIME_ERROR_NETWORK,
+				      _("Failed to renew session token"));
 	teardown:
 		while ( (cmsg = g_queue_pop_head(priv->msgs_pending_auth)) ) {
 			/* It was already in 'failed, unauthorised' state */

@@ -593,7 +593,7 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 	jb = json_builder_end_object(jb);
 
 	JsonNode *node = json_builder_get_root(jb);
-	chime_jugg_send(cxn, node);
+	chime_connection_jugg_send(cxn, node);
 
 	json_node_unref(node);
 	g_object_unref(jb);

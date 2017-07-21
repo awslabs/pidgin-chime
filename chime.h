@@ -89,7 +89,6 @@ gboolean chime_read_last_msg(ChimeConnection *cxn, gboolean is_room,
 /* jugg.c */
 void chime_init_juggernaut(ChimeConnection *cxn);
 void chime_destroy_juggernaut(ChimeConnection *cxn);
-gboolean chime_jugg_send(ChimeConnection *cxn, JsonNode *node);
 
 typedef gboolean (*JuggernautCallback)(ChimeConnection *cxn, gpointer cb_data, JsonNode *data_node);
 void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);

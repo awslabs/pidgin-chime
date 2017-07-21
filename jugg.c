@@ -108,15 +108,25 @@ static void handle_callback(ChimeConnection *cxn, const gchar *msg)
 	g_object_unref(parser);
 }
 
-static void send_subscription_message(ChimeConnection *cxn, const gchar *type, const gchar *channel)
+static void jugg_send(ChimeConnection *cxn, const gchar *fmt, ...)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	gchar *msg = g_strdup_printf("3:::{\"type\":\"%s\",\"channel\":\"%s\"}", type, channel);
-	printf("sub: %s\n", msg);
-	soup_websocket_connection_send_text(priv->ws_conn, msg);
-	g_free(msg);
+	va_list args;
+	gchar *str;
+
+	va_start(args, fmt);
+	str = g_strdup_vprintf(fmt, args);
+	va_end(args);
+
+	chime_connection_log(cxn, CHIME_LOGLVL_MISC, "Send juggernaut msg: %s\n", str);
+	soup_websocket_connection_send_text(priv->ws_conn, str);
+	g_free(str);
 }
 
+static void send_subscription_message(ChimeConnection *cxn, const gchar *type, const gchar *channel)
+{
+	jugg_send(cxn, "3:::{\"type\":\"%s\",\"channel\":\"%s\"}", type, channel);
+}
 
 static void send_resubscribe_message(ChimeConnection *cxn);
 static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
@@ -159,15 +169,13 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 	}
 	/* Keepalive */
 	if (!strcmp(data, "2::")) {
-		soup_websocket_connection_send_text(priv->ws_conn,  "2::");
+		jugg_send(cxn, "2::");
 		return;
 	}
 	parms = g_strsplit(data, ":", 4);
 	if (parms[0] && parms[1] && *parms[1] && parms[2]) {
 		/* Send an ack */
-		gchar *ack = g_strdup_printf("6:::%s", parms[1]);
-		soup_websocket_connection_send_text(priv->ws_conn, ack);
-		g_free(ack);
+		jugg_send(cxn, "6:::%s", parms[1]);
 
 		if (priv->subscriptions && !strcmp(parms[0], "3") && parms[3])
 			handle_callback(cxn, parms[3]);
@@ -196,7 +204,7 @@ static void send_resubscribe_message(ChimeConnection *cxn)
 	builder = json_builder_end_object(builder);
 
 	JsonNode *node = json_builder_get_root(builder);
-	chime_jugg_send(cxn, node);
+	chime_connection_jugg_send(cxn, node);
 
 	json_node_unref(node);
 	g_object_unref(builder);
@@ -221,7 +229,7 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 	soup_websocket_connection_set_max_incoming_payload_size(priv->ws_conn, 0);
 #endif
 
-	soup_websocket_connection_send_text(priv->ws_conn,  "1::");
+	jugg_send(cxn, "1::");
 
 	priv->closed_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "closed",
 						G_CALLBACK(on_websocket_closed), cxn);
@@ -308,7 +316,7 @@ void chime_destroy_juggernaut(ChimeConnection *cxn)
 		g_signal_handler_disconnect(G_OBJECT(priv->ws_conn), priv->closed_handler);
 		priv->message_handler = priv->closed_handler = 0;
 
-		soup_websocket_connection_send_text(priv->ws_conn, "0::");
+		jugg_send(cxn, "0::");
 		g_signal_connect(G_OBJECT(priv->ws_conn), "closed", G_CALLBACK(on_final_ws_close), NULL);
 		priv->ws_conn = NULL;
 	}
@@ -326,7 +334,7 @@ void chime_init_juggernaut(ChimeConnection *cxn)
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", ws_cb, NULL);
 }
 
-gboolean chime_jugg_send(ChimeConnection *cxn, JsonNode *node)
+gboolean chime_connection_jugg_send(ChimeConnection *cxn, JsonNode *node)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
@@ -336,11 +344,7 @@ gboolean chime_jugg_send(ChimeConnection *cxn, JsonNode *node)
 	JsonGenerator *jg = json_generator_new();
 	json_generator_set_root(jg, node);
 	gchar *msg = json_generator_to_data(jg, NULL);
-	gchar *msg2 = g_strdup_printf("3:::%s", msg);
-
-	chime_connection_log(cxn, CHIME_LOGLVL_MISC, "Send juggernaut msg: %s\n", msg2);
-	soup_websocket_connection_send_text(priv->ws_conn, msg2);
-	g_free(msg2);
+	jugg_send(cxn, "3:::%s", msg);
 	g_free(msg);
 	g_object_unref(jg);
 

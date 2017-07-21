@@ -131,13 +131,26 @@ typedef struct {
 	(G_TYPE_INSTANCE_GET_PRIVATE ((o), CHIME_TYPE_CONNECTION, \
 				      ChimeConnectionPrivate))
 
+/* chime-connection.c */
 void chime_connection_fail(ChimeConnection *cxn, gint code,
 			   const gchar *format, ...);
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error);
+void chime_connection_calculate_online(ChimeConnection *cxn);
 void chime_connection_new_contact(ChimeConnection *cxn, ChimeContact *contact);
 void chime_connection_new_room(ChimeConnection *cxn, ChimeRoom *room);
 void chime_connection_log(ChimeConnection *cxn, ChimeLogLevel level, const gchar *format, ...);
 void chime_connection_progress(ChimeConnection *cxn, int percent, const gchar *message);
+SoupMessage *chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
+						 SoupURI *uri, const gchar *method,
+						 ChimeSoupMessageCallback callback,
+						 gpointer cb_data);
+SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
+gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
+gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
+gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv);
+gboolean parse_notify_pref(JsonNode *node, const gchar *member, ChimeNotifyPref *type);
+gboolean parse_visibility(JsonNode *node, const gchar *member, gboolean *val);
+
 
 /* chime-contact.c */
 void chime_init_contacts(ChimeConnection *cxn);
@@ -147,11 +160,11 @@ ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
 ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 							  JsonNode *node,
 							  GError **error);
-void chime_connection_calculate_online(ChimeConnection *cxn);
 
-/* XXX: move these from chime.c */
-gboolean parse_notify_pref(JsonNode *node, const gchar *member,
-			   ChimeNotifyPref *type);
-gboolean parse_visibility(JsonNode *node, const gchar *member, gboolean *val);
+
+/* chime-juggernaut.c */
+gboolean chime_connection_jugg_send(ChimeConnection *self, JsonNode *node);
+
+
 
 #endif /* __CHIME_CONNECTION_PRIVATE_H__ */

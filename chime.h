@@ -72,11 +72,6 @@ enum {
 void chime_initial_login(ChimeConnection *cxn);
 
 /* chime.c */
-gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
-gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
-gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv);
-SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
-
 void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 			   const gchar *id, const gchar *msg_time,
 			   const gchar *msg_id);

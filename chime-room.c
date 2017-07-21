@@ -506,8 +506,8 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 	    !parse_string(node, "CreatedOn", &created_on) ||
 	    !parse_string(node, "UpdatedOn", &updated_on)) {
 	eparse:
-		g_set_error(error, CHIME_CONNECTION_ERROR,
-			    CHIME_CONNECTION_ERROR_PARSE,
+		g_set_error(error, CHIME_ERROR,
+			    CHIME_ERROR_BAD_RESPONSE,
 			    _("Failed to parse Room node"));
 		return NULL;
 	}
@@ -646,7 +646,7 @@ static void rooms_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 		JsonObject *obj = json_node_get_object(node);
 		JsonNode *rooms_node = json_object_get_member(obj, "Rooms");
 		if (!rooms_node) {
-			chime_connection_fail(cxn, CHIME_CONNECTION_ERROR_PARSE,
+			chime_connection_fail(cxn, CHIME_ERROR_BAD_RESPONSE,
 					      _("Failed to find Rooms node in response"));
 			return;
 		}
@@ -692,7 +692,7 @@ static void rooms_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 
 		parse_string(node, "error", &reason);
 
-		chime_connection_fail(cxn, CHIME_CONNECTION_ERROR_NETWORK,
+		chime_connection_fail(cxn, CHIME_ERROR_NETWORK,
 				      _("Failed to fetch rooms (%d): %s\n"),
 				      msg->status_code, reason);
 	}

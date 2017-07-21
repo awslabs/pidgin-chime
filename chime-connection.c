@@ -46,7 +46,7 @@ enum {
 
 static guint signals[LAST_SIGNAL];
 
-G_DEFINE_QUARK(chime-connection-error-quark, chime_connection_error)
+G_DEFINE_QUARK(chime-error-quark, chime_error)
 G_DEFINE_TYPE(ChimeConnection, chime_connection, G_TYPE_OBJECT)
 
 static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg);
@@ -432,14 +432,14 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
 	if (!node) {
-		chime_connection_fail(self, CHIME_CONNECTION_ERROR_NETWORK,
+		chime_connection_fail(self, CHIME_ERROR_NETWORK,
 				      _("Device registration failed"));
 		return;
 	}
 
 	priv->reg_node = json_node_ref(node);
 	if (!parse_regnode(self, priv->reg_node)) {
-		chime_connection_fail(self, CHIME_CONNECTION_ERROR_PARSE,
+		chime_connection_fail(self, CHIME_ERROR_BAD_RESPONSE,
 				      _("Failed to process registration response"));
 		return;
 	}

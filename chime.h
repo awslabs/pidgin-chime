@@ -57,17 +57,6 @@ struct chime_msgs {
 	chime_msg_cb cb;
 };
 
-extern GQuark pidgin_chime_error_quark(void);
-#define CHIME_ERROR pidgin_chime_error_quark()
-
-enum {
-	CHIME_ERROR_REQUEST_FAILED = 1,
-	CHIME_ERROR_BAD_RESPONSE,
-	CHIME_ERROR_AUTH_FAILED,
-};
-
-#define CONNECT_STEPS 4
-
 /* login.c */
 void chime_initial_login(ChimeConnection *cxn);
 

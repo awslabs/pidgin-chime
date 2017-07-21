@@ -58,7 +58,7 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 	if (priv->jugg_connected)
 		connect_jugg(cxn);
 	else
-		chime_connection_fail(cxn, CHIME_CONNECTION_ERROR_NETWORK,
+		chime_connection_fail(cxn, CHIME_ERROR_NETWORK,
 				      _("Failed to establish WebSocket connection"));
 }
 
@@ -258,7 +258,7 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 	gchar **ws_opts = NULL;
 
 	if (msg->status_code != 200) {
-		chime_connection_fail(cxn, CHIME_CONNECTION_ERROR_NETWORK,
+		chime_connection_fail(cxn, CHIME_ERROR_NETWORK,
 				      _("Websocket connection error (%d): %s"),
 				      msg->status_code, msg->reason_phrase);
 		return;
@@ -268,7 +268,7 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 
 	if (!ws_opts || !ws_opts[1] || !ws_opts[2] || !ws_opts[3] ||
 	    strncmp(ws_opts[3], "websocket,", 10)) {
-		chime_connection_fail(cxn, CHIME_CONNECTION_ERROR_NETWORK,
+		chime_connection_fail(cxn, CHIME_ERROR_NETWORK,
 				      _("Unexpected response in WebSocket setup: '%s'"),
 				      msg->response_body->data);
 		return;

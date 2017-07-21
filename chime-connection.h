@@ -34,11 +34,15 @@ struct _ChimeConnection {
 	PurpleConnection *prpl_conn;
 };
 
-typedef enum
-{
-	CHIME_CONNECTION_ERROR_NETWORK,
-	CHIME_CONNECTION_ERROR_PARSE,
-} ChimeConnectionErrorEnum;
+#define CHIME_ERROR (chime_error_quark())
+GQuark chime_error_quark (void);
+
+enum {
+	CHIME_ERROR_REQUEST_FAILED = 1,
+	CHIME_ERROR_BAD_RESPONSE,
+	CHIME_ERROR_AUTH_FAILED,
+	CHIME_ERROR_NETWORK,
+};
 
 /* Shamelessly matching (by name) the Pidgin loglevels. */
 typedef enum {
@@ -53,9 +57,6 @@ typedef void (*ChimeSoupMessageCallback)(ChimeConnection *cxn,
 					 SoupMessage *msg,
 					 JsonNode *node,
 					 gpointer cb_data);
-
-#define CHIME_CONNECTION_ERROR (chime_connection_error_quark())
-GQuark chime_connection_error_quark (void);
 
 ChimeConnection *chime_connection_new                        (PurpleConnection *connection,
 							      const gchar *server,

@@ -34,8 +34,6 @@
 #include "chime.h"
 #include "chime-connection-private.h"
 
-G_DEFINE_QUARK(PidginChimeError, pidgin_chime_error);
-
 static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
 {
 	printf("Chime plugin load\n");

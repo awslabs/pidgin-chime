@@ -378,8 +378,8 @@ ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
 	    !parse_string(node, "profile_channel", &profile_channel) ||
 	    !parse_string(node, "display_name", &display_name) ||
 	    !parse_string(node, "id", &profile_id)) {
-		g_set_error(error, CHIME_CONNECTION_ERROR,
-			    CHIME_CONNECTION_ERROR_PARSE,
+		g_set_error(error, CHIME_ERROR,
+			    CHIME_ERROR_BAD_RESPONSE,
 			    _("Failed to parse Contact node"));
 		return NULL;
 	}
@@ -402,8 +402,8 @@ ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 	    !parse_string(node, "PresenceChannel", &presence_channel) ||
 	    !parse_string(node, "DisplayName", &display_name) ||
 	    !parse_string(node, "ProfileId", &profile_id)) {
-		g_set_error(error, CHIME_CONNECTION_ERROR,
-			    CHIME_CONNECTION_ERROR_PARSE,
+		g_set_error(error, CHIME_ERROR,
+			    CHIME_ERROR_BAD_RESPONSE,
 			    _("Failed to parse Contact node"));
 		return NULL;
 	}
@@ -423,8 +423,8 @@ static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node,
 	const gchar *id;
 
 	if (!priv->contacts_by_id) {
-		g_set_error(error, CHIME_CONNECTION_ERROR,
-			    CHIME_CONNECTION_ERROR_PARSE,
+		g_set_error(error, CHIME_ERROR,
+			    CHIME_ERROR_BAD_RESPONSE,
 			    _("Contacts hash table is not set"));
 		return FALSE;
 	}
@@ -432,16 +432,16 @@ static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node,
 	if (!parse_string(node, "ProfileId", &id) ||
 	    !parse_int(node, "Revision", &revision) ||
 	    !parse_int(node, "Availability", &availability)) {
-		g_set_error(error, CHIME_CONNECTION_ERROR,
-			    CHIME_CONNECTION_ERROR_PARSE,
+		g_set_error(error, CHIME_ERROR,
+			    CHIME_ERROR_BAD_RESPONSE,
 			    _("Required fields in presence update not found"));
 		return FALSE;
 	}
 
 	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_id, id);
 	if (!contact) {
-		g_set_error(error, CHIME_CONNECTION_ERROR,
-			    CHIME_CONNECTION_ERROR_PARSE,
+		g_set_error(error, CHIME_ERROR,
+			    CHIME_ERROR_BAD_RESPONSE,
 			    _("Contact %s not found; cannot update presence"),
 			    id);
 		return FALSE;
@@ -577,7 +577,7 @@ static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 
 		parse_string(node, "error", &reason);
 
-		chime_connection_fail(cxn, CHIME_CONNECTION_ERROR_NETWORK,
+		chime_connection_fail(cxn, CHIME_ERROR_NETWORK,
 				      _("Failed to fetch contacts (%d): %s\n"),
 				      msg->status_code, reason);
 	}
@@ -682,8 +682,8 @@ static void contact_invited_cb(ChimeConnection *cxn, SoupMessage *msg,
 		const gchar *reason = msg->reason_phrase;
 
 		parse_string(node, "error", &reason);
-		g_task_return_new_error(task, CHIME_CONNECTION_ERROR,
-					CHIME_CONNECTION_ERROR_NETWORK,
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
 					_("Failed to add/invite contact: %s"),
 					reason);
 	} else {
@@ -748,8 +748,8 @@ static void contact_removed_cb(ChimeConnection *cxn, SoupMessage *msg,
 		const gchar *reason = msg->reason_phrase;
 
 		parse_string(node, "error", &reason);
-		g_task_return_new_error(task, CHIME_CONNECTION_ERROR,
-					CHIME_CONNECTION_ERROR_NETWORK,
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
 					_("Failed to remove contact: %s"),
 					reason);
 
@@ -777,8 +777,8 @@ void chime_connection_remove_contact_async(ChimeConnection *cxn,
 	if (!contact) {
 		g_task_report_new_error(cxn, callback, user_data,
 		                        chime_connection_remove_contact_async,
-		                        CHIME_CONNECTION_ERROR,
-					CHIME_CONNECTION_ERROR_NETWORK,
+		                        CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
 					_("Failed to remove unknown contact %s"),
 					email);
 		return;

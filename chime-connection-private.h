@@ -19,6 +19,7 @@
 #define __CHIME_CONNECTION_PRIVATE_H__
 
 #include "chime-connection.h"
+#include "chime-object.h"
 #include "chime-contact.h"
 #include "chime-room.h"
 
@@ -110,9 +111,7 @@ typedef struct {
 	ChimeSyncState contacts_sync;
 
 	/* Rooms */
-	GHashTable *rooms_by_id;
-	GHashTable *rooms_by_name;
-	gint64 rooms_generation;
+	ChimeObjectCollection rooms;
 	ChimeSyncState rooms_sync;
 
 	/* These parts really do belong to Pidgin code */

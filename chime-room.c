@@ -26,8 +26,6 @@
 enum
 {
 	PROP_0,
-	PROP_ID,
-	PROP_NAME,
 	PROP_PRIVACY,
 	PROP_TYPE,
 	PROP_VISIBILITY,
@@ -40,17 +38,14 @@ enum
 	PROP_UPDATED_ON,
 	PROP_MOBILE_NOTIFICATION_PREFS,
 	PROP_DESKTOP_NOTIFICATION_PREFS,
-	PROP_DEAD,
 	LAST_PROP,
 };
 
 static GParamSpec *props[LAST_PROP];
 
 struct _ChimeRoom {
-	GObject parent_instance;
+	ChimeObject parent_instance;
 
-	gchar *id;
-	gchar *name;
 	gboolean privacy;
 	ChimeRoomType type;
 	gboolean visibility;
@@ -63,30 +58,9 @@ struct _ChimeRoom {
 	gchar *updated_on;
 	ChimeNotifyPref mobile_notification;
 	ChimeNotifyPref desktop_notification;
-
-	gint64 rooms_generation;
-
-	/* Here be dragons!
-	 * We need to cope with rooms for which we have a chat open (hence
-	 * Pidgin is holding a ref on the ChimeRoom object, and we're
-	 * removed from them. But then we apologise out-of-band and we're
-	 * re-added to the room, and we need to have the *same* ChimeRoom
-	 * object not a new one. So it needs to stay in the connection's
-	 * hash table even while it's "dead", until the ChimeRoom object
-	 * finally goes away.
-	 *
-	 * So.... we use the 'is_dead' flag. When a ChimeRoom is not dead,
-	 * the hash table 'owns' a ref on it. When a ChimeRoom is dead,
-	 * we drop that ref and set the is_dead flag. The object will then
-	 * last only as long as it is being actively used by Pidgin, then
-	 * be deleted.
-	 */
-	gboolean is_dead;
-	/* And we keep this *purely* so we can unhash on that final dispose() */
-	ChimeConnection *cxn;
 };
 
-G_DEFINE_TYPE(ChimeRoom, chime_room, G_TYPE_OBJECT)
+G_DEFINE_TYPE(ChimeRoom, chime_room, CHIME_TYPE_OBJECT)
 
 CHIME_DEFINE_ENUM_TYPE(ChimeRoomType, chime_room_type,			\
        CHIME_ENUM_VALUE(CHIME_ROOM_TYPE_STANDARD,	"standard")	\
@@ -103,12 +77,6 @@ chime_room_dispose(GObject *object)
 {
 	ChimeRoom *self = CHIME_ROOM(object);
 
-	if (self->cxn) {
-		ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(self->cxn);
-		g_hash_table_remove(priv->rooms_by_name, self->name);
-		g_hash_table_remove(priv->rooms_by_id, self->id);
-	}
-
 	printf("Room disposed: %p\n", self);
 
 	G_OBJECT_CLASS(chime_room_parent_class)->dispose(object);
@@ -119,8 +87,6 @@ chime_room_finalize(GObject *object)
 {
 	ChimeRoom *self = CHIME_ROOM(object);
 
-	g_free(self->id);
-	g_free(self->name);
 	g_free(self->channel);
 	g_free(self->last_sent);
 	g_free(self->last_read);
@@ -137,12 +103,6 @@ static void chime_room_get_property(GObject *object, guint prop_id,
 	ChimeRoom *self = CHIME_ROOM(object);
 
 	switch (prop_id) {
-	case PROP_ID:
-		g_value_set_string(value, self->id);
-		break;
-	case PROP_NAME:
-		g_value_set_string(value, self->name);
-		break;
 	case PROP_PRIVACY:
 		g_value_set_boolean(value, self->privacy);
 		break;
@@ -179,9 +139,6 @@ static void chime_room_get_property(GObject *object, guint prop_id,
 	case PROP_DESKTOP_NOTIFICATION_PREFS:
 		g_value_set_enum(value, self->desktop_notification);
 		break;
-	case PROP_DEAD:
-		g_value_set_boolean(value, self->is_dead);
-		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
 		break;
@@ -194,14 +151,6 @@ static void chime_room_set_property(GObject *object, guint prop_id,
 	ChimeRoom *self = CHIME_ROOM(object);
 
 	switch (prop_id) {
-	case PROP_ID:
-		g_free(self->id);
-		self->id = g_value_dup_string(value);
-		break;
-	case PROP_NAME:
-		g_free(self->name);
-		self->name = g_value_dup_string(value);
-		break;
 	case PROP_PRIVACY:
 		self->privacy = g_value_get_boolean(value);
 		break;
@@ -244,9 +193,6 @@ static void chime_room_set_property(GObject *object, guint prop_id,
 	case PROP_DESKTOP_NOTIFICATION_PREFS:
 		self->desktop_notification = g_value_get_enum(value);
 		break;
-	case PROP_DEAD:
-		self->is_dead = g_value_get_boolean(value);
-		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
 		break;
@@ -261,24 +207,6 @@ static void chime_room_class_init(ChimeRoomClass *klass)
 	object_class->dispose = chime_room_dispose;
 	object_class->get_property = chime_room_get_property;
 	object_class->set_property = chime_room_set_property;
-
-	props[PROP_ID] =
-		g_param_spec_string("id",
-				    "id",
-				    "id",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
-
-	props[PROP_NAME] =
-		g_param_spec_string("name",
-				    "name",
-				    "name",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
 
 	props[PROP_PRIVACY] =
 		g_param_spec_boolean("privacy",
@@ -390,15 +318,6 @@ static void chime_room_class_init(ChimeRoomClass *klass)
 				  G_PARAM_CONSTRUCT |
 				  G_PARAM_STATIC_STRINGS);
 
-	props[PROP_DEAD] =
-		g_param_spec_boolean("dead",
-				     "dead",
-				     "dead",
-				     FALSE,
-				     G_PARAM_READWRITE |
-				     G_PARAM_CONSTRUCT |
-				     G_PARAM_STATIC_STRINGS);
-
 	g_object_class_install_properties(object_class, LAST_PROP, props);
 }
 
@@ -410,14 +329,14 @@ const gchar *chime_room_get_id(ChimeRoom *self)
 {
 	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
 
-	return self->id;
+	return self->parent_instance.id;
 }
 
 const gchar *chime_room_get_name(ChimeRoom *self)
 {
 	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
 
-	return self->name;
+	return self->parent_instance.name;
 }
 
 gboolean chime_room_get_privacy(ChimeRoom *self)
@@ -527,7 +446,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 	    !parse_notify_pref(node, "MobileNotificationPreferences", &mobile))
 		goto eparse;
 
-	ChimeRoom *room = g_hash_table_lookup(priv->rooms_by_id, id);
+	ChimeRoom *room = g_hash_table_lookup(priv->rooms.by_id, id);
 	if (!room) {
 		room = g_object_new(CHIME_TYPE_ROOM,
 				    "id", id,
@@ -546,9 +465,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 				    "mobile-notification-prefs", mobile,
 				    NULL);
 
-		room->cxn = cxn;
-		g_hash_table_insert(priv->rooms_by_id, room->id, room);
-		g_hash_table_insert(priv->rooms_by_name, room->name, room);
+		chime_object_collection_hash_object(&priv->rooms, CHIME_OBJECT(room));
 
 		/* Emit signal on ChimeConnection to admit existence of new room */
 		chime_connection_new_room(cxn, room);
@@ -556,12 +473,8 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 		return room;
 	}
 
-	if (name && g_strcmp0(name, room->name)) {
-		g_hash_table_remove(priv->rooms_by_name, room->name);
-		/* XX: If there is another room with the same name, we should add it */
-		g_free(room->name);
-		room->name = g_strdup(name);
-		g_hash_table_insert(priv->rooms_by_name, room->name, room);
+	if (name && g_strcmp0(name, room->parent_instance.name)) {
+		chime_object_rename(CHIME_OBJECT(room), name);
 		g_object_notify(G_OBJECT(room), "name");
 	}
 	if (privacy != room->privacy) {
@@ -618,12 +531,8 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 		room->mobile_notification = mobile;
 		g_object_notify(G_OBJECT(room), "mobile-notification-prefs");
 	}
-	if (room->is_dead) {
-		g_object_ref(room);
-		room->is_dead = FALSE;
-		room->cxn = cxn;
-		g_object_notify(G_OBJECT(room), "dead");
-	}
+
+	chime_object_collection_hash_object(&priv->rooms, CHIME_OBJECT(room));
 
 	return room;
 }
@@ -652,14 +561,11 @@ static void rooms_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 		}
 		JsonArray *arr = json_node_get_array(rooms_node);
 		guint i, len = json_array_get_length(arr);
-		ChimeRoom *room;
 
 		for (i = 0; i < len; i++) {
-			room = chime_connection_parse_room(cxn,
-							   json_array_get_element(arr, i),
-							   NULL);
-			if (room)
-				room->rooms_generation = priv->rooms_generation;
+			chime_connection_parse_room(cxn,
+						    json_array_get_element(arr, i),
+						    NULL);
 		}
 
 		const gchar *next_token;
@@ -668,20 +574,8 @@ static void rooms_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 		else {
 			priv->rooms_sync = CHIME_SYNC_IDLE;
 
-			/* Anything which *wasn't* seen this time round, but which was previously
-			   in the rooms list, needs to have its 'rooms-list' flag cleared */
-			GList *rooms = g_hash_table_get_values(priv->rooms_by_id);
-			while (rooms) {
-				room = CHIME_ROOM(rooms->data);
+			chime_object_collection_expire_outdated(&priv->rooms);
 
-				if (!room->is_dead &&
-				    room->rooms_generation != priv->rooms_generation) {
-					/* It'll remove itself from the hash table in its ->dispose() */
-					room->is_dead = TRUE;
-					g_object_unref(room);
-				}
-				rooms = g_list_remove(rooms, room);
-			}
 			if (!priv->rooms_online) {
 				priv->rooms_online = TRUE;
 				chime_connection_calculate_online(cxn);
@@ -713,7 +607,7 @@ static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token)
 			return;
 
 		case CHIME_SYNC_IDLE:
-			priv->rooms_generation++;
+			priv->rooms.generation++;
 			priv->rooms_sync = CHIME_SYNC_FETCHING;
 		}
 	}
@@ -734,8 +628,6 @@ static gboolean visible_rooms_jugg_cb(ChimeConnection *cxn, gpointer _unused, Js
 
 static gboolean room_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-
 	const gchar *type;
 	if (!parse_string(data_node, "type", &type))
 		return FALSE;
@@ -748,35 +640,14 @@ static gboolean room_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *d
 	if (!record_node)
 		return FALSE;
 
-	ChimeRoom *room = chime_connection_parse_room(cxn, record_node, NULL);
-	if (room) {
-		room->rooms_generation = priv->rooms_generation;
-		return TRUE;
-	}
-
-	return FALSE;
-}
-
-static void unhash_room(gpointer _room)
-{
-	ChimeRoom *room = CHIME_ROOM(_room);
-
-	/* Now it's unhashed, it doesn't need to unhash itself on dispose() */
-	room->cxn = NULL;
-
-	if (!room->is_dead) {
-		room->is_dead = TRUE;
-		g_object_unref(room);
-	}
+	return !!chime_connection_parse_room(cxn, record_node, NULL);
 }
 
 void chime_init_rooms(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	priv->rooms_by_id = g_hash_table_new_full(g_str_hash, g_str_equal,
-						     NULL, unhash_room);
-	priv->rooms_by_name = g_hash_table_new(g_str_hash, g_str_equal);
+	chime_object_collection_init(&priv->rooms);
 
 	chime_jugg_subscribe(cxn, priv->profile_channel, "VisibleRooms",
 			     visible_rooms_jugg_cb, NULL);
@@ -791,15 +662,14 @@ void chime_destroy_rooms(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	g_clear_pointer(&priv->rooms_by_name, g_hash_table_unref);
-	g_clear_pointer(&priv->rooms_by_id, g_hash_table_unref);
-
 	chime_jugg_unsubscribe(cxn, priv->profile_channel, "VisibleRooms",
 			       visible_rooms_jugg_cb, NULL);
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "JoinableMeetings",
 			     visible_rooms_jugg_cb, NULL);
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "Room",
 			       room_jugg_cb, NULL);
+
+	chime_object_collection_destroy(&priv->rooms);
 }
 
 ChimeRoom *chime_connection_room_by_name(ChimeConnection *cxn,
@@ -807,7 +677,7 @@ ChimeRoom *chime_connection_room_by_name(ChimeConnection *cxn,
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	return g_hash_table_lookup(priv->rooms_by_name, name);
+	return g_hash_table_lookup(priv->rooms.by_name, name);
 }
 
 ChimeRoom *chime_connection_room_by_id(ChimeConnection *cxn,
@@ -815,32 +685,13 @@ ChimeRoom *chime_connection_room_by_id(ChimeConnection *cxn,
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	return g_hash_table_lookup(priv->rooms_by_id, id);
-}
-
-struct foreach_room_st {
-	ChimeConnection *cxn;
-	ChimeRoomCB cb;
-	gpointer cbdata;
-};
-
-static void foreach_room_cb(gpointer key, gpointer value, gpointer _data)
-{
-	struct foreach_room_st *data = _data;
-	ChimeRoom *room = CHIME_ROOM(value);
-
-	data->cb(data->cxn, room, data->cbdata);
+	return g_hash_table_lookup(priv->rooms.by_id, id);
 }
 
 void chime_connection_foreach_room(ChimeConnection *cxn, ChimeRoomCB cb,
-				      gpointer cbdata)
+				   gpointer cbdata)
 {
-	struct foreach_room_st data = {
-		.cxn = cxn,
-		.cb = cb,
-		.cbdata = cbdata,
-	};
-
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
-	g_hash_table_foreach(priv->rooms_by_id, foreach_room_cb, &data);
+
+	chime_object_collection_foreach_object(cxn, &priv->rooms, (ChimeObjectCB)cb, cbdata);
 }

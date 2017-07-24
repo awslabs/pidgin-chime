@@ -23,11 +23,12 @@
 #include <json-glib/json-glib.h>
 
 #include "chime-connection.h"
+#include "chime-object.h"
 
 G_BEGIN_DECLS
 
 #define CHIME_TYPE_ROOM (chime_room_get_type ())
-G_DECLARE_FINAL_TYPE (ChimeRoom, chime_room, CHIME, ROOM, GObject)
+G_DECLARE_FINAL_TYPE (ChimeRoom, chime_room, CHIME, ROOM, ChimeObject)
 
 typedef enum {
 	CHIME_ROOM_TYPE_STANDARD,
@@ -56,7 +57,7 @@ ChimeRoom *chime_connection_room_by_id(ChimeConnection *cxn,
 /* Designed to match the NEW_ROOM signal handler */
 typedef void (*ChimeRoomCB) (ChimeConnection *, ChimeRoom *, gpointer);
 void chime_connection_foreach_room(ChimeConnection *cxn, ChimeRoomCB cb,
-				      gpointer cbdata);
+				   gpointer cbdata);
 
 G_END_DECLS
 

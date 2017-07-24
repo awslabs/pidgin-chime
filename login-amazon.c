@@ -59,10 +59,10 @@ static void send_consent(ChimeLoginAmzn *state, gint choice)
 		handler = chime_login_cancel_cb;
 	}
 	g_hash_table_insert(state->params, g_strdup(action), g_strdup(""));
-	
+
 	msg = soup_form_request_new_from_hash(state->form_method, state->form_action, state->params);
 	soup_session_queue_message(chime_login_session(state), msg, handler, state);
-	
+
 	clear_form(state);
 }
 
@@ -83,9 +83,9 @@ static void request_consent(ChimeLoginAmzn *state)
 static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
 	ChimeLoginAmzn *state = data;
-	
+
 	chime_login_fail_on_error(msg, state);
-	
+
 	state->params = chime_login_parse_form(msg, CONSENT_FORM, &state->form_method,
 					       &state->form_action, NULL, NULL);
 	if (state->params != NULL) {
@@ -118,10 +118,10 @@ static void send_credentials(ChimeLoginAmzn *state, PurpleRequestFields *fields)
 
 	password = purple_request_fields_get_string(fields, PASS_FIELD);
 	g_hash_table_insert(state->params, g_strdup(state->password_name), g_strdup(password));
-	
+
 	msg = soup_form_request_new_from_hash(state->form_method, state->form_action, state->params);
 	soup_session_queue_message(chime_login_session(state), msg, login_result_cb, state);
-	
+
 	clear_form(state);
 }
 
@@ -164,13 +164,13 @@ void chime_login_amazon(SoupSession *session, SoupMessage *msg, gpointer data)
 	state->params = chime_login_parse_form(msg, SIGN_IN_FORM, &state->form_method,
 					       &state->form_action, &state->email_name,
 					       &state->password_name);
-	
+
 	if (state->params == NULL || state->email_name == NULL ||
 	    state->password_name == NULL) {
 		chime_login_bad_response(state, _("Could not find Amazon login form"));
 		return;
 	}
-	
+
 	g_hash_table_insert(state->params, g_strdup(state->email_name),
 			    g_strdup(chime_login_account_email(state)));
 	request_credentials(state, FALSE);

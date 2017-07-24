@@ -377,7 +377,7 @@ static void gwt_entry_point_cb(SoupSession *session, SoupMessage *msg, gpointer 
 				      state->gwt_permutation);
 	base = soup_uri_new(state->gwt_module_base);
 	destination = soup_uri_new_with_base(base, policy_path);
-	
+
 	next = soup_message_new_from_uri(SOUP_METHOD_GET, destination);
 	soup_session_queue_message(session, next, gwt_policy_cb, state);
 
@@ -400,11 +400,11 @@ void chime_login_warpdrive(SoupSession *session, SoupMessage *msg, gpointer data
 	SoupMessage *next;
 	SoupURI *initial, *base;
 	gchar *sep, **gwt = NULL;
-	       
+
 	chime_login_fail_on_error(msg, data);
 	state = chime_login_extend_state(data, sizeof(ChimeLoginWd),
 					 (GDestroyNotify) free_wd_state);
-	
+
 	initial = soup_message_get_first_party(msg);
 	params = soup_form_decode(soup_uri_get_query(initial));
 	state->directory = g_strdup(g_hash_table_lookup(params, "directory"));

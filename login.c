@@ -43,7 +43,7 @@ void chime_login_free_state(ChimeLogin *state)
 
 	if (state->release_sub != NULL)
 		state->release_sub(state);
-	
+
 	soup_session_abort(state->session);
 	g_object_unref(state->session);
 	g_object_unref(state->connection);
@@ -81,7 +81,7 @@ void chime_login_request_failed(gpointer state, const gchar *location, SoupMessa
 void chime_login_bad_response(gpointer state, const gchar *fmt, ...)
 {
 	va_list args;
-	
+
 	va_start(args, fmt);
 	fail(state, g_error_new_valist(CHIME_ERROR, CHIME_ERROR_BAD_RESPONSE, fmt, args));
 	va_end(args);
@@ -93,7 +93,7 @@ static gboolean xpath_exists(xmlXPathContext *ctx, const gchar *fmt, ...)
 	gchar *expression;
 	va_list args;
 	xmlXPathObject *results;
-	
+
 	va_start(args, fmt);
 	expression = g_strdup_vprintf(fmt, args);
 	va_end(args);
@@ -163,7 +163,7 @@ static xmlDoc *parse_html(SoupMessage *msg)
 		purple_debug_error("chime", "Empty HTML response or unexpected content %s", ctype);
 		goto out;
 	}
-	
+
 	url = soup_uri_to_string(soup_message_get_uri(msg), FALSE);
 	document = htmlReadMemory(msg->response_body->data,
 				  msg->response_body->length,
@@ -187,12 +187,12 @@ gchar *chime_login_parse_regex(SoupMessage *msg, const gchar *regex, guint group
 		purple_debug_error("chime", "Empty text response");
 		return text;
 	}
-	
+
 	matcher = g_regex_new(regex, 0, 0, NULL);
 	if (g_regex_match_full(matcher, msg->response_body->data,
 			       msg->response_body->length, 0, 0, &match, NULL))
 		text = g_match_info_fetch(match, group);
-	
+
 	g_match_info_free(match);
 	g_regex_unref(matcher);
 	return text;
@@ -217,7 +217,7 @@ gchar **chime_login_parse_xpaths(SoupMessage *msg, guint count, ...)
 	}
 
 	values = g_new0(gchar *, count + 1);
-	
+
 	va_start(args, count);
 	for (i = 0;  i < count;  i++)
 		values[i] = xpath_string(ctx, va_arg(args, const gchar *));
@@ -244,23 +244,23 @@ GHashTable *chime_login_parse_json_object(SoupMessage *msg)
 		purple_debug_error("chime", "Empty JSON response or unexpected content %s", ctype);
 		return result;
 	}
-	
+
 	parser = json_parser_new();
 	if (!json_parser_load_from_data(parser, msg->response_body->data,
 					msg->response_body->length, &error)) {
 		purple_debug_error("chime", "JSON parsing error: %s", error->message);
 		goto out;
 	}
-	
+
 	node = json_parser_get_root(parser);
 	if (!JSON_NODE_HOLDS_OBJECT(node)) {
 		purple_debug_error("chime", "Unexpected JSON type %d", JSON_NODE_TYPE(node));
 		goto out;
 	}
-	
+
 	object = json_node_get_object(node);
 	result = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-	
+
 	members = json_object_get_members(object);
 	for (member = g_list_first(members);  member != NULL;  member = member->next) {
 		node = json_object_get_member(object, member->data);
@@ -292,7 +292,7 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 		*email_name = NULL;
 	if (password_name != NULL)
 		*password_name = NULL;
-	
+
 	html = parse_html(msg);
 	if (html == NULL)
 		return params;
@@ -307,7 +307,7 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 		purple_debug_error("chime", "XPath query returned no results: %s", form_xpath);
 		goto out;
 	}
-	
+
 	*method = xpath_string(ctx, "%s/@method", form_xpath);
 	if (*method == NULL) {
 		*method = g_strdup(SOUP_METHOD_GET);
@@ -353,7 +353,7 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 		}
 		g_hash_table_insert(params, name, value);
 	}
-	
+
 	g_free(inputs);
 	g_free(form_action);
  out:
@@ -375,7 +375,7 @@ void chime_login_token_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 		chime_login_bad_response(state, _("Unable to retrieve session token"));
 		return;
 	}
-	
+
 	chime_connection_set_session_token(state->connection, token);
 	chime_connection_connect(state->connection);
 	chime_login_free_state(state);
@@ -398,7 +398,7 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 	}
 
 	chime_login_fail_on_error(msg, state);
-		
+
 	provider_info = chime_login_parse_json_object(msg);
 	if (provider_info == NULL) {
 		chime_login_bad_response(state, _("Error parsing provider JSON"));

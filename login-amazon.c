@@ -24,28 +24,21 @@
 #define CONSENT_FORM  "//form[@name='consent-form']"
 #define PASS_FIELD  "password"
 
-struct chime_login_amzn {
-	struct chime_login b;  /* Base */
-	gchar *form_method;
-	gchar *form_action;
-	gchar *email_name;
-	gchar *password_name;
-	GHashTable *params;
+struct login_amzn {
+	struct login b;  /* Base */
+	struct login_form *form;
 };
 
 /* Break dependency loop */
-static void request_credentials(struct chime_login_amzn *state, gboolean retry);
+static void request_credentials(struct login_amzn *state, gboolean retry);
 
-static void clear_form(struct chime_login_amzn *state)
+static void clear_form(struct login_amzn *state)
 {
-	g_clear_pointer(&state->form_method, g_free);
-	g_clear_pointer(&state->form_action, g_free);
-	g_clear_pointer(&state->email_name, g_free);
-	g_clear_pointer(&state->password_name, g_free);
-	g_clear_pointer(&state->params, g_hash_table_destroy);
+	g_return_if_fail(state != NULL && state->form != NULL);
+	login_free_form(state->form);
 }
 
-static void send_consent(struct chime_login_amzn *state, gint choice)
+static void send_consent(struct login_amzn *state, gint choice)
 {
 	SoupMessage *msg;
 	SoupSessionCallback handler;
@@ -58,23 +51,25 @@ static void send_consent(struct chime_login_amzn *state, gint choice)
 		action = "consentDenied";
 		handler = chime_login_cancel_cb;
 	}
-	g_hash_table_insert(state->params, g_strdup(action), g_strdup(""));
+	g_hash_table_insert(state->form->params, g_strdup(action), g_strdup(""));
 
-	msg = soup_form_request_new_from_hash(state->form_method, state->form_action, state->params);
-	soup_session_queue_message(chime_login_session(state), msg, handler, state);
+	msg = soup_form_request_new_from_hash(state->form->method,
+					      state->form->action,
+					      state->form->params);
+	soup_session_queue_message(login_session(state), msg, handler, state);
 
 	clear_form(state);
 }
 
-static void request_consent(struct chime_login_amzn *state)
+static void request_consent(struct login_amzn *state)
 {
 	gchar *text;
 
 	text = g_strdup_printf(_("Do you want to register %s into AWS Chime?"),
-			       chime_login_account_email(state));
-	purple_request_ok_cancel(chime_login_connection(state)->prpl_conn,
+			       login_account_email(state));
+	purple_request_ok_cancel(login_connection(state)->prpl_conn,
 				 _("Confirm Registration"), text, NULL, 0,
-				 chime_login_connection(state)->prpl_conn->account,
+				 login_connection(state)->prpl_conn->account,
 				 NULL, NULL, state,
 				 G_CALLBACK(send_consent), G_CALLBACK(send_consent));
 	g_free(text);
@@ -82,28 +77,26 @@ static void request_consent(struct chime_login_amzn *state)
 
 static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
-	struct chime_login_amzn *state = data;
+	struct login_amzn *state = data;
 
-	chime_login_fail_on_error(msg, state);
+	login_fail_on_error(msg, state);
 
-	state->params = chime_login_parse_form(msg, CONSENT_FORM, &state->form_method,
-					       &state->form_action, NULL, NULL);
-	if (state->params) {
+	state->form = chime_login_parse_form(msg, CONSENT_FORM);
+	if (state->form) {
 		request_consent(state);
 		return;
 	}
 
-	state->params = chime_login_parse_form(msg, SIGN_IN_FORM, &state->form_method,
-					       &state->form_action, &state->email_name,
-					       &state->password_name);
-	if (state->params) {
+	state->form = chime_login_parse_form(msg, SIGN_IN_FORM);
+	if (state->form) {
 		/* Authentication failed */
-		if (!(state->email_name && state->password_name)) {
+		if (!(state->form->email_name && state->form->password_name)) {
 			chime_login_bad_response(state, _("Could not find Amazon login form"));
 			return;
 		}
-		g_hash_table_insert(state->params, g_strdup(state->email_name),
-				    g_strdup(chime_login_account_email(state)));
+		g_hash_table_insert(state->form->params,
+				    g_strdup(state->form->email_name),
+				    g_strdup(login_account_email(state)));
 		request_credentials(state, TRUE);
 		return;
 	}
@@ -111,21 +104,25 @@ static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer dat
 	chime_login_token_cb(session, msg, state);
 }
 
-static void send_credentials(struct chime_login_amzn *state, PurpleRequestFields *fields)
+static void send_credentials(struct login_amzn *state, PurpleRequestFields *fields)
 {
 	SoupMessage *msg;
 	const gchar *password;
 
 	password = purple_request_fields_get_string(fields, PASS_FIELD);
-	g_hash_table_insert(state->params, g_strdup(state->password_name), g_strdup(password));
+	g_hash_table_insert(state->form->params,
+			    g_strdup(state->form->password_name),
+			    g_strdup(password));
 
-	msg = soup_form_request_new_from_hash(state->form_method, state->form_action, state->params);
-	soup_session_queue_message(chime_login_session(state), msg, login_result_cb, state);
+	msg = soup_form_request_new_from_hash(state->form->method,
+					      state->form->action,
+					      state->form->params);
+	soup_session_queue_message(login_session(state), msg, login_result_cb, state);
 
 	clear_form(state);
 }
 
-static void request_credentials(struct chime_login_amzn *state, gboolean retry)
+static void request_credentials(struct login_amzn *state, gboolean retry)
 {
 	PurpleRequestField *password;
 	PurpleRequestFieldGroup *group;
@@ -142,35 +139,32 @@ static void request_credentials(struct chime_login_amzn *state, gboolean retry)
 
 	purple_request_fields_add_group(fields, group);
 	text = g_strdup_printf(_("Please enter the password for %s"),
-			       chime_login_account_email(state));
-	purple_request_fields(chime_login_connection(state)->prpl_conn,
+			       login_account_email(state));
+	purple_request_fields(login_connection(state)->prpl_conn,
 			      _("Amazon Login"), text,
 			      retry ? _("Authentication failed") : NULL,
 			      fields,
 			      _("Sign In"), G_CALLBACK(send_credentials),
 			      _("Cancel"), G_CALLBACK(chime_login_cancel_ui),
-			      chime_login_connection(state)->prpl_conn->account,
+			      login_connection(state)->prpl_conn->account,
 			      NULL, NULL, state);
 }
 
 void chime_login_amazon(SoupSession *session, SoupMessage *msg, gpointer data)
 {
-	struct chime_login_amzn *state;
+	struct login_amzn *state;
 
-	chime_login_fail_on_error(msg, data);
-	state = chime_login_extend_state(data, sizeof(struct chime_login_amzn),
+	login_fail_on_error(msg, data);
+	state = chime_login_extend_state(data, sizeof(struct login_amzn),
 					 (GDestroyNotify) clear_form);
 
-	state->params = chime_login_parse_form(msg, SIGN_IN_FORM, &state->form_method,
-					       &state->form_action, &state->email_name,
-					       &state->password_name);
-
-	if (!(state->params && state->email_name && state->password_name)) {
+	state->form = chime_login_parse_form(msg, SIGN_IN_FORM);
+	if (!(state->form && state->form->email_name && state->form->password_name)) {
 		chime_login_bad_response(state, _("Could not find Amazon login form"));
 		return;
 	}
 
-	g_hash_table_insert(state->params, g_strdup(state->email_name),
-			    g_strdup(chime_login_account_email(state)));
+	g_hash_table_insert(state->form->params, g_strdup(state->form->email_name),
+			    g_strdup(login_account_email(state)));
 	request_credentials(state, FALSE);
 }

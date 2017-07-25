@@ -20,16 +20,25 @@
 
 #include "chime.h"
 
-struct chime_login {
+struct login {
 	SoupSession *session;
 	ChimeConnection *connection;
 	GDestroyNotify release_sub;
 };
 
-gpointer chime_login_extend_state(gpointer data, gsize size, GDestroyNotify destroy);
-void chime_login_free_state(struct chime_login *state);
+struct login_form {
+	gchar *method;
+	gchar *action;
+	gchar *email_name;
+	gchar *password_name;
+	GHashTable *params;
+	GDestroyNotify release;
+};
 
-void chime_login_cancel_ui(struct chime_login *state, gpointer foo);
+gpointer chime_login_extend_state(gpointer data, gsize size, GDestroyNotify destroy);
+void chime_login_free_state(struct login *state);
+
+void chime_login_cancel_ui(struct login *state, gpointer foo);
 void chime_login_cancel_cb(SoupSession *session, SoupMessage *msg, gpointer data);
 void chime_login_token_cb(SoupSession *session, SoupMessage *msg, gpointer data);
 
@@ -40,27 +49,28 @@ void chime_login_bad_response(gpointer state, const gchar *fmt, ...);
 gchar *chime_login_parse_regex(SoupMessage *msg, const gchar *regex, guint group);
 gchar **chime_login_parse_xpaths(SoupMessage *msg, guint count, ...);
 GHashTable *chime_login_parse_json_object(SoupMessage *msg);
-GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
-				   gchar **method, gchar **action,
-				   gchar **email_name, gchar **password_name);
+struct login_form *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath);
 
 /* Each provider is implemented in a separate .c file */
 void chime_login_amazon(SoupSession *session, SoupMessage *msg, gpointer data);
 void chime_login_warpdrive(SoupSession *sessioin, SoupMessage *msg, gpointer data);
 
-#define chime_login_session(state)			\
-	(((struct chime_login *) (state))->session)
-#define chime_login_connection(state)			\
-	(((struct chime_login *) (state))->connection)
-#define chime_login_account_email(state)				\
-	(((struct chime_login *) (state))->connection->prpl_conn->account->username)
+#define login_session(state)			\
+	(((struct login *) (state))->session)
+#define login_connection(state)			\
+	(((struct login *) (state))->connection)
+#define login_account_email(state)				\
+	(((struct login *) (state))->connection->prpl_conn->account->username)
 
-#define chime_login_fail_on_error(msg, state)				\
+#define login_fail_on_error(msg, state)				\
 	do {								\
 		if (!SOUP_STATUS_IS_SUCCESSFUL((msg)->status_code)) {	\
 			chime_login_request_failed((state), G_STRLOC, (msg)); \
 			return;						\
 		}							\
 	} while (0)
+
+#define login_free_form(form)				\
+	g_clear_pointer(&(form), (form)->release)
 
 #endif  /* __CHIME_LOGIN_PRIVATE_H__ */

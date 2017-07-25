@@ -32,12 +32,12 @@ gpointer chime_login_extend_state(gpointer state, gsize size, GDestroyNotify des
 	gpointer new;
 
 	new = g_realloc(state, size);
-	memset((struct chime_login *) new + 1, 0, size - sizeof(struct chime_login));
-	((struct chime_login *) new)->release_sub = destroy;
+	memset((struct login *) new + 1, 0, size - sizeof(struct login));
+	((struct login *) new)->release_sub = destroy;
 	return new;
 }
 
-void chime_login_free_state(struct chime_login *state)
+void chime_login_free_state(struct login *state)
 {
 	g_return_if_fail(state != NULL);
 
@@ -50,7 +50,17 @@ void chime_login_free_state(struct chime_login *state)
 	g_free(state);
 }
 
-static void fail(struct chime_login *state, GError *error)
+static void free_form(struct login_form *form)
+{
+	g_free(form->method);
+	g_free(form->action);
+	g_free(form->email_name);
+	g_free(form->password_name);
+	g_hash_table_destroy(form->params);
+	g_free(form);
+}
+
+static void fail(struct login *state, GError *error)
 {
 	g_assert(error != NULL);
 	purple_debug_error("chime", "Login failure: %s", error->message);
@@ -59,7 +69,7 @@ static void fail(struct chime_login *state, GError *error)
 	chime_login_free_state(state);
 }
 
-void chime_login_cancel_ui(struct chime_login *state, gpointer foo)
+void chime_login_cancel_ui(struct login *state, gpointer foo)
 {
 	fail(state, g_error_new(CHIME_ERROR, CHIME_ERROR_AUTH_FAILED,
 				_("Authentication canceled by the user")));
@@ -274,27 +284,18 @@ GHashTable *chime_login_parse_json_object(SoupMessage *msg)
 	return result;
 }
 
-GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
-				   gchar **method, gchar **action,
-				   gchar **email_name, gchar **password_name)
+struct login_form *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath)
 {
-	GHashTable *params = NULL;
-	gchar *form_action;
+	gchar *action;
 	guint i, n;
+	struct login_form *form = NULL;
 	xmlDoc *html;
 	xmlNode **inputs;
 	xmlXPathContext *ctx;
 
-	g_return_val_if_fail(method != NULL && action != NULL, NULL);
-	*method = *action = NULL;
-	if (email_name)
-		*email_name = NULL;
-	if (password_name)
-		*password_name = NULL;
-
 	html = parse_html(msg);
 	if (!html)
-		return params;
+		return form;
 
 	ctx = xmlXPathNewContext(html);
 	if (!ctx) {
@@ -307,31 +308,30 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 		goto out;
 	}
 
-	*method = xpath_string(ctx, "%s/@method", form_xpath);
-	if (*method) {
-		for (i = 0;  (*method)[i] != '\0';  i++)
-			(*method)[i] = g_ascii_toupper((*method)[i]);
+	form = g_new0(struct login_form, 1);
+	form->release = (GDestroyNotify) free_form;
+
+	form->method = xpath_string(ctx, "%s/@method", form_xpath);
+	if (form->method) {
+		for (i = 0;  form->method[i] != '\0';  i++)
+			form->method[i] = g_ascii_toupper(form->method[i]);
 	} else {
-		*method = g_strdup(SOUP_METHOD_GET);
+		form->method = g_strdup(SOUP_METHOD_GET);
 	}
 
-	form_action = xpath_string(ctx, "%s/@action", form_xpath);
-	if (form_action) {
-		SoupURI *dst = soup_uri_new_with_base(soup_message_get_uri(msg), form_action);
-		*action = soup_uri_to_string(dst, FALSE);
+	action = xpath_string(ctx, "%s/@action", form_xpath);
+	if (action) {
+		SoupURI *dst = soup_uri_new_with_base(soup_message_get_uri(msg), action);
+		form->action = soup_uri_to_string(dst, FALSE);
 		soup_uri_free(dst);
 	} else {
-		*action = soup_uri_to_string(soup_message_get_uri(msg), FALSE);
+		form->action = soup_uri_to_string(soup_message_get_uri(msg), FALSE);
 	}
 
-	if (email_name)
-		*email_name = xpath_string(ctx, "%s//input[@type='email'][1]/@name",
-					   form_xpath);
-	if (password_name)
-		*password_name = xpath_string(ctx, "%s//input[@type='password'][1]/@name",
-					      form_xpath);
+	form->email_name = xpath_string(ctx, "%s//input[@type='email'][1]/@name", form_xpath);
+	form->password_name = xpath_string(ctx, "%s//input[@type='password'][1]/@name", form_xpath);
 
-	params = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+	form->params = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 	inputs = xpath_nodes(ctx, &n, "%s//input[@type='hidden']", form_xpath);
 	for (i = 0;  i < n;  i++) {
 		gchar *name, *value;
@@ -350,23 +350,23 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 		} else {
 			value = g_strdup("");
 		}
-		g_hash_table_insert(params, name, value);
+		g_hash_table_insert(form->params, name, value);
 	}
 
 	g_free(inputs);
-	g_free(form_action);
+	g_free(action);
  out:
 	xmlXPathFreeContext(ctx);
 	xmlFreeDoc(html);
-	return params;
+	return form;
 }
 
 void chime_login_token_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
 	gchar *token;
-	struct chime_login *state = data;
+	struct login *state = data;
 
-	chime_login_fail_on_error(msg, state);
+	login_fail_on_error(msg, state);
 
 	token = chime_login_parse_regex(msg, TOKEN_REGEX, 1);
 	if (!token) {
@@ -388,15 +388,15 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 	SoupSessionCallback handler;
 	SoupURI *destination;
 	gchar *type, *path;
-	struct chime_login *state = data;
+	struct login *state = data;
 
 	if (msg->status_code == 400) {
 		chime_login_bad_response(state, _("Invalid e-mail address <%s>"),
-					 chime_login_account_email(state));
+					 login_account_email(state));
 		return;
 	}
 
-	chime_login_fail_on_error(msg, state);
+	login_fail_on_error(msg, state);
 
 	provider_info = chime_login_parse_json_object(msg);
 	if (!provider_info) {
@@ -433,27 +433,24 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 
 static void signin_page_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
-	GHashTable *params;
 	SoupMessage *next;
-	gchar *method, *action, *email_name;
-	struct chime_login *state = data;
+	struct login *state = data;
+	struct login_form *form;
 
-	chime_login_fail_on_error(msg, state);
+	login_fail_on_error(msg, state);
 
-	params = chime_login_parse_form(msg, SEARCH_FORM, &method, &action, &email_name, NULL);
-	if (!(params && email_name)) {
+	form = chime_login_parse_form(msg, SEARCH_FORM);
+	if (!(form && form->email_name)) {
 		chime_login_bad_response(state, _("Could not find provider search form"));
 		goto out;
 	}
 
-	g_hash_table_insert(params, g_strdup(email_name), g_strdup(chime_login_account_email(state)));
-	next = soup_form_request_new_from_hash(method, action, params);
+	g_hash_table_insert(form->params, g_strdup(form->email_name),
+			    g_strdup(login_account_email(state)));
+	next = soup_form_request_new_from_hash(form->method, form->action, form->params);
 	soup_session_queue_message(session, next, signin_search_result_cb, state);
  out:
-	g_free(email_name);
-	g_free(action);
-	g_free(method);
-	g_hash_table_destroy(params);
+	login_free_form(form);
 }
 
 /*
@@ -467,11 +464,11 @@ void chime_initial_login(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv;
 	SoupMessage *msg;
-	struct chime_login *state;
+	struct login *state;
 
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 
-	state = g_new0(struct chime_login, 1);
+	state = g_new0(struct login, 1);
 	state->connection = g_object_ref(cxn);
 	state->session = soup_session_new_with_options(SOUP_SESSION_ADD_FEATURE_BY_TYPE,
 						       SOUP_TYPE_COOKIE_JAR, NULL);

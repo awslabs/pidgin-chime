@@ -26,14 +26,14 @@
 #define USER_FIELD  "username"
 #define PASS_FIELD  "password"
 
-#define discovery_failure(state, label)				  \
-	do {							  \
+#define discovery_failure(state, label)					\
+	do {								\
 		purple_debug_error("chime", "%s: %s", G_STRLOC, (label)); \
 		chime_login_bad_response((state), _("Error during corporate login setup")); \
 	} while (0)
 
-struct chime_login_wd {
-	struct chime_login b;  /* Base */
+struct login_wd {
+	struct login b;  /* Base */
 	gchar *directory;
 	gchar *client_id;
 	gchar *redirect_url;
@@ -46,9 +46,9 @@ struct chime_login_wd {
 };
 
 /* Break dependency loop */
-static void request_credentials(struct chime_login_wd *state, gboolean retry);
+static void request_credentials(struct login_wd *state, gboolean retry);
 
-static void free_wd_state(struct chime_login_wd *state)
+static void free_wd_state(struct login_wd *state)
 {
 	g_free(state->directory);
 	g_free(state->client_id);
@@ -80,7 +80,7 @@ static gchar *escape_backslash(const gchar *src)
  * https://docs.google.com/document/d/1eG0YocsYYbNAtivkLtcaiEE5IOF5u4LUol8-LL0TIKU
  * http://www.gdssecurity.com/l/b/page/2/
  */
-static SoupMessage *gwt_request(struct chime_login_wd *state,
+static SoupMessage *gwt_request(struct login_wd *state,
 				const gchar *interface,
 				const gchar *method,
 				guint field_count, ...)
@@ -231,9 +231,9 @@ static void gwt_auth_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 	gboolean ok;
 	gchar **response;
 	guint count;
-	struct chime_login_wd *state = data;
+	struct login_wd *state = data;
 
-	chime_login_fail_on_error(msg, state);
+	login_fail_on_error(msg, state);
 
 	response = parse_gwt(msg, &ok, &count);
 	if (!response) {
@@ -257,7 +257,7 @@ static void gwt_auth_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 	g_strfreev(response);
 }
 
-static void send_credentials(struct chime_login_wd *state, PurpleRequestFields *fields)
+static void send_credentials(struct login_wd *state, PurpleRequestFields *fields)
 {
 	SoupMessage *msg;
 	gchar *username, *password;
@@ -270,13 +270,13 @@ static void send_credentials(struct chime_login_wd *state, PurpleRequestFields *
 			  type, type, "", "", state->client_id, "", NULL,
 			  state->directory, password, "", username);
 
-	soup_session_queue_message(chime_login_session(state), msg, gwt_auth_cb, state);
+	soup_session_queue_message(login_session(state), msg, gwt_auth_cb, state);
 
 	g_free(password);
 	g_free(username);
 }
 
-static void request_credentials(struct chime_login_wd *state, gboolean retry)
+static void request_credentials(struct login_wd *state, gboolean retry)
 {
 	PurpleRequestField *username, *password;
 	PurpleRequestFieldGroup *group;
@@ -296,14 +296,14 @@ static void request_credentials(struct chime_login_wd *state, gboolean retry)
 
 	purple_request_fields_add_group(fields, group);
 
-	purple_request_fields(chime_login_connection(state)->prpl_conn,
+	purple_request_fields(login_connection(state)->prpl_conn,
 			      _("Corporate Login"),
 			      _("Please sign in with your corporate credentials"),
 			      retry ? _("Authentication failed") : NULL,
 			      fields,
 			      _("Sign In"), G_CALLBACK(send_credentials),
 			      _("Cancel"), G_CALLBACK(chime_login_cancel_ui),
-			      chime_login_connection(state)->prpl_conn->account,
+			      login_connection(state)->prpl_conn->account,
 			      NULL, NULL, state);
 }
 
@@ -312,9 +312,9 @@ static void gwt_region_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 	gboolean ok;
 	gchar **response;
 	guint count;
-	struct chime_login_wd *state = data;
+	struct login_wd *state = data;
 
-	chime_login_fail_on_error(msg, state);
+	login_fail_on_error(msg, state);
 
 	response = parse_gwt(msg, &ok, &count);
 	if (!response) {
@@ -341,9 +341,9 @@ static void gwt_policy_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
 	SoupMessage *next;
 	static const gchar *type = "com.amazonaws.warpdrive.console.shared.ValidateClientRequest_v2/2136236667";
-	struct chime_login_wd *state = data;
+	struct login_wd *state = data;
 
-	chime_login_fail_on_error(msg, state);
+	login_fail_on_error(msg, state);
 
 	state->gwt_policy = chime_login_parse_regex(msg, GWT_ID_REGEX, 1);
 	if (!state->gwt_policy) {
@@ -363,9 +363,9 @@ static void gwt_entry_point_cb(SoupSession *session, SoupMessage *msg, gpointer 
 	SoupMessage *next;
 	SoupURI *base, *destination;
 	gchar *policy_path;
-	struct chime_login_wd *state = data;
+	struct login_wd *state = data;
 
-	chime_login_fail_on_error(msg, state);
+	login_fail_on_error(msg, state);
 
 	state->gwt_permutation = chime_login_parse_regex(msg, GWT_ID_REGEX, 1);
 	if (!state->gwt_permutation) {
@@ -399,10 +399,10 @@ void chime_login_warpdrive(SoupSession *session, SoupMessage *msg, gpointer data
 	SoupMessage *next;
 	SoupURI *initial, *base;
 	gchar *sep, **gwt = NULL;
-	struct chime_login_wd *state;
+	struct login_wd *state;
 
-	chime_login_fail_on_error(msg, data);
-	state = chime_login_extend_state(data, sizeof(struct chime_login_wd),
+	login_fail_on_error(msg, data);
+	state = chime_login_extend_state(data, sizeof(struct login_wd),
 					 (GDestroyNotify) free_wd_state);
 
 	initial = soup_message_get_first_party(msg);

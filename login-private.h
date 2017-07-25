@@ -20,16 +20,16 @@
 
 #include "chime.h"
 
-typedef struct {
+struct chime_login {
 	SoupSession *session;
 	ChimeConnection *connection;
 	GDestroyNotify release_sub;
-} ChimeLogin;
+};
 
 gpointer chime_login_extend_state(gpointer data, gsize size, GDestroyNotify destroy);
-void chime_login_free_state(ChimeLogin *state);
+void chime_login_free_state(struct chime_login *state);
 
-void chime_login_cancel_ui(ChimeLogin *state, gpointer foo);
+void chime_login_cancel_ui(struct chime_login *state, gpointer foo);
 void chime_login_cancel_cb(SoupSession *session, SoupMessage *msg, gpointer data);
 void chime_login_token_cb(SoupSession *session, SoupMessage *msg, gpointer data);
 
@@ -48,10 +48,12 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 void chime_login_amazon(SoupSession *session, SoupMessage *msg, gpointer data);
 void chime_login_warpdrive(SoupSession *sessioin, SoupMessage *msg, gpointer data);
 
-#define chime_login_session(state)  (((ChimeLogin *) (state))->session)
-#define chime_login_connection(state)  (((ChimeLogin *) (state))->connection)
+#define chime_login_session(state)			\
+	(((struct chime_login *) (state))->session)
+#define chime_login_connection(state)			\
+	(((struct chime_login *) (state))->connection)
 #define chime_login_account_email(state)				\
-	(((ChimeLogin *) (state))->connection->prpl_conn->account->username)
+	(((struct chime_login *) (state))->connection->prpl_conn->account->username)
 
 #define chime_login_fail_on_error(msg, state)				\
 	do {								\

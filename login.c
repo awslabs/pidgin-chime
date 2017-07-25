@@ -32,12 +32,12 @@ gpointer chime_login_extend_state(gpointer state, gsize size, GDestroyNotify des
 	gpointer new;
 
 	new = g_realloc(state, size);
-	memset((ChimeLogin *) new + 1, 0, size - sizeof(ChimeLogin));
-	((ChimeLogin *) new)->release_sub = destroy;
+	memset((struct chime_login *) new + 1, 0, size - sizeof(struct chime_login));
+	((struct chime_login *) new)->release_sub = destroy;
 	return new;
 }
 
-void chime_login_free_state(ChimeLogin *state)
+void chime_login_free_state(struct chime_login *state)
 {
 	g_return_if_fail(state != NULL);
 
@@ -50,7 +50,7 @@ void chime_login_free_state(ChimeLogin *state)
 	g_free(state);
 }
 
-static void fail(ChimeLogin *state, GError *error)
+static void fail(struct chime_login *state, GError *error)
 {
 	g_assert(error != NULL);
 	purple_debug_error("chime", "Login failure: %s", error->message);
@@ -59,7 +59,7 @@ static void fail(ChimeLogin *state, GError *error)
 	chime_login_free_state(state);
 }
 
-void chime_login_cancel_ui(ChimeLogin *state, gpointer foo)
+void chime_login_cancel_ui(struct chime_login *state, gpointer foo)
 {
 	fail(state, g_error_new(CHIME_ERROR, CHIME_ERROR_AUTH_FAILED,
 				_("Authentication canceled by the user")));
@@ -229,13 +229,13 @@ gchar **chime_login_parse_xpaths(SoupMessage *msg, guint count, ...)
 
 GHashTable *chime_login_parse_json_object(SoupMessage *msg)
 {
-	const gchar *ctype;
 	GError *error = NULL;
 	GHashTable *result = NULL;
 	GList *members, *member;
 	JsonNode *node;
 	JsonObject *object;
 	JsonParser *parser;
+	const gchar *ctype;
 
 	ctype = soup_message_headers_get_content_type(msg->response_headers, NULL);
 	if (g_strcmp0(ctype, "application/json") || !msg->response_body ||
@@ -363,8 +363,8 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 
 void chime_login_token_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
-	ChimeLogin *state = data;
 	gchar *token;
+	struct chime_login *state = data;
 
 	chime_login_fail_on_error(msg, state);
 
@@ -383,12 +383,12 @@ void chime_login_token_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 
 static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
-	ChimeLogin *state = data;
 	GHashTable *provider_info;
 	SoupMessage *next;
 	SoupSessionCallback handler;
 	SoupURI *destination;
 	gchar *type, *path;
+	struct chime_login *state = data;
 
 	if (msg->status_code == 400) {
 		chime_login_bad_response(state, _("Invalid e-mail address <%s>"),
@@ -433,10 +433,10 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 
 static void signin_page_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
-	ChimeLogin *state = data;
 	GHashTable *params;
 	SoupMessage *next;
 	gchar *method, *action, *email_name;
+	struct chime_login *state = data;
 
 	chime_login_fail_on_error(msg, state);
 
@@ -466,12 +466,12 @@ static void signin_page_cb(SoupSession *session, SoupMessage *msg, gpointer data
 void chime_initial_login(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv;
-	ChimeLogin *state;
 	SoupMessage *msg;
+	struct chime_login *state;
 
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 
-	state = g_new0(ChimeLogin, 1);
+	state = g_new0(struct chime_login, 1);
 	state->connection = g_object_ref(cxn);
 	state->session = soup_session_new_with_options(SOUP_SESSION_ADD_FEATURE_BY_TYPE,
 						       SOUP_TYPE_COOKIE_JAR, NULL);

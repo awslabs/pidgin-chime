@@ -24,19 +24,19 @@
 #define CONSENT_FORM  "//form[@name='consent-form']"
 #define PASS_FIELD  "password"
 
-typedef struct {
-	ChimeLogin b;  /* Base */
+struct chime_login_amzn {
+	struct chime_login b;  /* Base */
 	gchar *form_method;
 	gchar *form_action;
 	gchar *email_name;
 	gchar *password_name;
 	GHashTable *params;
-} ChimeLoginAmzn;
+};
 
 /* Break dependency loop */
-static void request_credentials(ChimeLoginAmzn *state, gboolean retry);
+static void request_credentials(struct chime_login_amzn *state, gboolean retry);
 
-static void clear_form(ChimeLoginAmzn *state)
+static void clear_form(struct chime_login_amzn *state)
 {
 	g_clear_pointer(&state->form_method, g_free);
 	g_clear_pointer(&state->form_action, g_free);
@@ -45,11 +45,11 @@ static void clear_form(ChimeLoginAmzn *state)
 	g_clear_pointer(&state->params, g_hash_table_destroy);
 }
 
-static void send_consent(ChimeLoginAmzn *state, gint choice)
+static void send_consent(struct chime_login_amzn *state, gint choice)
 {
-	const gchar *action;
 	SoupMessage *msg;
 	SoupSessionCallback handler;
+	const gchar *action;
 
 	if (choice == 1) {
 		action = "consentApproved";
@@ -66,7 +66,7 @@ static void send_consent(ChimeLoginAmzn *state, gint choice)
 	clear_form(state);
 }
 
-static void request_consent(ChimeLoginAmzn *state)
+static void request_consent(struct chime_login_amzn *state)
 {
 	gchar *text;
 
@@ -82,7 +82,7 @@ static void request_consent(ChimeLoginAmzn *state)
 
 static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
-	ChimeLoginAmzn *state = data;
+	struct chime_login_amzn *state = data;
 
 	chime_login_fail_on_error(msg, state);
 
@@ -111,10 +111,10 @@ static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer dat
 	chime_login_token_cb(session, msg, state);
 }
 
-static void send_credentials(ChimeLoginAmzn *state, PurpleRequestFields *fields)
+static void send_credentials(struct chime_login_amzn *state, PurpleRequestFields *fields)
 {
-	const gchar *password;
 	SoupMessage *msg;
+	const gchar *password;
 
 	password = purple_request_fields_get_string(fields, PASS_FIELD);
 	g_hash_table_insert(state->params, g_strdup(state->password_name), g_strdup(password));
@@ -125,7 +125,7 @@ static void send_credentials(ChimeLoginAmzn *state, PurpleRequestFields *fields)
 	clear_form(state);
 }
 
-static void request_credentials(ChimeLoginAmzn *state, gboolean retry)
+static void request_credentials(struct chime_login_amzn *state, gboolean retry)
 {
 	PurpleRequestField *password;
 	PurpleRequestFieldGroup *group;
@@ -155,10 +155,10 @@ static void request_credentials(ChimeLoginAmzn *state, gboolean retry)
 
 void chime_login_amazon(SoupSession *session, SoupMessage *msg, gpointer data)
 {
-	ChimeLoginAmzn *state;
+	struct chime_login_amzn *state;
 
 	chime_login_fail_on_error(msg, data);
-	state = chime_login_extend_state(data, sizeof(ChimeLoginAmzn),
+	state = chime_login_extend_state(data, sizeof(struct chime_login_amzn),
 					 (GDestroyNotify) clear_form);
 
 	state->params = chime_login_parse_form(msg, SIGN_IN_FORM, &state->form_method,

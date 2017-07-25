@@ -81,6 +81,9 @@ static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer dat
 
 	login_fail_on_error(msg, state);
 
+	/* Here the same HTML document is parsed several times, but this is
+	   better than having a more complicated private API for the sake of
+	   reducing CPU usage */
 	state->form = chime_login_parse_form(msg, CONSENT_FORM);
 	if (state->form) {
 		request_consent(state);
@@ -89,11 +92,11 @@ static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer dat
 
 	state->form = chime_login_parse_form(msg, SIGN_IN_FORM);
 	if (state->form) {
-		/* Authentication failed */
 		if (!(state->form->email_name && state->form->password_name)) {
 			chime_login_bad_response(state, _("Could not find Amazon login form"));
 			return;
 		}
+		/* Authentication failed */
 		g_hash_table_insert(state->form->params,
 				    g_strdup(state->form->email_name),
 				    g_strdup(login_account_email(state)));
@@ -138,7 +141,7 @@ static void request_credentials(struct login_amzn *state, gboolean retry)
 	purple_request_field_group_add_field(group, password);
 
 	purple_request_fields_add_group(fields, group);
-	text = g_strdup_printf(_("Please enter the password for %s"),
+	text = g_strdup_printf(_("Please enter the password for <%s>"),
 			       login_account_email(state));
 	purple_request_fields(login_connection(state)->prpl_conn,
 			      _("Amazon Login"), text,

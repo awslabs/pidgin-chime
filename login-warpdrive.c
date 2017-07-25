@@ -22,7 +22,9 @@
 #include "login-private.h"
 
 #define WARPDRIVE_INTERFACE  "com.amazonaws.warpdrive.console.client.GalaxyInternalGWTService"
+#define GWT_BOOTSTRAP  "//script[contains(@src, '/WarpDriveLogin/')][1]/@src"
 #define GWT_ID_REGEX  "['\"]([A-Z0-9]{30,35})['\"]"
+#define GWT_RPC_PATH  "WarpDriveLogin/GalaxyInternalService"
 #define USER_FIELD  "username"
 #define PASS_FIELD  "password"
 
@@ -422,9 +424,9 @@ void chime_login_warpdrive(SoupSession *session, SoupMessage *msg, gpointer data
 		discovery_failure(state, "client ID or callback missing");
 		goto out;
 	}
-	state->gwt_rpc_uri = soup_uri_new_with_base(base, "WarpDriveLogin/GalaxyInternalService");
+	state->gwt_rpc_uri = soup_uri_new_with_base(base, GWT_RPC_PATH);
 
-	gwt = chime_login_parse_xpaths(msg, 1, "//script[contains(@src, '/WarpDriveLogin/')][1]/@src");
+	gwt = chime_login_parse_xpaths(msg, 1, GWT_BOOTSTRAP);
 	if (!(gwt && gwt[0])) {
 		discovery_failure(state, "JS bootstrap URL not found");
 		goto out;

@@ -316,12 +316,12 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 	}
 
 	form_action = xpath_string(ctx, "%s/@action", form_xpath);
-	if (!form_action) {
-		*action = soup_uri_to_string(soup_message_get_uri(msg), FALSE);
-	} else {
+	if (form_action) {
 		SoupURI *dst = soup_uri_new_with_base(soup_message_get_uri(msg), form_action);
 		*action = soup_uri_to_string(dst, FALSE);
 		soup_uri_free(dst);
+	} else {
+		*action = soup_uri_to_string(soup_message_get_uri(msg), FALSE);
 	}
 
 	if (email_name)

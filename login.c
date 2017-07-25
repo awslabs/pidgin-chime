@@ -41,7 +41,7 @@ void chime_login_free_state(ChimeLogin *state)
 {
 	g_return_if_fail(state != NULL);
 
-	if (state->release_sub != NULL)
+	if (state->release_sub)
 		state->release_sub(state);
 
 	soup_session_abort(state->session);
@@ -98,8 +98,8 @@ static gboolean xpath_exists(xmlXPathContext *ctx, const gchar *fmt, ...)
 	expression = g_strdup_vprintf(fmt, args);
 	va_end(args);
 	results = xmlXPathEval(BAD_CAST expression, ctx);
-	found = results != NULL && results->type == XPATH_NODESET &&
-		results->nodesetval != NULL && results->nodesetval->nodeNr > 0;
+	found = results && results->type == XPATH_NODESET &&
+		results->nodesetval && results->nodesetval->nodeNr > 0;
 	xmlXPathFreeObject(results);
 	g_free(expression);
 	return found;
@@ -116,8 +116,7 @@ static xmlNode **xpath_nodes(xmlXPathContext *ctx, guint *count, const gchar *fm
 	expression = g_strdup_vprintf(fmt, args);
 	va_end(args);
 	results = xmlXPathEval(BAD_CAST expression, ctx);
-	if (results != NULL && results->type == XPATH_NODESET &&
-	    results->nodesetval != NULL) {
+	if (results && results->type == XPATH_NODESET && results->nodesetval) {
 		*count = (guint) results->nodesetval->nodeNr;
 		nodes = g_memdup(results->nodesetval->nodeTab,
 				 results->nodesetval->nodeNr * sizeof(xmlNode *));
@@ -141,7 +140,7 @@ static gchar *xpath_string(xmlXPathContext *ctx, const gchar *fmt, ...)
 	va_end(args);
 	wrapped = g_strdup_printf("string(%s)", expression);
 	results = xmlXPathEval(BAD_CAST wrapped, ctx);
-	if (results != NULL && results->type == XPATH_STRING)
+	if (results && results->type == XPATH_STRING)
 		value = g_strdup((gchar *) results->stringval);
 	xmlXPathFreeObject(results);
 	g_free(wrapped);
@@ -158,7 +157,7 @@ static xmlDoc *parse_html(SoupMessage *msg)
 	xmlDoc *document = NULL;
 
 	ctype = soup_message_headers_get_content_type(msg->response_headers, &params);
-	if (g_strcmp0(ctype, "text/html") != 0 || !msg->response_body ||
+	if (g_strcmp0(ctype, "text/html") || !msg->response_body ||
 	    msg->response_body->length <= 0) {
 		purple_debug_error("chime", "Empty HTML response or unexpected content %s", ctype);
 		goto out;
@@ -207,11 +206,11 @@ gchar **chime_login_parse_xpaths(SoupMessage *msg, guint count, ...)
 	xmlXPathContext *ctx;
 
 	html = parse_html(msg);
-	if (html == NULL)
+	if (!html)
 		return values;
 
 	ctx = xmlXPathNewContext(html);
-	if (ctx == NULL) {
+	if (!ctx) {
 		purple_debug_error("chime", "Failed to create XPath context to parse form");
 		goto out;
 	}
@@ -239,7 +238,7 @@ GHashTable *chime_login_parse_json_object(SoupMessage *msg)
 	JsonParser *parser;
 
 	ctype = soup_message_headers_get_content_type(msg->response_headers, NULL);
-	if (g_strcmp0(ctype, "application/json") != 0 || !msg->response_body ||
+	if (g_strcmp0(ctype, "application/json") || !msg->response_body ||
 	    msg->response_body->length <= 0) {
 		purple_debug_error("chime", "Empty JSON response or unexpected content %s", ctype);
 		return result;
@@ -288,17 +287,17 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 
 	g_return_val_if_fail(method != NULL && action != NULL, NULL);
 	*method = *action = NULL;
-	if (email_name != NULL)
+	if (email_name)
 		*email_name = NULL;
-	if (password_name != NULL)
+	if (password_name)
 		*password_name = NULL;
 
 	html = parse_html(msg);
-	if (html == NULL)
+	if (!html)
 		return params;
 
 	ctx = xmlXPathNewContext(html);
-	if (ctx == NULL) {
+	if (!ctx) {
 		purple_debug_error("chime", "Failed to create XPath context to parse form");
 		goto out;
 	}
@@ -309,15 +308,15 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 	}
 
 	*method = xpath_string(ctx, "%s/@method", form_xpath);
-	if (*method == NULL) {
-		*method = g_strdup(SOUP_METHOD_GET);
-	} else {
+	if (*method) {
 		for (i = 0;  (*method)[i] != '\0';  i++)
 			(*method)[i] = g_ascii_toupper((*method)[i]);
+	} else {
+		*method = g_strdup(SOUP_METHOD_GET);
 	}
 
 	form_action = xpath_string(ctx, "%s/@action", form_xpath);
-	if (form_action == NULL) {
+	if (!form_action) {
 		*action = soup_uri_to_string(soup_message_get_uri(msg), FALSE);
 	} else {
 		SoupURI *dst = soup_uri_new_with_base(soup_message_get_uri(msg), form_action);
@@ -325,10 +324,10 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 		soup_uri_free(dst);
 	}
 
-	if (email_name != NULL)
+	if (email_name)
 		*email_name = xpath_string(ctx, "%s//input[@type='email'][1]/@name",
 					   form_xpath);
-	if (password_name != NULL)
+	if (password_name)
 		*password_name = xpath_string(ctx, "%s//input[@type='password'][1]/@name",
 					      form_xpath);
 
@@ -338,13 +337,13 @@ GHashTable *chime_login_parse_form(SoupMessage *msg, const gchar *form_xpath,
 		gchar *name, *value;
 		xmlChar *text;
 		xmlAttr *attribute = xmlHasProp(inputs[i], BAD_CAST "name");
-		if (attribute == NULL)
+		if (!attribute)
 			continue;
 		text = xmlNodeGetContent((xmlNode *) attribute);
 		name = g_strdup((gchar *) text);  /* Avoid mixing allocators */
 		xmlFree(text);
 		attribute = xmlHasProp(inputs[i], BAD_CAST "value");
-		if (attribute != NULL) {
+		if (attribute) {
 			text = xmlNodeGetContent((xmlNode *) attribute);
 			value = g_strdup((gchar *) text);
 			xmlFree(text);
@@ -370,7 +369,7 @@ void chime_login_token_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 	chime_login_fail_on_error(msg, state);
 
 	token = chime_login_parse_regex(msg, TOKEN_REGEX, 1);
-	if (token == NULL) {
+	if (!token) {
 		purple_debug_error("chime", "Could not find session token in final login response");
 		chime_login_bad_response(state, _("Unable to retrieve session token"));
 		return;
@@ -400,7 +399,7 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 	chime_login_fail_on_error(msg, state);
 
 	provider_info = chime_login_parse_json_object(msg);
-	if (provider_info == NULL) {
+	if (!provider_info) {
 		chime_login_bad_response(state, _("Error parsing provider JSON"));
 		return;
 	}
@@ -417,7 +416,7 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 	}
 
 	path = g_hash_table_lookup(provider_info, "path");
-	if (path == NULL) {
+	if (!path) {
 		purple_debug_error("chime", "Server did not provide a path");
 		chime_login_bad_response(state, _("Incomplete provider response"));
 		goto out;
@@ -442,7 +441,7 @@ static void signin_page_cb(SoupSession *session, SoupMessage *msg, gpointer data
 	chime_login_fail_on_error(msg, state);
 
 	params = chime_login_parse_form(msg, SEARCH_FORM, &method, &action, &email_name, NULL);
-	if (params == NULL || email_name == NULL) {
+	if (!(params && email_name)) {
 		chime_login_bad_response(state, _("Could not find provider search form"));
 		goto out;
 	}

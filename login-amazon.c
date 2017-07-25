@@ -88,7 +88,7 @@ static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer dat
 
 	state->params = chime_login_parse_form(msg, CONSENT_FORM, &state->form_method,
 					       &state->form_action, NULL, NULL);
-	if (state->params != NULL) {
+	if (state->params) {
 		request_consent(state);
 		return;
 	}
@@ -96,9 +96,9 @@ static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer dat
 	state->params = chime_login_parse_form(msg, SIGN_IN_FORM, &state->form_method,
 					       &state->form_action, &state->email_name,
 					       &state->password_name);
-	if (state->params != NULL) {
+	if (state->params) {
 		/* Authentication failed */
-		if (state->email_name == NULL || state->password_name == NULL) {
+		if (!(state->email_name && state->password_name)) {
 			chime_login_bad_response(state, _("Could not find Amazon login form"));
 			return;
 		}
@@ -165,8 +165,7 @@ void chime_login_amazon(SoupSession *session, SoupMessage *msg, gpointer data)
 					       &state->form_action, &state->email_name,
 					       &state->password_name);
 
-	if (state->params == NULL || state->email_name == NULL ||
-	    state->password_name == NULL) {
+	if (!(state->params && state->email_name && state->password_name)) {
 		chime_login_bad_response(state, _("Could not find Amazon login form"));
 		return;
 	}

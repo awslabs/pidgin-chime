@@ -102,7 +102,7 @@ static SoupMessage *gwt_request(ChimeLoginWd *state,
 	va_start(fields, field_count);
 	for (i = 0;  i < field_count;  i++) {
 		gchar *field = va_arg(fields, gchar *);
-		if (field != NULL && !g_hash_table_contains(strings, field))
+		if (field && !g_hash_table_contains(strings, field))
 			g_hash_table_insert(strings, field, (gpointer) ++sc);
 	}
 	va_end(fields);
@@ -129,7 +129,7 @@ static SoupMessage *gwt_request(ChimeLoginWd *state,
 	va_start(fields, field_count);
 	for (i = 0;  i < field_count;  i++) {
 		gchar *field = va_arg(fields, gchar *);
-		if (field != NULL)
+		if (field)
 			g_string_append_printf(body, "%lu|", (gulong)
 					       g_hash_table_lookup(strings, field));
 		else
@@ -236,7 +236,7 @@ static void gwt_auth_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 	chime_login_fail_on_error(msg, state);
 
 	response = parse_gwt(msg, &ok, &count);
-	if (response == NULL) {
+	if (!response) {
 		purple_debug_error("chime", "NULL parsed GWT response during auth");
 		chime_login_bad_response(state, _("Unexpected authentication failure"));
 		return;
@@ -317,7 +317,7 @@ static void gwt_region_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 	chime_login_fail_on_error(msg, state);
 
 	response = parse_gwt(msg, &ok, &count);
-	if (response == NULL) {
+	if (!response) {
 		discovery_failure(state, "region response parsed NULL");
 		return;
 	}
@@ -327,7 +327,7 @@ static void gwt_region_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 	}
 
 	state->region = g_strdup(response[count - 1]);
-	if (state->region == NULL) {
+	if (!state->region) {
 		discovery_failure(state, "NULL region value");
 		goto out;
 	}
@@ -346,7 +346,7 @@ static void gwt_policy_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 	chime_login_fail_on_error(msg, state);
 
 	state->gwt_policy = chime_login_parse_regex(msg, GWT_ID_REGEX, 1);
-	if (state->gwt_policy == NULL) {
+	if (!state->gwt_policy) {
 		discovery_failure(state, "no GWT policy found");
 		return;
 	}
@@ -368,7 +368,7 @@ static void gwt_entry_point_cb(SoupSession *session, SoupMessage *msg, gpointer 
 	chime_login_fail_on_error(msg, state);
 
 	state->gwt_permutation = chime_login_parse_regex(msg, GWT_ID_REGEX, 1);
-	if (state->gwt_permutation == NULL) {
+	if (!state->gwt_permutation) {
 		discovery_failure(state, "no GWT permutation found");
 		return;
 	}
@@ -408,7 +408,7 @@ void chime_login_warpdrive(SoupSession *session, SoupMessage *msg, gpointer data
 	initial = soup_message_get_first_party(msg);
 	params = soup_form_decode(soup_uri_get_query(initial));
 	state->directory = g_strdup(g_hash_table_lookup(params, "directory"));
-	if (state->directory == NULL) {
+	if (!state->directory) {
 		discovery_failure(state, "directory identifier not found");
 		goto out;
 	}
@@ -418,14 +418,14 @@ void chime_login_warpdrive(SoupSession *session, SoupMessage *msg, gpointer data
 	params = soup_form_decode(soup_uri_get_query(base));
 	state->client_id = g_strdup(g_hash_table_lookup(params, "client_id"));
 	state->redirect_url = g_strdup(g_hash_table_lookup(params, "redirect_uri"));
-	if (state->client_id == NULL || state->redirect_url == NULL) {
+	if (!(state->client_id && state->redirect_url)) {
 		discovery_failure(state, "client ID or callback missing");
 		goto out;
 	}
 	state->gwt_rpc_uri = soup_uri_new_with_base(base, "WarpDriveLogin/GalaxyInternalService");
 
 	gwt = chime_login_parse_xpaths(msg, 1, "//script[contains(@src, '/WarpDriveLogin/')][1]/@src");
-	if (gwt == NULL || gwt[0] == NULL) {
+	if (!(gwt && gwt[0])) {
 		discovery_failure(state, "JS bootstrap URL not found");
 		goto out;
 	}

@@ -605,7 +605,7 @@ chime_connection_set_session_token(ChimeConnection *self,
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
 
-	if (g_strcmp0(priv->session_token, sess_tok) != 0) {
+	if (!g_strcmp0(priv->session_token, sess_tok)) {
 		g_free(priv->session_token);
 		priv->session_token = g_strdup(sess_tok);
 		g_object_notify_by_pspec(G_OBJECT(self), props[PROP_SESSION_TOKEN]);

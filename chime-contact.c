@@ -26,48 +26,52 @@
 enum
 {
 	PROP_0,
-	PROP_PROFILE_ID,
 	PROP_PROFILE_CHANNEL,
 	PROP_PRESENCE_CHANNEL,
-	PROP_EMAIL,
 	PROP_FULL_NAME,
 	PROP_DISPLAY_NAME,
 	PROP_AVAILABILITY,
-	PROP_CONTACTS_LIST,
 	LAST_PROP,
 };
 
 static GParamSpec *props[LAST_PROP];
 
 struct _ChimeContact {
-	GObject parent_instance;
+	ChimeObject parent_instance;
 
-	gchar *profile_id;
+	ChimeConnection *cxn; /* For unsubscribing from jugg channels */
+
 	gchar *presence_channel;
 	gchar *profile_channel;
-	gchar *email;
 	gchar *full_name;
 	gchar *display_name;
 
 	ChimeAvailability availability;
 	gint64 avail_revision;
-
-	/* Is this contact from contacts list (as opposed to a conversation)? */
-	gboolean contacts_list;
-	gint64 contacts_generation;
 };
 
-G_DEFINE_TYPE(ChimeContact, chime_contact, G_TYPE_OBJECT)
+G_DEFINE_TYPE(ChimeContact, chime_contact, CHIME_TYPE_OBJECT)
+
+static void unsubscribe_contact(gpointer key, gpointer val, gpointer data);
+
+static void
+chime_contact_dispose(GObject *object)
+{
+	ChimeContact *self = CHIME_CONTACT(object);
+
+	unsubscribe_contact(NULL, self, NULL);
+	printf("Contact disposed: %p\n", self);
+
+	G_OBJECT_CLASS(chime_contact_parent_class)->dispose(object);
+}
 
 static void
 chime_contact_finalize(GObject *object)
 {
 	ChimeContact *self = CHIME_CONTACT(object);
 
-	g_free(self->profile_id);
 	g_free(self->presence_channel);
 	g_free(self->profile_channel);
-	g_free(self->email);
 	g_free(self->full_name);
 	g_free(self->display_name);
 
@@ -85,17 +89,11 @@ static void chime_contact_get_property(GObject *object, guint prop_id,
 	ChimeContact *self = CHIME_CONTACT(object);
 
 	switch (prop_id) {
-	case PROP_PROFILE_ID:
-		g_value_set_string(value, self->profile_id);
-		break;
 	case PROP_PROFILE_CHANNEL:
 		g_value_set_string(value, self->profile_channel);
 		break;
 	case PROP_PRESENCE_CHANNEL:
 		g_value_set_string(value, self->presence_channel);
-		break;
-	case PROP_EMAIL:
-		g_value_set_string(value, self->email);
 		break;
 	case PROP_FULL_NAME:
 		g_value_set_string(value, self->full_name);
@@ -105,9 +103,6 @@ static void chime_contact_get_property(GObject *object, guint prop_id,
 		break;
 	case PROP_AVAILABILITY:
 		g_value_set_int(value, self->availability);
-		break;
-	case PROP_CONTACTS_LIST:
-		g_value_set_boolean(value, self->contacts_list);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -121,10 +116,6 @@ static void chime_contact_set_property(GObject *object, guint prop_id,
 	ChimeContact *self = CHIME_CONTACT(object);
 
 	switch (prop_id) {
-	case PROP_PROFILE_ID:
-		g_free(self->profile_id);
-		self->profile_id = g_value_dup_string(value);
-		break;
 	case PROP_PROFILE_CHANNEL:
 		g_free(self->profile_channel);
 		self->profile_channel = g_value_dup_string(value);
@@ -132,10 +123,6 @@ static void chime_contact_set_property(GObject *object, guint prop_id,
 	case PROP_PRESENCE_CHANNEL:
 		g_free(self->presence_channel);
 		self->presence_channel = g_value_dup_string(value);
-		break;
-	case PROP_EMAIL:
-		g_free(self->email);
-		self->email = g_value_dup_string(value);
 		break;
 	case PROP_FULL_NAME:
 		g_free(self->full_name);
@@ -148,9 +135,6 @@ static void chime_contact_set_property(GObject *object, guint prop_id,
 	case PROP_AVAILABILITY:
 		self->availability = g_value_get_int(value);
 		break;
-	case PROP_CONTACTS_LIST:
-		self->contacts_list = g_value_get_boolean(value);
-		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
 		break;
@@ -162,17 +146,9 @@ static void chime_contact_class_init(ChimeContactClass *klass)
 	GObjectClass *object_class = G_OBJECT_CLASS(klass);
 
 	object_class->finalize = chime_contact_finalize;
+	object_class->finalize = chime_contact_dispose;
 	object_class->get_property = chime_contact_get_property;
 	object_class->set_property = chime_contact_set_property;
-
-	props[PROP_PROFILE_ID] =
-		g_param_spec_string("profile-id",
-				    "profile id",
-				    "profile id",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
 
 	props[PROP_PROFILE_CHANNEL] =
 		g_param_spec_string("profile-channel",
@@ -190,15 +166,6 @@ static void chime_contact_class_init(ChimeContactClass *klass)
 				    NULL,
 				    G_PARAM_READWRITE |
 				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
-
-	props[PROP_EMAIL] =
-		g_param_spec_string("email",
-				    "email",
-				    "email",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT |
 				    G_PARAM_STATIC_STRINGS);
 
 	props[PROP_FULL_NAME] =
@@ -229,15 +196,6 @@ static void chime_contact_class_init(ChimeContactClass *klass)
 				 G_PARAM_CONSTRUCT |
 				 G_PARAM_STATIC_STRINGS);
 
-	props[PROP_CONTACTS_LIST] =
-		g_param_spec_boolean("contacts-list",
-				     "contacts list",
-				     "contacts list",
-				     FALSE,
-				     G_PARAM_READWRITE |
-				     G_PARAM_CONSTRUCT |
-				     G_PARAM_STATIC_STRINGS);
-
 	g_object_class_install_properties(object_class, LAST_PROP, props);
 }
 
@@ -249,14 +207,14 @@ const gchar *chime_contact_get_profile_id(ChimeContact *contact)
 {
 	g_return_val_if_fail(CHIME_IS_CONTACT(contact), NULL);
 
-	return contact->profile_id;
+	return contact->parent_instance.id;
 }
 
 const gchar *chime_contact_get_email(ChimeContact *contact)
 {
 	g_return_val_if_fail(CHIME_IS_CONTACT(contact), NULL);
 
-	return contact->email;
+	return contact->parent_instance.name;
 }
 
 const gchar *chime_contact_get_full_name(ChimeContact *contact)
@@ -284,13 +242,15 @@ gboolean chime_contact_get_contacts_list(ChimeContact *contact)
 {
 	g_return_val_if_fail(CHIME_IS_CONTACT(contact), FALSE);
 
-	return contact->contacts_list;
+	return !contact->parent_instance.is_dead;
 }
 
 static void
 subscribe_contact(ChimeConnection *cxn, ChimeContact *contact)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
+
+	contact->cxn = cxn;
 
 	chime_jugg_subscribe(cxn, contact->presence_channel, "Presence",
 			     contact_presence_jugg_cb, contact);
@@ -315,40 +275,37 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 					    GError **error)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
-	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_id, id);
+	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_id, id);
 
 	if (!contact) {
 		contact = g_object_new(CHIME_TYPE_CONTACT,
-				       "email", email,
-				       "profile-id", id,
+				       "name", email,
+				       "id", id,
 				       "presence-channel", presence_channel,
 				       "full-name", full_name,
 				       "display-name", display_name,
 				       "profile-channel", profile_channel,
-				       "contacts-list", is_contact,
 				       NULL);
 
 		subscribe_contact(cxn, contact);
 
-		g_hash_table_insert(priv->contacts_by_id, contact->profile_id, contact);
-		g_hash_table_insert(priv->contacts_by_email, contact->email, contact);
+		/* If it's not being hashed, keep it because our caller owns it */
+		if (!is_contact)
+			g_object_ref(contact);
+		chime_object_collection_hash_object(&priv->contacts, CHIME_OBJECT(contact), is_contact);
 
-		/* Emit signal on ChimeConnection to admit existence of new contact */
 		chime_connection_new_contact(cxn, contact);
 
 		return contact;
 	}
 
-	if (email && g_strcmp0(email, contact->email)) {
-		g_hash_table_remove(priv->contacts_by_email, contact->email);
-		g_free(contact->email);
-		contact->email = g_strdup(email);
-		g_hash_table_insert(priv->contacts_by_email, contact->email, contact);
-		g_object_notify(G_OBJECT(contact), "email");
+	/* This should never happen? */
+	if (email && g_strcmp0(email, contact->parent_instance.name)) {
+		chime_object_rename(CHIME_OBJECT(contact), email);
 	}
 	if (full_name && g_strcmp0(full_name, contact->full_name)) {
 		g_free(contact->full_name);
-		contact->email = g_strdup(full_name);
+		contact->full_name = g_strdup(full_name);
 		g_object_notify(G_OBJECT(contact), "full-name");
 	}
 	if (display_name && g_strcmp0(display_name, contact->display_name)) {
@@ -356,15 +313,14 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 		contact->display_name = g_strdup(display_name);
 		g_object_notify(G_OBJECT(contact), "display-name");
 	}
-	if (is_contact && !contact->contacts_list) {
-		contact->contacts_list = is_contact;
-		g_object_notify(G_OBJECT(contact), "contacts-list");
-	}
+	if (is_contact && contact->parent_instance.is_dead)
+		chime_object_collection_hash_object(&priv->contacts, CHIME_OBJECT(contact), TRUE);
 
 	return contact;
 }
 
-
+/* Returns a ChimeContact which is in the contacts list, and
+ * caller does not own a ref on it. */
 ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
 					     JsonNode *node, GError **error)
 {
@@ -389,6 +345,8 @@ ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
 				      display_name, TRUE, error);
 }
 
+/* Returns a ChimeConects which is not necessarily in the contacst list,
+ * and caller owns a ref on it. */
 ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 							  JsonNode *node,
 							  GError **error)
@@ -422,7 +380,7 @@ static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node,
 	gint64 availability, revision;
 	const gchar *id;
 
-	if (!priv->contacts_by_id) {
+	if (!priv->contacts.by_id) {
 		g_set_error(error, CHIME_ERROR,
 			    CHIME_ERROR_BAD_RESPONSE,
 			    _("Contacts hash table is not set"));
@@ -438,7 +396,7 @@ static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node,
 		return FALSE;
 	}
 
-	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_id, id);
+	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_id, id);
 	if (!contact) {
 		g_set_error(error, CHIME_ERROR,
 			    CHIME_ERROR_BAD_RESPONSE,
@@ -504,7 +462,7 @@ static gboolean fetch_presences(gpointer _cxn)
 		if (!contact || contact->avail_revision)
 			continue;
 
-		ids[i++] = contact->profile_id;
+		ids[i++] = contact->parent_instance.id;
 	}
 	/* We don't actually need any */
 	if (i) {
@@ -520,21 +478,6 @@ static gboolean fetch_presences(gpointer _cxn)
 	}
 	g_free(ids);
 	return FALSE;
-}
-
-static void obsolete_contact_cb(gpointer key, gpointer value, gpointer _cxn)
-{
-	ChimeConnection *cxn = CHIME_CONNECTION (_cxn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-
-	ChimeContact *contact = CHIME_CONTACT(value);
-
-	if (priv->contacts_sync != CHIME_SYNC_IDLE ||
-	    !contact->contacts_list || contact->contacts_generation == priv->contacts_generation)
-		return;
-
-	contact->contacts_list = FALSE;
-	g_object_notify(G_OBJECT(contact), "contacts-list");
 }
 
 static void fetch_contacts(ChimeConnection *cxn);
@@ -555,19 +498,17 @@ static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
 		JsonArray *arr = json_node_get_array(node);
 		guint i, len = json_array_get_length(arr);
-		ChimeContact *contact;
 
-		priv->contacts_generation++;
+		priv->contacts.generation++;
 
 		for (i = 0; i < len; i++) {
-			contact = chime_connection_parse_contact(cxn,
-								 json_array_get_element(arr, i),
-								 NULL);
-			contact->contacts_generation = priv->contacts_generation;
+			chime_connection_parse_contact(cxn,
+						       json_array_get_element(arr, i),
+						       NULL);
 		}
-		/* Anything which *wasn't* seen this time round, but which was previously
-		   in the contacts list, needs to have its 'contacts-list' flag cleared */
-		g_hash_table_foreach(priv->contacts_by_id, obsolete_contact_cb, cxn);
+
+		chime_object_collection_expire_outdated(&priv->contacts);
+
 		if (!priv->contacts_online) {
 			priv->contacts_online = TRUE;
 			chime_connection_calculate_online(cxn);
@@ -607,21 +548,22 @@ void chime_init_contacts(ChimeConnection *cxn)
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	priv->contacts_by_id = g_hash_table_new_full(g_str_hash, g_str_equal,
-						     NULL, g_object_unref);
-	priv->contacts_by_email = g_hash_table_new(g_str_hash, g_str_equal);
+	chime_object_collection_init(&priv->contacts);
 
 	fetch_contacts(cxn);
 }
 
 static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
 {
-	ChimeConnection *cxn = CHIME_CONNECTION (data);
 	ChimeContact *contact = CHIME_CONTACT (val);
 
-	chime_jugg_unsubscribe(cxn, contact->presence_channel, "Presence",
-			       contact_presence_jugg_cb, contact);
-	chime_jugg_unsubscribe(cxn, contact->profile_channel, NULL, NULL, NULL);
+	if (contact->cxn) {
+		chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence",
+				       contact_presence_jugg_cb, contact);
+		if (contact->profile_channel)
+			chime_jugg_unsubscribe(contact->cxn, contact->profile_channel, NULL, NULL, NULL);
+		contact->cxn = NULL;
+	}
 }
 
 void chime_destroy_contacts(ChimeConnection *cxn)
@@ -629,10 +571,9 @@ void chime_destroy_contacts(ChimeConnection *cxn)
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	g_hash_table_foreach(priv->contacts_by_id, unsubscribe_contact, cxn);
+	g_hash_table_foreach(priv->contacts.by_id, unsubscribe_contact, NULL);
 
-	g_clear_pointer(&priv->contacts_by_email, g_hash_table_destroy);
-	g_clear_pointer(&priv->contacts_by_id, g_hash_table_destroy);
+	chime_object_collection_destroy(&priv->contacts);
 }
 
 ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn,
@@ -642,7 +583,7 @@ ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn,
 	g_return_val_if_fail(email != NULL, NULL);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	return g_hash_table_lookup(priv->contacts_by_email, email);
+	return g_hash_table_lookup(priv->contacts.by_name, email);
 }
 
 struct foreach_contact_st {
@@ -651,26 +592,11 @@ struct foreach_contact_st {
 	gpointer cbdata;
 };
 
-static void foreach_contact_cb(gpointer key, gpointer value, gpointer _data)
-{
-	struct foreach_contact_st *data = _data;
-	ChimeContact *contact = CHIME_CONTACT(value);
-
-	data->cb(data->cxn, contact, data->cbdata);
-}
-
 void chime_connection_foreach_contact(ChimeConnection *cxn, ChimeContactCB cb,
 				      gpointer cbdata)
 {
-	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	struct foreach_contact_st data = {
-		.cxn = cxn,
-		.cb = cb,
-		.cbdata = cbdata,
-	};
-
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
-	g_hash_table_foreach(priv->contacts_by_id, foreach_contact_cb, &data);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	chime_object_collection_foreach_object(cxn, &priv->contacts, (ChimeObjectCB)cb, cbdata);
 }
 
 static void contact_invited_cb(ChimeConnection *cxn, SoupMessage *msg,
@@ -772,7 +698,7 @@ void chime_connection_remove_contact_async(ChimeConnection *cxn,
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_email,
+	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_name,
 						    email);
 	if (!contact) {
 		g_task_report_new_error(cxn, callback, user_data,
@@ -786,11 +712,10 @@ void chime_connection_remove_contact_async(ChimeConnection *cxn,
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	/* Assume success; we'll refetch and reinstate it on failure */
-	contact->contacts_list = FALSE;
-	g_object_notify(G_OBJECT(contact), "contacts-list");
+	chime_object_collection_hash_object(&priv->contacts, CHIME_OBJECT(contact), FALSE);
 
 	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts/%s",
-					   contact->profile_id);
+					   contact->parent_instance.id);
 	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE",
 					    contact_removed_cb, task);
 }

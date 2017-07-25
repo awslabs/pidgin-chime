@@ -68,7 +68,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 	}
 
 	if (strcmp(sender, priv->profile_id)) {
-		ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_id,
+		ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_id,
 							    sender);
 		if (!contact)
 			return FALSE;
@@ -93,7 +93,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_conversat
 		else
 			peer = 0;
 
-		ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_id,
+		ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_id,
 							    member_ids[peer]);
 		g_free(member_ids);
 		if (!contact)
@@ -458,7 +458,7 @@ static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNo
 	if (!node || !parse_string(node, "id", &from))
 		return FALSE;
 
-	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_id, from);
+	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_id, from);
 	if (!contact)
 		return FALSE;
 
@@ -563,7 +563,7 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_email, name);
+	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_name, name);
 	if (!contact)
 		return 0;
 
@@ -723,7 +723,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 	im->who = g_strdup(who);
 	im->flags = flags;
 
-	ChimeContact *contact = g_hash_table_lookup(priv->contacts_by_email, who);
+	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_name, who);
 	if (contact) {
 		const gchar *id = chime_contact_get_profile_id(contact);
 		im->conv = g_hash_table_lookup(priv->im_conversations_by_peer_id,

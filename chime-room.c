@@ -465,7 +465,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 				    "mobile-notification-prefs", mobile,
 				    NULL);
 
-		chime_object_collection_hash_object(&priv->rooms, CHIME_OBJECT(room));
+		chime_object_collection_hash_object(&priv->rooms, CHIME_OBJECT(room), TRUE);
 
 		/* Emit signal on ChimeConnection to admit existence of new room */
 		chime_connection_new_room(cxn, room);
@@ -532,7 +532,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 		g_object_notify(G_OBJECT(room), "mobile-notification-prefs");
 	}
 
-	chime_object_collection_hash_object(&priv->rooms, CHIME_OBJECT(room));
+	chime_object_collection_hash_object(&priv->rooms, CHIME_OBJECT(room), TRUE);
 
 	return room;
 }

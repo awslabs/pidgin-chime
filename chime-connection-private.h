@@ -103,12 +103,9 @@ typedef struct {
 	GHashTable *subscriptions;
 
 	/* Contacts */
-	GHashTable *contacts_by_id;
-	GHashTable *contacts_by_email;
-	GSList *contacts_needed;
-	gint64 contacts_generation;	/* Pureky internal revision number, indicating the
-					 * generation last fetched or being fetched now. */
+	ChimeObjectCollection contacts;
 	ChimeSyncState contacts_sync;
+	GSList *contacts_needed;
 
 	/* Rooms */
 	ChimeObjectCollection rooms;

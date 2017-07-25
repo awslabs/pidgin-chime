@@ -115,7 +115,7 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 
 void on_chime_new_contact(ChimeConnection *cxn, ChimeContact *contact, PurpleConnection *conn)
 {
-	g_signal_connect(contact, "notify::contacts-list",
+	g_signal_connect(contact, "notify::dead",
 			 G_CALLBACK(on_buddystatus_changed), conn);
 
 	/* When invoked for all contacts on the CONNECTED signal, we don't immediately

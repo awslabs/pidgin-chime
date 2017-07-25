@@ -21,12 +21,13 @@
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
 
+#include "chime-object.h"
 #include "chime-connection.h"
 
 G_BEGIN_DECLS
 
 #define CHIME_TYPE_CONTACT (chime_contact_get_type ())
-G_DECLARE_FINAL_TYPE (ChimeContact, chime_contact, CHIME, CONTACT, GObject)
+G_DECLARE_FINAL_TYPE (ChimeContact, chime_contact, CHIME, CONTACT, ChimeObject)
 
 typedef enum {
 	CHIME_AVAILABILITY_UNKNOWN = 0,

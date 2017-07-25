@@ -177,14 +177,19 @@ const gchar *chime_object_get_name(ChimeObject *self)
 }
 
 
-void chime_object_collection_hash_object(ChimeObjectCollection *collection, ChimeObject *object)
+void chime_object_collection_hash_object(ChimeObjectCollection *collection, ChimeObject *object,
+					 gboolean live)
 {
 	object->generation = collection->generation;
 
-	if (object->is_dead) {
+	if (live && object->is_dead) {
 		g_object_ref(object);
 		object->is_dead = FALSE;
 		g_object_notify(G_OBJECT(object), "dead");
+	} else if (!live && !object->is_dead) {
+		object->is_dead = TRUE;
+		g_object_notify(G_OBJECT(object), "dead");
+		g_object_unref(object);
 	}
 
 	if (!object->collection) {
@@ -194,16 +199,6 @@ void chime_object_collection_hash_object(ChimeObjectCollection *collection, Chim
 	}
 }
 
-void chime_object_collection_release_object(ChimeObjectCollection *coll, ChimeObject *object)
-{
-	if (object->is_dead)
-		return;
-
-	object->is_dead = TRUE;
-	g_object_notify(G_OBJECT(object), "dead");
-	g_object_unref(object);
-}
-
 void chime_object_collection_expire_outdated(ChimeObjectCollection *coll)
 {
 	GList *objects = g_hash_table_get_values(coll->by_id);
@@ -211,7 +206,9 @@ void chime_object_collection_expire_outdated(ChimeObjectCollection *coll)
 		ChimeObject *object = CHIME_OBJECT(objects->data);
 
 		if (!object->is_dead && object->generation != coll->generation) {
-			chime_object_collection_release_object(coll, object);
+			object->is_dead = TRUE;
+			g_object_notify(G_OBJECT(object), "dead");
+			g_object_unref(object);
 		}
 		objects = g_list_remove(objects, object);
 	}

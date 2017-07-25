@@ -81,8 +81,7 @@ ChimeObject *chime_connection_object_by_name(ChimeObjectCollection *coll,
 ChimeObject *chime_connection_object_by_id(ChimeObjectCollection *coll,
 					   const gchar *id);
 
-void chime_object_collection_hash_object(ChimeObjectCollection *coll, ChimeObject *obj);
-void chime_object_collection_release_object(ChimeObjectCollection *coll, ChimeObject *obj);
+void chime_object_collection_hash_object(ChimeObjectCollection *coll, ChimeObject *obj, gboolean live);
 
 //void chime_object_obsolete(ChimeObject *self);
 

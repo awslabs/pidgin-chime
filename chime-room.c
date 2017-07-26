@@ -329,14 +329,14 @@ const gchar *chime_room_get_id(ChimeRoom *self)
 {
 	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
 
-	return self->parent_instance.id;
+	return chime_object_get_id(CHIME_OBJECT(self));;
 }
 
 const gchar *chime_room_get_name(ChimeRoom *self)
 {
 	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
 
-	return self->parent_instance.name;
+	return chime_object_get_name(CHIME_OBJECT(self));
 }
 
 gboolean chime_room_get_privacy(ChimeRoom *self)
@@ -473,7 +473,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 		return room;
 	}
 
-	if (name && g_strcmp0(name, room->parent_instance.name)) {
+	if (name && g_strcmp0(name, chime_object_get_name(CHIME_OBJECT(room)))) {
 		chime_object_rename(CHIME_OBJECT(room), name);
 		g_object_notify(G_OBJECT(room), "name");
 	}

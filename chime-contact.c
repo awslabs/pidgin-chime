@@ -207,14 +207,14 @@ const gchar *chime_contact_get_profile_id(ChimeContact *contact)
 {
 	g_return_val_if_fail(CHIME_IS_CONTACT(contact), NULL);
 
-	return contact->parent_instance.id;
+	return chime_object_get_id(CHIME_OBJECT(contact));
 }
 
 const gchar *chime_contact_get_email(ChimeContact *contact)
 {
 	g_return_val_if_fail(CHIME_IS_CONTACT(contact), NULL);
 
-	return contact->parent_instance.name;
+	return chime_object_get_name(CHIME_OBJECT(contact));
 }
 
 const gchar *chime_contact_get_full_name(ChimeContact *contact)
@@ -242,7 +242,7 @@ gboolean chime_contact_get_contacts_list(ChimeContact *contact)
 {
 	g_return_val_if_fail(CHIME_IS_CONTACT(contact), FALSE);
 
-	return !contact->parent_instance.is_dead;
+	return !chime_object_is_dead(CHIME_OBJECT(contact));
 }
 
 static void
@@ -300,7 +300,7 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 	}
 
 	/* This should never happen? */
-	if (email && g_strcmp0(email, contact->parent_instance.name)) {
+	if (email && g_strcmp0(email, chime_object_get_name(CHIME_OBJECT(contact)))) {
 		chime_object_rename(CHIME_OBJECT(contact), email);
 	}
 	if (full_name && g_strcmp0(full_name, contact->full_name)) {
@@ -463,7 +463,7 @@ static gboolean fetch_presences(gpointer _cxn)
 		if (!contact || contact->avail_revision)
 			continue;
 
-		ids[i++] = contact->parent_instance.id;
+		ids[i++] = (gchar *)chime_object_get_id(CHIME_OBJECT(contact));;
 	}
 	/* We don't actually need any */
 	if (i) {
@@ -716,7 +716,7 @@ void chime_connection_remove_contact_async(ChimeConnection *cxn,
 	chime_object_collection_hash_object(&priv->contacts, CHIME_OBJECT(contact), FALSE);
 
 	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts/%s",
-					   contact->parent_instance.id);
+					   chime_object_get_id(CHIME_OBJECT(contact)));
 	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE",
 					    contact_removed_cb, task);
 }

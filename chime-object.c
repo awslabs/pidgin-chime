@@ -22,6 +22,23 @@
 
 #include <glib/gi18n.h>
 
+typedef struct {
+	GObject parent_instance;
+
+	gchar *id;
+	gchar *name;
+
+	gint64 generation;
+
+	/* While the obiect is live and discoverable, we hold a refcount to it
+	 * But once it's dead, it remains in the hash table to avoid duplicates
+	 * of rooms which we're added back to, or contacts who appear in some
+	 * other room or conversation, etc.). It'll remove itself from the
+	 * hash table in its ->dispose()  */
+	gboolean is_dead;
+	ChimeObjectCollection *collection;
+} ChimeObjectPrivate;
+
 enum
 {
 	PROP_0,
@@ -33,16 +50,19 @@ enum
 
 static GParamSpec *props[LAST_PROP];
 
-G_DEFINE_TYPE(ChimeObject, chime_object, G_TYPE_OBJECT)
+G_DEFINE_TYPE_WITH_PRIVATE(ChimeObject, chime_object, G_TYPE_OBJECT)
 
 static void
 chime_object_dispose(GObject *object)
 {
 	ChimeObject *self = CHIME_OBJECT(object);
+	ChimeObjectPrivate *priv;
 
-	if (self->collection) {
-		g_hash_table_remove(self->collection->by_name, self->name);
-		g_hash_table_remove(self->collection->by_id, self->id);
+	priv = chime_object_get_instance_private (self);
+
+	if (priv->collection) {
+		g_hash_table_remove(priv->collection->by_name, priv->name);
+		g_hash_table_remove(priv->collection->by_id, priv->id);
 	}
 
 	printf("Object disposed: %p\n", self);
@@ -54,9 +74,12 @@ static void
 chime_object_finalize(GObject *object)
 {
 	ChimeObject *self = CHIME_OBJECT(object);
+	ChimeObjectPrivate *priv;
 
-	g_free(self->id);
-	g_free(self->name);
+	priv = chime_object_get_instance_private (self);
+
+	g_free(priv->id);
+	g_free(priv->name);
 
 	G_OBJECT_CLASS(chime_object_parent_class)->finalize(object);
 }
@@ -65,16 +88,19 @@ static void chime_object_get_property(GObject *object, guint prop_id,
 				    GValue *value, GParamSpec *pspec)
 {
 	ChimeObject *self = CHIME_OBJECT(object);
+	ChimeObjectPrivate *priv;
+
+	priv = chime_object_get_instance_private (self);
 
 	switch (prop_id) {
 	case PROP_ID:
-		g_value_set_string(value, self->id);
+		g_value_set_string(value, priv->id);
 		break;
 	case PROP_NAME:
-		g_value_set_string(value, self->name);
+		g_value_set_string(value, priv->name);
 		break;
 	case PROP_DEAD:
-		g_value_set_boolean(value, self->is_dead);
+		g_value_set_boolean(value, priv->is_dead);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -86,17 +112,20 @@ static void chime_object_set_property(GObject *object, guint prop_id,
 				      const GValue *value, GParamSpec *pspec)
 {
 	ChimeObject *self = CHIME_OBJECT(object);
+	ChimeObjectPrivate *priv;
+
+	priv = chime_object_get_instance_private (self);
 
 	switch (prop_id) {
 	case PROP_ID:
-		g_free(self->id);
-		self->id = g_value_dup_string(value);
+		g_free(priv->id);
+		priv->id = g_value_dup_string(value);
 		break;
 	case PROP_NAME:
 		chime_object_rename(self, g_value_get_string(value));
 		break;
 	case PROP_DEAD:
-		self->is_dead = g_value_get_boolean(value);
+		priv->is_dead = g_value_get_boolean(value);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -106,17 +135,23 @@ static void chime_object_set_property(GObject *object, guint prop_id,
 
 void chime_object_rename(ChimeObject *self, const gchar *name)
 {
-	if (!g_strcmp0(self->name, name))
+	ChimeObjectPrivate *priv;
+
+	priv = chime_object_get_instance_private (self);
+
+	if (!g_strcmp0(priv->name, name))
 		return;
 
-	if (self->collection) {
-		if (g_hash_table_lookup(self->collection->by_name, self->name) == self)
-			g_hash_table_remove(self->collection->by_name, self->name);
+	if (priv->collection) {
+		if (g_hash_table_lookup(priv->collection->by_name, priv->name) == self)
+			g_hash_table_remove(priv->collection->by_name, priv->name);
 	}
-	g_free(self->name);
-	self->name = g_strdup(name);
-	if (self->collection)
-		g_hash_table_insert(self->collection->by_name, self->name, self);
+
+	g_free(priv->name);
+	priv->name = g_strdup(name);
+
+	if (priv->collection)
+		g_hash_table_insert(priv->collection->by_name, priv->name, self);
 }
 
 static void chime_object_class_init(ChimeObjectClass *klass)
@@ -164,38 +199,60 @@ static void chime_object_init(ChimeObject *self)
 
 const gchar *chime_object_get_id(ChimeObject *self)
 {
+	ChimeObjectPrivate *priv;
+
 	g_return_val_if_fail(CHIME_IS_OBJECT(self), NULL);
 
-	return self->id;
+	priv = chime_object_get_instance_private (self);
+
+	return priv->id;
 }
 
 const gchar *chime_object_get_name(ChimeObject *self)
 {
+	ChimeObjectPrivate *priv;
+
 	g_return_val_if_fail(CHIME_IS_OBJECT(self), NULL);
 
-	return self->name;
+	priv = chime_object_get_instance_private (self);
+
+	return priv->name;
 }
 
+gboolean chime_object_is_dead(ChimeObject *self)
+{
+	ChimeObjectPrivate *priv;
+
+	g_return_val_if_fail(CHIME_IS_OBJECT(self), FALSE);
+
+	priv = chime_object_get_instance_private (self);
+
+	return priv->is_dead;
+}
 
 void chime_object_collection_hash_object(ChimeObjectCollection *collection, ChimeObject *object,
 					 gboolean live)
 {
-	object->generation = collection->generation;
+	ChimeObjectPrivate *priv;
 
-	if (live && object->is_dead) {
+	priv = chime_object_get_instance_private (object);
+
+	priv->generation = collection->generation;
+
+	if (live && priv->is_dead) {
 		g_object_ref(object);
-		object->is_dead = FALSE;
+		priv->is_dead = FALSE;
 		g_object_notify(G_OBJECT(object), "dead");
-	} else if (!live && !object->is_dead) {
-		object->is_dead = TRUE;
+	} else if (!live && !priv->is_dead) {
+		priv->is_dead = TRUE;
 		g_object_notify(G_OBJECT(object), "dead");
 		g_object_unref(object);
 	}
 
-	if (!object->collection) {
-		object->collection = collection;
-		g_hash_table_insert(collection->by_id, object->id, object);
-		g_hash_table_insert(collection->by_name, object->name, object);
+	if (!priv->collection) {
+		priv->collection = collection;
+		g_hash_table_insert(collection->by_id, priv->id, object);
+		g_hash_table_insert(collection->by_name, priv->name, object);
 	}
 }
 
@@ -204,9 +261,12 @@ void chime_object_collection_expire_outdated(ChimeObjectCollection *coll)
 	GList *objects = g_hash_table_get_values(coll->by_id);
 	while (objects) {
 		ChimeObject *object = CHIME_OBJECT(objects->data);
+		ChimeObjectPrivate *priv;
 
-		if (!object->is_dead && object->generation != coll->generation) {
-			object->is_dead = TRUE;
+		priv = chime_object_get_instance_private (object);
+
+		if (!priv->is_dead && priv->generation != coll->generation) {
+			priv->is_dead = TRUE;
 			g_object_notify(G_OBJECT(object), "dead");
 			g_object_unref(object);
 		}
@@ -217,12 +277,15 @@ void chime_object_collection_expire_outdated(ChimeObjectCollection *coll)
 static void unhash_object(gpointer _object)
 {
 	ChimeObject *object = CHIME_OBJECT(_object);
+	ChimeObjectPrivate *priv;
+
+	priv = chime_object_get_instance_private (object);
 
 	/* Now it's unhashed, it doesn't need to unhash itself on dispose() */
-	object->collection = NULL;
+	priv->collection = NULL;
 
-	if (!object->is_dead) {
-		object->is_dead = TRUE;
+	if (!priv->is_dead) {
+		priv->is_dead = TRUE;
 		g_object_unref(object);
 	}
 }
@@ -251,8 +314,11 @@ static void foreach_object_cb(gpointer key, gpointer value, gpointer _data)
 {
 	struct foreach_object_st *data = _data;
 	ChimeObject *object = CHIME_OBJECT(value);
+	ChimeObjectPrivate *priv;
 
-	if (!object->is_dead)
+	priv = chime_object_get_instance_private (object);
+
+	if (!priv->is_dead)
 		data->cb(data->cxn, object, data->cbdata);
 }
 

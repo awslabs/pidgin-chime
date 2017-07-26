@@ -26,18 +26,8 @@
 
 G_BEGIN_DECLS
 
-GType chime_object_get_type(void) G_GNUC_CONST;
 #define CHIME_TYPE_OBJECT (chime_object_get_type ())
-#define CHIME_OBJECT(obj) \
-        (G_TYPE_CHECK_INSTANCE_CAST ((obj), CHIME_TYPE_OBJECT, ChimeObject))
-#define CHIME_OBJECT_CLASS(cls) \
-        (G_TYPE_CHECK_CLASS_CAST ((cls), CHIME_TYPE_OBJECT, ChimeObjectClass))
-#define CHIME_IS_OBJECT(obj) \
-        (G_TYPE_CHECK_INSTANCE_TYPE ((obj), CHIME_TYPE_OBJECT))
-#define CHIME_IS_OBJECT_CLASS(cls) \
-        (G_TYPE_CHECK_CLASS_TYPE ((cls), CHIME_TYPE_OBJECT))
-#define CHIME_OBJECT_GET_CLASS(obj) \
-        (G_TYPE_INSTANCE_GET_CLASS ((obj), CHIME_TYPE_OBJECT, ChimeObjectClass))
+G_DECLARE_DERIVABLE_TYPE (ChimeObject, chime_object, CHIME, OBJECT, GObject)
 
 typedef struct {
 	GHashTable *by_id;
@@ -45,31 +35,13 @@ typedef struct {
 	gint64 generation;
 } ChimeObjectCollection;
 
-typedef struct {
+struct _ChimeObjectClass {
 	GObjectClass parent_class;
-} ChimeObjectClass;
-
-typedef struct {
-	GObject parent_instance;
-
-	gchar *id;
-	gchar *name;
-
-	gint64 generation;
-
-	/* While the obiect is live and discoverable, we hold a refcount to it
-	 * But once it's dead, it remains in the hash table to avoid duplicates
-	 * of rooms which we're added back to, or contacts who appear in some
-	 * other room or conversation, etc.). It'll remove itself from the
-	 * hash table in its ->dispose()  */
-	gboolean is_dead;
-	ChimeObjectCollection *collection;
-} ChimeObject;
-
-_GLIB_DEFINE_AUTOPTR_CHAINUP (ChimeObject, GObject);
+};
 
 const gchar *chime_object_get_id(ChimeObject *self);
 const gchar *chime_object_get_name(ChimeObject *self);
+gboolean chime_object_is_dead(ChimeObject *self);
 
 void chime_object_rename(ChimeObject *self, const gchar *name);
 

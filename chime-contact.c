@@ -450,12 +450,8 @@ static gboolean fetch_presences(gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	int i, len = g_slist_length(priv->contacts_needed);
-	if (!len)
-		return FALSE;
+	GPtrArray *ids = g_ptr_array_new();
 
-	gchar **ids = g_new0(gchar *, len + 1);
-	i = 0;
 	while (priv->contacts_needed) {
 		ChimeContact *contact = priv->contacts_needed->data;
 		priv->contacts_needed = g_slist_remove(priv->contacts_needed,
@@ -463,12 +459,13 @@ static gboolean fetch_presences(gpointer _cxn)
 		if (!contact || contact->avail_revision)
 			continue;
 
-		ids[i++] = (gchar *)chime_object_get_id(CHIME_OBJECT(contact));;
+		g_ptr_array_add(ids, (gpointer)chime_object_get_id(CHIME_OBJECT(contact)));
 	}
 	/* We don't actually need any */
-	if (i) {
-		ids[i++] = NULL;
-		gchar *query = g_strjoinv(",", ids);
+	if (ids->len > 0) {
+		g_ptr_array_add(ids, NULL);
+
+		gchar *query = g_strjoinv(",", (gchar **)ids->pdata);
 
 		SoupURI *uri = soup_uri_new_printf(priv->presence_url, "/presence");
 		soup_uri_set_query_from_fields(uri, "profile-ids", query, NULL);
@@ -477,7 +474,7 @@ static gboolean fetch_presences(gpointer _cxn)
 		chime_connection_queue_http_request(cxn, NULL, uri, "GET",
 						    presence_cb, NULL);
 	}
-	g_free(ids);
+	g_ptr_array_unref(ids);
 	return FALSE;
 }
 

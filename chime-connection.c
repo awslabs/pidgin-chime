@@ -605,7 +605,7 @@ chime_connection_set_session_token(ChimeConnection *self,
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
 
-	if (g_strcmp0(priv->session_token, sess_tok) != 0) {
+	if (g_strcmp0(priv->session_token, sess_tok)) {
 		g_free(priv->session_token);
 		priv->session_token = g_strdup(sess_tok);
 		g_object_notify_by_pspec(G_OBJECT(self), props[PROP_SESSION_TOKEN]);
@@ -625,20 +625,14 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 	if (!node || !parse_string(node, "SessionToken", &sess_tok)) {
 		chime_connection_fail(self, CHIME_ERROR_NETWORK,
 				      _("Failed to renew session token"));
-	teardown:
-		while ( (cmsg = g_queue_pop_head(priv->msgs_pending_auth)) ) {
-			/* It was already in 'failed, unauthorised' state */
-			cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);
-			g_object_unref(cmsg->msg);
-			g_free(cmsg);
-		}
+		chime_connection_set_session_token(self, NULL);
 		return;
 	}
 
 	chime_connection_set_session_token(self, sess_tok);
 
 	if (priv->state == CHIME_STATE_DISCONNECTED)
-		goto teardown;
+		return;
 
 	cookie_hdr = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
 

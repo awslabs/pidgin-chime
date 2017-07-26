@@ -313,7 +313,8 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 		contact->display_name = g_strdup(display_name);
 		g_object_notify(G_OBJECT(contact), "display-name");
 	}
-	if (is_contact && contact->parent_instance.is_dead)
+
+	if (is_contact)
 		chime_object_collection_hash_object(&priv->contacts, CHIME_OBJECT(contact), TRUE);
 
 	return contact;

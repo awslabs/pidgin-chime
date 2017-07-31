@@ -23,6 +23,8 @@
 #include "chime-contact.h"
 #include "chime-room.h"
 
+#include "chime-websocket-connection.h"
+
 #define CHIME_ENUM_VALUE(val, nick) { val, #val, nick },
 #define CHIME_DEFINE_ENUM_TYPE(TypeName, type_name, values)		\
 	GType type_name ## _get_type(void) {				\
@@ -95,7 +97,7 @@ typedef struct {
 	GQueue *msgs_pending_auth;
 
 	/* Juggernaut */
-	SoupWebsocketConnection *ws_conn;
+	ChimeWebsocketConnection *ws_conn;
 	gboolean jugg_connected;	/* For reconnecting, to abort on failed reconnect */
 	gboolean jugg_resubscribe;	/* After reconnect we should use 'resubscribe' */
 	gulong message_handler, closed_handler;

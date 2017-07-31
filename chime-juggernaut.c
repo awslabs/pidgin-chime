@@ -210,19 +210,46 @@ static void send_resubscribe_message(ChimeConnection *cxn)
 	g_object_unref(builder);
 }
 
-static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
+static void connect_jugg_cb(SoupSession *session, SoupMessage *msg, gpointer _cxn)
 {
-	ChimeConnection *cxn = _cxn;
+	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
+
+	g_signal_handlers_disconnect_matched(msg, G_SIGNAL_MATCH_DATA,
+                                              0, 0, NULL, NULL, cxn);
+
+	/* The request should never complete; it should always be upgraded */
+	chime_connection_fail(cxn, CHIME_ERROR_NETWORK,
+			      _("Failed to establish WebSocket connection: %d (%s)"),
+			      msg->status_code, msg->reason_phrase);
+	g_object_unref(cxn);
+}
+
+static void jugg_upgrade_cb(SoupMessage *msg, gpointer _cxn)
+{
+	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	GError *error = NULL;
 
-	priv->ws_conn = soup_session_websocket_connect_finish(SOUP_SESSION(obj),
-							      res, &error);
-	if (!priv->ws_conn) {
+	if (!soup_websocket_client_verify_handshake(msg, &error)) {
+		/* Is there a better way to kill it with fire? Using soup_session_cancel_message()
+		   seemed to result in this function being called again, which didn't work very well. */
+		g_object_unref(soup_session_steal_connection(priv->soup_sess, msg));
 		chime_connection_fail_error(cxn, error);
 		g_error_free(error);
+		g_object_unref(cxn);
 		return;
 	}
+
+	g_signal_handlers_disconnect_matched(msg, G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, NULL, cxn);
+
+	g_object_ref(msg);
+	GIOStream *stream = soup_session_steal_connection(priv->soup_sess, msg);
+	priv->ws_conn = soup_websocket_connection_new(stream, soup_message_get_uri(msg),
+						      SOUP_WEBSOCKET_CONNECTION_CLIENT,
+						      soup_message_headers_get_one (msg->request_headers, "Origin"),
+						      soup_message_headers_get_one (msg->response_headers, "Sec-WebSocket-Protocol"));
+	g_object_unref(msg);
 
 #if SOUP_CHECK_VERSION(2, 56, 0)
 	/* Remove limit on the payload size */
@@ -235,7 +262,7 @@ static void ws2_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 						G_CALLBACK(on_websocket_closed), cxn);
 	priv->message_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "message",
 						 G_CALLBACK(on_websocket_message), cxn);
-
+	g_object_unref(cxn);
 }
 
 static void connect_jugg(ChimeConnection *cxn)
@@ -248,7 +275,13 @@ static void connect_jugg(ChimeConnection *cxn)
 	soup_uri_free(uri);
 
 	priv->jugg_connected = FALSE;
-	soup_session_websocket_connect_async(priv->soup_sess, msg, NULL, NULL, NULL, ws2_cb, cxn);
+
+	soup_websocket_client_prepare_handshake(msg, NULL, NULL);
+	g_object_ref(cxn);
+	soup_message_add_status_code_handler(msg, "got-informational",
+					     SOUP_STATUS_SWITCHING_PROTOCOLS,
+					     G_CALLBACK(jugg_upgrade_cb), cxn);
+	soup_session_queue_message(priv->soup_sess, msg, connect_jugg_cb, cxn);
 }
 
 

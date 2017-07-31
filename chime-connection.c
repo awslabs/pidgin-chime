@@ -98,7 +98,7 @@ chime_connection_disconnect(ChimeConnection    *self)
 		priv->msgs_pending_auth = NULL;
 	}
 	if (priv->msgs_queued) {
-		g_queue_free_full(priv->msgs_queued, (GDestroyNotify)cmsg_free);
+		g_queue_free(priv->msgs_queued);
 		priv->msgs_queued = NULL;
 	}
 
@@ -641,6 +641,7 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 					     "Cookie", cookie_hdr);
 		chime_connection_log(self, CHIME_LOGLVL_MISC, "Requeued %p to %s\n", cmsg->msg,
 				     soup_uri_get_path(soup_message_get_uri(cmsg->msg)));
+		g_object_ref(self);
 		soup_session_queue_message(priv->soup_sess, cmsg->msg,
 					   soup_msg_cb, cmsg);
 	}
@@ -681,6 +682,9 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 	JsonParser *parser = NULL;
 	JsonNode *node = NULL;
 
+	if (priv->state == CHIME_STATE_DISCONNECTED)
+		goto done;
+
 	g_queue_remove(priv->msgs_queued, cmsg);
 
 	/* Special case for renew_cb itself, which mustn't recurse! */
@@ -701,11 +705,12 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 #endif
 			chime_renew_token(cxn);
 		}
+		g_object_unref(cxn);
 		return;
 	}
 
 	const gchar *content_type = soup_message_headers_get_content_type(msg->response_headers, NULL);
-	if (!g_strcmp0(content_type, "application/json")) {
+	if (!g_strcmp0(content_type, "application/json") && msg->response_body->data) {
 		GError *error = NULL;
 
 		parser = json_parser_new();
@@ -720,7 +725,9 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 	if (cmsg->cb)
 		cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);
 	g_clear_object(&parser);
+ done:
 	g_free(cmsg);
+	g_object_unref(cxn);
 }
 
 SoupMessage *
@@ -768,6 +775,7 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 		g_queue_push_tail(priv->msgs_pending_auth, cmsg);
 	else {
 		g_queue_push_tail(priv->msgs_queued, cmsg);
+		g_object_ref(self);
 		soup_session_queue_message(priv->soup_sess, cmsg->msg, soup_msg_cb, cmsg);
 	}
 

@@ -569,7 +569,8 @@ void chime_destroy_contacts(ChimeConnection *cxn)
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	g_hash_table_foreach(priv->contacts.by_id, unsubscribe_contact, NULL);
+	if (priv->contacts.by_id)
+		g_hash_table_foreach(priv->contacts.by_id, unsubscribe_contact, NULL);
 
 	chime_object_collection_destroy(&priv->contacts);
 }

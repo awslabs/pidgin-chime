@@ -331,5 +331,6 @@ void chime_object_collection_foreach_object(ChimeConnection *cxn, ChimeObjectCol
 		.cbdata = cbdata,
 	};
 
-	g_hash_table_foreach(coll->by_id, foreach_object_cb, &data);
+	if (coll->by_id)
+		g_hash_table_foreach(coll->by_id, foreach_object_cb, &data);
 }

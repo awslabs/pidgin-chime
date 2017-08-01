@@ -184,6 +184,12 @@ static void on_websocket_message(ChimeWebsocketConnection *ws, gint type,
 	g_strfreev(parms);
 }
 
+static void on_websocket_pong(ChimeWebsocketConnection *ws,
+				 GByteArray *data, gpointer _cxn)
+{
+	printf("Received Pong frame with %d bytes of payload\n", data->len);
+
+}
 static void each_chan(gpointer _chan, gpointer _sub, gpointer _builder)
 {
 	JsonBuilder **builder = _builder;
@@ -254,13 +260,15 @@ static void jugg_upgrade_cb(SoupMessage *msg, gpointer _cxn)
 
 	/* Remove limit on the payload size */
 	chime_websocket_connection_set_max_incoming_payload_size(priv->ws_conn, 0);
-
+	chime_websocket_connection_set_keepalive_interval(priv->ws_conn, 10);
 	jugg_send(cxn, "1::");
 
 	priv->closed_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "closed",
 						G_CALLBACK(on_websocket_closed), cxn);
 	priv->message_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "message",
 						 G_CALLBACK(on_websocket_message), cxn);
+	priv->message_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "pong",
+						 G_CALLBACK(on_websocket_pong), cxn);
 	g_object_unref(cxn);
 }
 

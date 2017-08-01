@@ -21,20 +21,6 @@
 #ifndef __CHIME_WEBSOCKET_CONNECTION_H__
 #define __CHIME_WEBSOCKET_CONNECTION_H__
 
-#ifdef USE_LIBSOUP_WEBSOCKETS
-
-#define chime_websocket_connection_new soup_websocket_connection_new
-#define chime_websocket_connection_set_max_incoming_payload_size soup_websocket_connection_set_max_incoming_payload_size
-#define chime_websocket_connection_set_keepalive_interval soup_websocket_connection_set_keepalive_interval
-#define chime_websocket_connection_get_close_code soup_websocket_connection_get_close_code
-#define chime_websocket_connection_get_close_data soup_websocket_connection_get_close_data
-#define chime_websocket_connection_get_state soup_websocket_connection_get_state
-#define chime_websocket_connection_send_text soup_websocket_connection_send_text
-
-#define ChimeWebsocketConnection SoupWebsocketConnection
-
-#else /* USE_LIBSOUP_WEBSOCKETS */
-
 #include <libsoup/soup-types.h>
 #include <libsoup/soup-websocket.h>
 
@@ -123,5 +109,4 @@ void                chime_websocket_connection_set_keepalive_interval (ChimeWebs
 
 G_END_DECLS
 
-#endif /* USE_LIBSOUP_WEBSOCKETS */
 #endif /* __CHIME_WEBSOCKET_CONNECTION_H__ */

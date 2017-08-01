@@ -23,7 +23,21 @@
 #include "chime-contact.h"
 #include "chime-room.h"
 
+#include <libsoup/soup.h>
+
+#ifndef USE_LIBSOUP_WEBSOCKETS
 #include "chime-websocket-connection.h"
+
+#define soup_websocket_connection_new chime_websocket_connection_new
+#define soup_websocket_connection_set_max_incoming_payload_size chime_websocket_connection_set_max_incoming_payload_size
+#define soup_websocket_connection_set_keepalive_interval chime_websocket_connection_set_keepalive_interval
+#define soup_websocket_connection_get_close_code chime_websocket_connection_get_close_code
+#define soup_websocket_connection_get_close_data chime_websocket_connection_get_close_data
+#define soup_websocket_connection_get_state chime_websocket_connection_get_state
+#define soup_websocket_connection_send_text chime_websocket_connection_send_text
+
+#define SoupWebsocketConnection ChimeWebsocketConnection
+#endif
 
 #define CHIME_ENUM_VALUE(val, nick) { val, #val, nick },
 #define CHIME_DEFINE_ENUM_TYPE(TypeName, type_name, values)		\
@@ -97,7 +111,7 @@ typedef struct {
 	GQueue *msgs_pending_auth;
 
 	/* Juggernaut */
-	ChimeWebsocketConnection *ws_conn;
+	SoupWebsocketConnection *ws_conn;
 	gboolean jugg_connected;	/* For reconnecting, to abort on failed reconnect */
 	guint keepalive_timer;
 	gchar *ws_key;

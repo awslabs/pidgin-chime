@@ -46,15 +46,15 @@ static void free_jugg_subscription(gpointer user_data)
 
 #define KEEPALIVE_INTERVAL 30
 
-static void on_websocket_closed(ChimeWebsocketConnection *ws,
+static void on_websocket_closed(SoupWebsocketConnection *ws,
 				gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	chime_connection_log(cxn, CHIME_LOGLVL_INFO, "WebSocket closed (%d: '%s')\n",
-			     chime_websocket_connection_get_close_code(ws),
-			     chime_websocket_connection_get_close_data(ws));
+			     soup_websocket_connection_get_close_code(ws),
+			     soup_websocket_connection_get_close_data(ws));
 
 	/* If we got at least as far as receiving the '1::' connect message,
 	 * then try again. Otherwise, abort */
@@ -122,7 +122,7 @@ static void jugg_send(ChimeConnection *cxn, const gchar *fmt, ...)
 	va_end(args);
 
 	chime_connection_log(cxn, CHIME_LOGLVL_MISC, "Send juggernaut msg: %s\n", str);
-	chime_websocket_connection_send_text(priv->ws_conn, str);
+	soup_websocket_connection_send_text(priv->ws_conn, str);
 	g_free(str);
 }
 
@@ -131,7 +131,7 @@ static void send_subscription_message(ChimeConnection *cxn, const gchar *type, c
 	jugg_send(cxn, "3:::{\"type\":\"%s\",\"channel\":\"%s\"}", type, channel);
 }
 
-static void on_websocket_message(ChimeWebsocketConnection *ws, gint type,
+static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 				 GBytes *message, gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
@@ -191,7 +191,7 @@ static gboolean pong_timeout(gpointer _cxn)
 	return FALSE;
 }
 
-static void on_websocket_pong(ChimeWebsocketConnection *ws,
+static void on_websocket_pong(SoupWebsocketConnection *ws,
 			      GByteArray *data, gpointer _cxn)
 {
 	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
@@ -265,15 +265,15 @@ static void jugg_upgrade_cb(SoupMessage *msg, gpointer _cxn)
 
 	g_object_ref(msg);
 	GIOStream *stream = soup_session_steal_connection(priv->soup_sess, msg);
-	priv->ws_conn = chime_websocket_connection_new(stream, soup_message_get_uri(msg),
+	priv->ws_conn = soup_websocket_connection_new(stream, soup_message_get_uri(msg),
 						       SOUP_WEBSOCKET_CONNECTION_CLIENT,
 						       soup_message_headers_get_one (msg->request_headers, "Origin"),
 						       soup_message_headers_get_one (msg->response_headers, "Sec-WebSocket-Protocol"));
 	g_object_unref(msg);
 
 	/* Remove limit on the payload size */
-	chime_websocket_connection_set_max_incoming_payload_size(priv->ws_conn, 0);
-	chime_websocket_connection_set_keepalive_interval(priv->ws_conn, KEEPALIVE_INTERVAL);
+	soup_websocket_connection_set_max_incoming_payload_size(priv->ws_conn, 0);
+	soup_websocket_connection_set_keepalive_interval(priv->ws_conn, KEEPALIVE_INTERVAL);
 
 	g_signal_connect(G_OBJECT(priv->ws_conn), "closed", G_CALLBACK(on_websocket_closed), cxn);
 	g_signal_connect(G_OBJECT(priv->ws_conn), "message", G_CALLBACK(on_websocket_message), cxn);
@@ -346,7 +346,7 @@ static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer _cxn)
 }
 
 
-static void on_final_ws_close(ChimeWebsocketConnection *ws, gpointer _unused)
+static void on_final_ws_close(SoupWebsocketConnection *ws, gpointer _unused)
 {
 	g_object_unref(ws);
 }
@@ -370,7 +370,7 @@ void chime_destroy_juggernaut(ChimeConnection *cxn)
 
 		/* We want to let it send the clean shutdown messages and close properly, or
 		 * we aren't properly marked as offline until a later timeout. */
-		if (chime_websocket_connection_get_state(priv->ws_conn) == SOUP_WEBSOCKET_STATE_CLOSED)
+		if (soup_websocket_connection_get_state(priv->ws_conn) == SOUP_WEBSOCKET_STATE_CLOSED)
 			g_object_unref(priv->ws_conn);
 		else
 			g_signal_connect(G_OBJECT(priv->ws_conn), "closed", G_CALLBACK(on_final_ws_close), NULL);

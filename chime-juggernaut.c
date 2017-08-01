@@ -44,6 +44,8 @@ static void free_jugg_subscription(gpointer user_data)
 	g_free(sub);
 }
 
+#define KEEPALIVE_INTERVAL 30
+
 static void on_websocket_closed(ChimeWebsocketConnection *ws,
 				gpointer _cxn)
 {
@@ -54,8 +56,8 @@ static void on_websocket_closed(ChimeWebsocketConnection *ws,
 			     chime_websocket_connection_get_close_code(ws),
 			     chime_websocket_connection_get_close_data(ws));
 
-	g_clear_object(&priv->ws_conn);
-
+	/* If we got at least as far as receiving the '1::' connect message,
+	 * then try again. Otherwise, abort */
 	if (priv->jugg_connected)
 		connect_jugg(cxn);
 	else
@@ -129,7 +131,6 @@ static void send_subscription_message(ChimeConnection *cxn, const gchar *type, c
 	jugg_send(cxn, "3:::{\"type\":\"%s\",\"channel\":\"%s\"}", type, channel);
 }
 
-static void send_resubscribe_message(ChimeConnection *cxn);
 static void on_websocket_message(ChimeWebsocketConnection *ws, gint type,
 				 GBytes *message, gpointer _cxn)
 {
@@ -152,19 +153,6 @@ static void on_websocket_message(ChimeWebsocketConnection *ws, gint type,
 			priv->jugg_online = TRUE;
 			chime_connection_calculate_online(cxn);
 		}
-		/* If we go this far, allow reconnect */
-		if (!priv->jugg_connected && priv->subscriptions) {
-			if (priv->jugg_resubscribe)
-				send_resubscribe_message(cxn);
-			else {
-				guint i, len;
-				const gchar **channels = (const gchar **)g_hash_table_get_keys_as_array(priv->subscriptions, &len);
-				for (i = 0;  i < len; i++)
-					send_subscription_message(cxn, "subscribe", channels[i]);
-				g_free(channels);
-			}
-		}
-		priv->jugg_resubscribe = TRUE;
 		priv->jugg_connected = TRUE;
 		return;
 	}
@@ -184,12 +172,37 @@ static void on_websocket_message(ChimeWebsocketConnection *ws, gint type,
 	g_strfreev(parms);
 }
 
-static void on_websocket_pong(ChimeWebsocketConnection *ws,
-				 GByteArray *data, gpointer _cxn)
+static gboolean pong_timeout(gpointer _cxn)
 {
-	printf("Received Pong frame with %d bytes of payload\n", data->len);
+	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
+	chime_connection_log(cxn, CHIME_LOGLVL_MISC, "WebSocket keepalive timeout\n");
+	priv->keepalive_timer = 0;
+
+	/* If we got at least as far as receiving the '1::' connect message,
+	 * then try again. Otherwise, abort */
+	if (priv->jugg_connected)
+		connect_jugg(cxn);
+	else
+		chime_connection_fail(cxn, CHIME_ERROR_NETWORK,
+				      _("Failed to establish WebSocket connection"));
+
+	return FALSE;
 }
+
+static void on_websocket_pong(ChimeWebsocketConnection *ws,
+			      GByteArray *data, gpointer _cxn)
+{
+	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	chime_connection_log(cxn, CHIME_LOGLVL_MISC, "WebSocket pong received (%s)\n",
+			     data->data);
+
+	g_source_remove(priv->keepalive_timer);
+	priv->keepalive_timer = g_timeout_add_seconds(KEEPALIVE_INTERVAL * 3, pong_timeout, cxn);
+}
+
 static void each_chan(gpointer _chan, gpointer _sub, gpointer _builder)
 {
 	JsonBuilder **builder = _builder;
@@ -260,12 +273,18 @@ static void jugg_upgrade_cb(SoupMessage *msg, gpointer _cxn)
 
 	/* Remove limit on the payload size */
 	chime_websocket_connection_set_max_incoming_payload_size(priv->ws_conn, 0);
-	chime_websocket_connection_set_keepalive_interval(priv->ws_conn, 10);
-	jugg_send(cxn, "1::");
+	chime_websocket_connection_set_keepalive_interval(priv->ws_conn, KEEPALIVE_INTERVAL);
 
 	g_signal_connect(G_OBJECT(priv->ws_conn), "closed", G_CALLBACK(on_websocket_closed), cxn);
 	g_signal_connect(G_OBJECT(priv->ws_conn), "message", G_CALLBACK(on_websocket_message), cxn);
 	g_signal_connect(G_OBJECT(priv->ws_conn), "pong", G_CALLBACK(on_websocket_pong), cxn);
+
+	priv->keepalive_timer = g_timeout_add_seconds(KEEPALIVE_INTERVAL * 3, pong_timeout, cxn);
+
+	jugg_send(cxn, "1::");
+
+	if (priv->subscriptions)
+		send_resubscribe_message(cxn);
 
 	g_object_unref(cxn);
 }
@@ -294,7 +313,8 @@ static void ws_key_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gp
 
 	g_free(priv->ws_key);
 	priv->ws_key = g_strdup(ws_opts[0]);
-	chime_connection_progress(cxn, 30, _("Establishing WebSocket connection..."));
+	if (!priv->jugg_online)
+		chime_connection_progress(cxn, 30, _("Establishing WebSocket connection..."));
 	g_strfreev(ws_opts);
 
 	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1/websocket/%s", priv->ws_key);
@@ -347,8 +367,19 @@ void chime_destroy_juggernaut(ChimeConnection *cxn)
 		g_signal_handlers_disconnect_matched(G_OBJECT(priv->ws_conn), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, cxn);
 
 		jugg_send(cxn, "0::");
-		g_signal_connect(G_OBJECT(priv->ws_conn), "closed", G_CALLBACK(on_final_ws_close), NULL);
+
+		/* We want to let it send the clean shutdown messages and close properly, or
+		 * we aren't properly marked as offline until a later timeout. */
+		if (chime_websocket_connection_get_state(priv->ws_conn) == SOUP_WEBSOCKET_STATE_CLOSED)
+			g_object_unref(priv->ws_conn);
+		else
+			g_signal_connect(G_OBJECT(priv->ws_conn), "closed", G_CALLBACK(on_final_ws_close), NULL);
 		priv->ws_conn = NULL;
+	}
+
+	if (priv->keepalive_timer) {
+		g_source_remove(priv->keepalive_timer);
+		priv->keepalive_timer = 0;
 	}
 
 	g_clear_pointer(&priv->ws_key, g_free);
@@ -360,6 +391,12 @@ static void connect_jugg(ChimeConnection *cxn)
 	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1");
 
 	priv->jugg_connected = FALSE;
+
+	if (priv->keepalive_timer) {
+		g_source_remove(priv->keepalive_timer);
+		priv->keepalive_timer = 0;
+	}
+
 	g_clear_object(&priv->ws_conn);
 
 	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);

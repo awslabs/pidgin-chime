@@ -99,7 +99,7 @@ typedef struct {
 	/* Juggernaut */
 	ChimeWebsocketConnection *ws_conn;
 	gboolean jugg_connected;	/* For reconnecting, to abort on failed reconnect */
-	gboolean jugg_resubscribe;	/* After reconnect we should use 'resubscribe' */
+	guint keepalive_timer;
 	gchar *ws_key;
 	GHashTable *subscriptions;
 

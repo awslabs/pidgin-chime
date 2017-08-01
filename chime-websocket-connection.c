@@ -1769,9 +1769,15 @@ static gboolean
 on_queue_ping (gpointer user_data)
 {
 	ChimeWebsocketConnection *self = CHIME_WEBSOCKET_CONNECTION (user_data);
+	gchar *payload;
+	GTimeVal now;
 
 	g_debug ("sending ping message");
-	send_message (self, CHIME_WEBSOCKET_QUEUE_NORMAL, 0x09, NULL, 0);
+
+	g_get_current_time (&now);
+	payload = g_time_val_to_iso8601 (&now);
+	send_message (self, CHIME_WEBSOCKET_QUEUE_NORMAL, 0x09, (guint8 *) payload, strlen(payload));
+	g_free (payload);
 
 	return G_SOURCE_CONTINUE;
 }

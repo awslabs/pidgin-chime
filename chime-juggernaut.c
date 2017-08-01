@@ -222,7 +222,7 @@ static void connect_jugg_cb(SoupSession *session, SoupMessage *msg, gpointer _cx
 	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
 
 	g_signal_handlers_disconnect_matched(msg, G_SIGNAL_MATCH_DATA,
-                                              0, 0, NULL, NULL, cxn);
+					     0, 0, NULL, NULL, cxn);
 
 	/* The request should never complete; it should always be upgraded */
 	chime_connection_fail(cxn, CHIME_ERROR_NETWORK,
@@ -263,36 +263,14 @@ static void jugg_upgrade_cb(SoupMessage *msg, gpointer _cxn)
 	chime_websocket_connection_set_keepalive_interval(priv->ws_conn, 10);
 	jugg_send(cxn, "1::");
 
-	priv->closed_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "closed",
-						G_CALLBACK(on_websocket_closed), cxn);
-	priv->message_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "message",
-						 G_CALLBACK(on_websocket_message), cxn);
-	priv->message_handler = g_signal_connect(G_OBJECT(priv->ws_conn), "pong",
-						 G_CALLBACK(on_websocket_pong), cxn);
+	g_signal_connect(G_OBJECT(priv->ws_conn), "closed", G_CALLBACK(on_websocket_closed), cxn);
+	g_signal_connect(G_OBJECT(priv->ws_conn), "message", G_CALLBACK(on_websocket_message), cxn);
+	g_signal_connect(G_OBJECT(priv->ws_conn), "pong", G_CALLBACK(on_websocket_pong), cxn);
+
 	g_object_unref(cxn);
 }
 
-static void connect_jugg(ChimeConnection *cxn)
-{
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1/websocket/%s", priv->ws_key);
-	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
-
-	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
-	soup_uri_free(uri);
-
-	priv->jugg_connected = FALSE;
-
-	soup_websocket_client_prepare_handshake(msg, NULL, NULL);
-	g_object_ref(cxn);
-	soup_message_add_status_code_handler(msg, "got-informational",
-					     SOUP_STATUS_SWITCHING_PROTOCOLS,
-					     G_CALLBACK(jugg_upgrade_cb), cxn);
-	soup_session_queue_message(priv->soup_sess, msg, connect_jugg_cb, cxn);
-}
-
-
-static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
+static void ws_key_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	gchar **ws_opts = NULL;
@@ -314,12 +292,26 @@ static void ws_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpoint
 		return;
 	}
 
+	g_free(priv->ws_key);
 	priv->ws_key = g_strdup(ws_opts[0]);
 	chime_connection_progress(cxn, 30, _("Establishing WebSocket connection..."));
 	g_strfreev(ws_opts);
 
-	connect_jugg(cxn);
+	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1/websocket/%s", priv->ws_key);
+	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
+
+	msg = soup_message_new_from_uri("GET", uri);
+	soup_uri_free(uri);
+
+	soup_websocket_client_prepare_handshake(msg, NULL, NULL);
+	g_object_ref(cxn);
+	soup_message_add_status_code_handler(msg, "got-informational",
+					     SOUP_STATUS_SWITCHING_PROTOCOLS,
+					     G_CALLBACK(jugg_upgrade_cb), cxn);
+	soup_session_queue_message(priv->soup_sess, msg, connect_jugg_cb, cxn);
 }
+
+
 
 static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer _cxn)
 {
@@ -352,9 +344,7 @@ void chime_destroy_juggernaut(ChimeConnection *cxn)
 	/* The ChimeConnection is going away, so disconnect the signals which
 	 * refer to it...*/
 	if (priv->ws_conn) {
-		g_signal_handler_disconnect(G_OBJECT(priv->ws_conn), priv->message_handler);
-		g_signal_handler_disconnect(G_OBJECT(priv->ws_conn), priv->closed_handler);
-		priv->message_handler = priv->closed_handler = 0;
+		g_signal_handlers_disconnect_matched(G_OBJECT(priv->ws_conn), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, cxn);
 
 		jugg_send(cxn, "0::");
 		g_signal_connect(G_OBJECT(priv->ws_conn), "closed", G_CALLBACK(on_final_ws_close), NULL);
@@ -364,14 +354,22 @@ void chime_destroy_juggernaut(ChimeConnection *cxn)
 	g_clear_pointer(&priv->ws_key, g_free);
 }
 
-void chime_init_juggernaut(ChimeConnection *cxn)
+static void connect_jugg(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1");
-	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
 
+	priv->jugg_connected = FALSE;
+	g_clear_object(&priv->ws_conn);
+
+	soup_uri_set_query_from_fields(uri, "session_uuid", priv->session_id, NULL);
+	chime_connection_queue_http_request(cxn, NULL, uri, "GET", ws_key_cb, NULL);
+}
+
+void chime_init_juggernaut(ChimeConnection *cxn)
+{
 	chime_connection_progress(cxn, 20, _("Obtaining WebSocket params..."));
-	chime_connection_queue_http_request(cxn, NULL, uri, "GET", ws_cb, NULL);
+	connect_jugg(cxn);
 }
 
 gboolean chime_connection_jugg_send(ChimeConnection *cxn, JsonNode *node)

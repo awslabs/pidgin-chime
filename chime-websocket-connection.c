@@ -1,3 +1,5 @@
+#ifndef USE_LIBSOUP_WEBSOCKETS
+
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
 /*
  * soup-websocket-connection.c: This file was originally part of Cockpit.
@@ -1858,3 +1860,4 @@ chime_websocket_connection_set_keepalive_interval (ChimeWebsocketConnection *sel
 		}
 	}
 }
+#endif

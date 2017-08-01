@@ -46,9 +46,13 @@ if test "$purple_datadir" = "" ; then
    purple_datadir="$datadir"
 fi
 AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
-PKG_CHECK_MODULES(SOUP, [libsoup-2.4])
+
 PKG_CHECK_MODULES(JSON, [json-glib-1.0])
 PKG_CHECK_MODULES(LIBXML, [libxml-2.0])
+PKG_CHECK_MODULES(SOUP, [libsoup-2.4 >= 2.50])
+if $PKG_CONFIG --atleast-version 2.59 libsoup-2.4; then
+   AC_DEFINE(USE_LIBSOUP_WEBSOCKETS, 1, [Use libsoup websockets])
+fi
 
 AC_PATH_PROG(MSGFMT, msgfmt)
 if test "$MSGFMT" = ""; then

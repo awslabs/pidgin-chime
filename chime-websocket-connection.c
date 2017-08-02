@@ -65,7 +65,6 @@
  * @error: default handler for the #ChimeWebsocketConnection::error signal
  * @closing: the default handler for the #ChimeWebsocketConnection:closing signal
  * @closed: default handler for the #ChimeWebsocketConnection::closed signal
- * @pong: default handler for the #ChimeWebsocketConnection::pong signal
  *
  * The abstract base class for #ChimeWebsocketConnection
  *
@@ -1451,7 +1450,7 @@ chime_websocket_connection_class_init (ChimeWebsocketConnectionClass *klass)
 	signals[PONG] = g_signal_new ("pong",
 				      CHIME_TYPE_WEBSOCKET_CONNECTION,
 				      G_SIGNAL_RUN_FIRST,
-				      G_STRUCT_OFFSET (ChimeWebsocketConnectionClass, pong),
+				      0,
 				      NULL, NULL, g_cclosure_marshal_generic,
 				      G_TYPE_NONE, 1, G_TYPE_BYTES);
 }

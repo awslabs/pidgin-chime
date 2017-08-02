@@ -58,9 +58,6 @@ typedef struct {
 	void      (* closing)     (ChimeWebsocketConnection *self);
 
 	void      (* closed)      (ChimeWebsocketConnection *self);
-
-	void      (* pong)        (ChimeWebsocketConnection *self,
-				   GBytes *message);
 } ChimeWebsocketConnectionClass;
 
 GType chime_websocket_connection_get_type (void) G_GNUC_CONST;

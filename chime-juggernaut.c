@@ -192,12 +192,13 @@ static gboolean pong_timeout(gpointer _cxn)
 }
 
 static void on_websocket_pong(SoupWebsocketConnection *ws,
-			      GByteArray *data, gpointer _cxn)
+			      GBytes *data, gpointer _cxn)
 {
 	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
 	chime_connection_log(cxn, CHIME_LOGLVL_MISC, "WebSocket pong received (%s)\n",
-			     data->data);
+			     g_bytes_get_data(data, NULL));
 
 	g_source_remove(priv->keepalive_timer);
 	priv->keepalive_timer = g_timeout_add_seconds(KEEPALIVE_INTERVAL * 3, pong_timeout, cxn);

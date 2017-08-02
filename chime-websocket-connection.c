@@ -625,8 +625,8 @@ receive_close (ChimeWebsocketConnection *self,
 
 static void
 receive_ping (ChimeWebsocketConnection *self,
-                      const guint8 *data,
-                      gsize len)
+	      const guint8 *data,
+	      gsize len)
 {
 	/* Send back a pong with same data */
 	g_debug ("received ping, responding");
@@ -635,23 +635,24 @@ receive_ping (ChimeWebsocketConnection *self,
 
 static void
 receive_pong (ChimeWebsocketConnection *self,
-                      const guint8 *data,
-                      gsize len)
+	      const guint8 *data,
+	      gsize len)
 {
-	GByteArray *bytes;
+	GByteArray *byte_array;
+	GBytes *bytes;
 
 	g_debug ("received pong message");
 
-	bytes = g_byte_array_sized_new (len + 1);
-	g_byte_array_append (bytes, data, len);
+	byte_array = g_byte_array_sized_new (len + 1);
+	g_byte_array_append (byte_array, data, len);
 	/* Always null terminate, as a convenience */
-	g_byte_array_append (bytes, (guchar *)"\0", 1);
+	g_byte_array_append (byte_array, (guchar *)"\0", 1);
 	/* But don't include the null terminator in the byte count */
-	bytes->len--;
+	byte_array->len--;
 
+	bytes = g_byte_array_free_to_bytes (byte_array);
 	g_signal_emit (self, signals[PONG], 0, bytes);
-	g_byte_array_unref (bytes);
-
+	g_bytes_unref (bytes);
 }
 
 static void

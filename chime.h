@@ -106,6 +106,8 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn);
 
 /* conversations.c */
+void chime_init_conversations_old(ChimeConnection *cxn);
+void chime_destroy_conversations_old(ChimeConnection *cxn);
 void chime_init_conversations(ChimeConnection *cxn);
 void chime_destroy_conversations(ChimeConnection *cxn);
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags);

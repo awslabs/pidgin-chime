@@ -477,7 +477,7 @@ static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNo
 	return TRUE;
 }
 
-void chime_init_conversations(ChimeConnection *cxn)
+void chime_init_conversations_old(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
@@ -493,7 +493,7 @@ void chime_init_conversations(ChimeConnection *cxn)
 	fetch_conversations(cxn, NULL);
 }
 
-void chime_destroy_conversations(ChimeConnection *cxn)
+void chime_destroy_conversations_old(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 

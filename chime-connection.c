@@ -89,7 +89,7 @@ chime_connection_disconnect(ChimeConnection    *self)
 	chime_destroy_juggernaut(self);
 	chime_destroy_contacts(self);
 	chime_destroy_rooms(self);
-	chime_destroy_conversations(self);
+	chime_destroy_conversations_old(self);
 	chime_destroy_chats(self);
 
 	g_clear_pointer(&priv->reg_node, json_node_unref);
@@ -457,7 +457,7 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 
 	chime_init_contacts(self);
 	chime_init_rooms(self);
-	chime_init_conversations(self);
+	chime_init_conversations_old(self);
 	chime_init_chats(self);
 }
 

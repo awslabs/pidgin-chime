@@ -6,7 +6,8 @@ AM_CPPFLAGS = @WFLAGS@
 plugin_LTLIBRARIES = libchime.la
 
 libchime_la_SOURCES = chime.c buddy.c rooms.c chat.c messages.c conversations.c \
-	chime-connection.c chime-connection.h chime-contact.c chime-contact.h chime-room.c \
+	chime-connection.c chime-connection.h chime-contact.c chime-contact.h \
+	chime-room.h chime-room.c chime-conversation.h chime-conversation.c \
 	chime-juggernaut.c chime-object.h chime-object.c chime.h \
 	login.c login-amazon.c login-warpdrive.c login-private.h \
 	chime-websocket-connection.c chime-websocket-connection.h

@@ -22,6 +22,7 @@
 #include "chime-object.h"
 #include "chime-contact.h"
 #include "chime-room.h"
+#include "chime-conversation.h"
 
 #include <libsoup/soup.h>
 
@@ -132,6 +133,9 @@ typedef struct {
 	int chat_id;
 
 	/* Conversations */
+	ChimeObjectCollection conversations;
+	ChimeSyncState conversations_sync;
+
 	GHashTable *im_conversations_by_peer_id;
 	GHashTable *conversations_by_id;
 	GHashTable *conversations_by_name;
@@ -149,6 +153,7 @@ void chime_connection_fail_error(ChimeConnection *cxn, GError *error);
 void chime_connection_calculate_online(ChimeConnection *cxn);
 void chime_connection_new_contact(ChimeConnection *cxn, ChimeContact *contact);
 void chime_connection_new_room(ChimeConnection *cxn, ChimeRoom *room);
+void chime_connection_new_conversation(ChimeConnection *cxn, ChimeConversation *conversation);
 void chime_connection_log(ChimeConnection *cxn, ChimeLogLevel level, const gchar *format, ...);
 void chime_connection_progress(ChimeConnection *cxn, int percent, const gchar *message);
 SoupMessage *chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,

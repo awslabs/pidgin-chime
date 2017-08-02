@@ -40,8 +40,19 @@ enum
 
 static GParamSpec *props[LAST_PROP];
 
+enum {
+	TYPING,
+	LAST_SIGNAL
+};
+
+static guint signals[LAST_SIGNAL];
+
 struct _ChimeConversation {
 	ChimeObject parent_instance;
+
+	ChimeConnection *cxn; /* For unsubscribing from jugg channels */
+
+	GSList *members; /* Not including ourself */
 
 	gchar *channel;
 	gboolean favourite;
@@ -55,11 +66,14 @@ struct _ChimeConversation {
 
 G_DEFINE_TYPE(ChimeConversation, chime_conversation, CHIME_TYPE_OBJECT)
 
+static void unsubscribe_conversation(gpointer key, gpointer val, gpointer data);
+
 static void
 chime_conversation_dispose(GObject *object)
 {
 	ChimeConversation *self = CHIME_CONVERSATION(object);
 
+	unsubscribe_conversation(NULL, self, NULL);
 	printf("Conversation disposed: %p\n", self);
 
 	G_OBJECT_CLASS(chime_conversation_parent_class)->dispose(object);
@@ -238,6 +252,11 @@ static void chime_conversation_class_init(ChimeConversationClass *klass)
 				  G_PARAM_STATIC_STRINGS);
 
 	g_object_class_install_properties(object_class, LAST_PROP, props);
+
+	signals[TYPING] =
+		g_signal_new ("typing",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 2, CHIME_TYPE_CONTACT, G_TYPE_BOOLEAN);
 }
 
 static void chime_conversation_init(ChimeConversation *self)
@@ -290,6 +309,51 @@ static gboolean parse_boolean(JsonNode *node, const gchar *member, gboolean *val
 	return TRUE;
 }
 
+static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNode *data_node)
+{
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConversation *conv = CHIME_CONVERSATION(_conv);
+
+	gint64 state;
+	if (!parse_int(data_node, "state", &state))
+		return FALSE;
+
+	JsonNode *node = json_node_get_parent(data_node);
+	if (!node)
+		return FALSE;
+
+	JsonObject *obj = json_node_get_object(node);
+	node = json_object_get_member(obj, "from");
+
+	const gchar *from;
+	if (!node || !parse_string(node, "id", &from))
+		return FALSE;
+
+	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_id, from);
+	if (!contact)
+		return FALSE;
+
+	printf("emit %ld for %s\n", state, chime_contact_get_email(contact));
+	g_signal_emit(conv, signals[TYPING], 0, contact, state);
+	return TRUE;
+}
+
+static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNode *data_node)
+{
+	return FALSE;
+}
+
+static void
+subscribe_conversation(ChimeConnection *cxn, ChimeConversation *conv)
+{
+	conv->cxn = cxn;
+
+	chime_jugg_subscribe(cxn, conv->channel, "ConversationMembership",
+			     conv_membership_jugg_cb, conv);
+	chime_jugg_subscribe(cxn, conv->channel, "TypingIndicator",
+			     conv_typing_jugg_cb, conv);
+}
+
 static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *cxn, JsonNode *node,
 							      GError **error)
 {
@@ -298,6 +362,7 @@ static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *c
 		*last_sent = NULL;
 	gboolean favourite, visibility;
 	ChimeNotifyPref desktop, mobile;
+	JsonNode *members_node;
 
 	if (!parse_string(node, "ConversationId", &id) ||
 	    !parse_string(node, "Name", &name) ||
@@ -305,7 +370,8 @@ static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *c
 	    !parse_boolean(node, "Favorite", &favourite) ||
 	    !parse_visibility(node, "Visibility", &visibility) ||
 	    !parse_string(node, "CreatedOn", &created_on) ||
-	    !parse_string(node, "UpdatedOn", &updated_on)) {
+	    !parse_string(node, "UpdatedOn", &updated_on) ||
+	    !(members_node = json_object_get_member(json_node_get_object(node), "Members"))) {
 	eparse:
 		g_set_error(error, CHIME_ERROR, CHIME_ERROR_BAD_RESPONSE,
 			    _("Failed to parse Conversation node"));
@@ -339,6 +405,8 @@ static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *c
 				    "desktop-notification-prefs", desktop,
 				    "mobile-notification-prefs", mobile,
 				    NULL);
+
+		subscribe_conversation(cxn, conversation);
 
 		chime_object_collection_hash_object(&priv->conversations, CHIME_OBJECT(conversation), TRUE);
 
@@ -477,7 +545,6 @@ static void fetch_conversations(ChimeConnection *cxn, const gchar *next_token)
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", conversations_cb,
 					    NULL);
 }
-
 static gboolean conv_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
 	JsonObject *obj = json_node_get_object(data_node);
@@ -499,12 +566,28 @@ void chime_init_conversations(ChimeConnection *cxn)
 	fetch_conversations(cxn, NULL);
 }
 
+static void unsubscribe_conversation(gpointer key, gpointer val, gpointer data)
+{
+	ChimeConversation *conv = CHIME_CONVERSATION (val);
+
+	if (conv->cxn) {
+		chime_jugg_unsubscribe(conv->cxn, conv->channel, "ConversationMembership",
+				       conv_membership_jugg_cb, conv);
+		chime_jugg_unsubscribe(conv->cxn, conv->channel, "TypingIndicator",
+				       conv_typing_jugg_cb, conv);
+		conv->cxn = NULL;
+	}
+}
+
 void chime_destroy_conversations(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "Conversation",
 			       conv_jugg_cb, NULL);
+
+	if (priv->conversations.by_id)
+		g_hash_table_foreach(priv->conversations.by_id, unsubscribe_conversation, NULL);
 
 	chime_object_collection_destroy(&priv->conversations);
 }

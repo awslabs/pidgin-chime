@@ -162,7 +162,7 @@ static void chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 
 static gboolean add_chat_member(struct chime_chat *chat, JsonNode *node)
 {
-	const char *id, *email, *display_name;
+	const char *id, *email, *display_name, *role;
 	PurpleConvChatBuddyFlags flags;
 	JsonObject *obj = json_node_get_object(node);
 	JsonNode *member = json_object_get_member(obj, "Member");
@@ -180,6 +180,9 @@ static gboolean add_chat_member(struct chime_chat *chat, JsonNode *node)
 		printf("Unknown presence %s\n", presence);
 		return FALSE;
 	}
+	if (parse_string(node, "Role", &role) && !strcmp(role, "administrator"))
+		flags |= PURPLE_CBFLAGS_OP;
+
 	if (!parse_string(member, "ProfileId", &id) ||
 	    !parse_string(member, "Email", &email) ||
 	    !parse_string(member, "DisplayName", &display_name))

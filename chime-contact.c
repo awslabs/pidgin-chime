@@ -316,6 +316,8 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 
 	if (is_contact)
 		chime_object_collection_hash_object(&priv->contacts, CHIME_OBJECT(contact), TRUE);
+	else
+		g_object_ref(contact);
 
 	return contact;
 }

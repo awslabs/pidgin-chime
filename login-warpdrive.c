@@ -392,7 +392,7 @@ static void gwt_entry_point_cb(SoupSession *session, SoupMessage *msg, gpointer 
  * Initial WD login scrapping.
  *
  * Ironically, most of the relevant data coming from this response is placed in
- * the GET parameters (both from the inital URL and the redirection).  From the
+ * the GET parameters (both from the initial URL and the redirection).  From the
  * HTML body we only want the location of the GWT bootstrapping Javascript code.
  */
 void chime_login_warpdrive(SoupSession *session, SoupMessage *msg, gpointer data)

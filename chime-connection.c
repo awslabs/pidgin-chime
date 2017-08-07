@@ -86,11 +86,11 @@ chime_connection_disconnect(ChimeConnection    *self)
 		g_clear_object(&priv->soup_sess);
 	}
 
-	chime_destroy_juggernaut(self);
-	chime_destroy_contacts(self);
 	chime_destroy_rooms(self);
 	chime_destroy_conversations_old(self);
 	chime_destroy_chats(self);
+	chime_destroy_contacts(self);
+	chime_destroy_juggernaut(self);
 
 	g_clear_pointer(&priv->reg_node, json_node_unref);
 

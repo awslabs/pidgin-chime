@@ -67,7 +67,7 @@ void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 			   const gchar *msg_id);
 /* BEWARE: msg_id is allocated, msg_time is const. I am going to hate myself
    for that one day, but it's convenient for now... */
-gboolean chime_read_last_msg(ChimeConnection *cxn, gboolean is_room,
+gboolean chime_read_last_msg(PurpleConnection *conn, gboolean is_room,
 			     const gchar *id, const gchar **msg_time,
 			     gchar **msg_id);
 

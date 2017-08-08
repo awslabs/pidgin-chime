@@ -140,7 +140,7 @@ void fetch_messages(ChimeConnection *cxn, struct chime_msgs *msgs, const gchar *
 	int i = 0;
 
 	const gchar *after = NULL;
-	chime_read_last_msg(cxn, msgs->is_room, msgs->id, &after, &msgs->last_msg);
+	chime_read_last_msg(cxn->prpl_conn, msgs->is_room, msgs->id, &after, &msgs->last_msg);
 
 	if (!msgs->messages)
 		msgs->messages = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);

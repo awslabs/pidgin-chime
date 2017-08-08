@@ -172,7 +172,7 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 
 	last_sent = chime_conversation_get_last_sent(conv);
 
-	if (!chime_read_last_msg(cxn, FALSE, chime_object_get_id(CHIME_OBJECT(conv)), &last_seen, NULL))
+	if (!chime_read_last_msg(conn, FALSE, chime_object_get_id(CHIME_OBJECT(conv)), &last_seen, NULL))
 		last_seen = "1970-01-01T00:00:00.000Z";
 
 	if (last_sent && strcmp(last_seen, last_sent)) {

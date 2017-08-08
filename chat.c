@@ -417,7 +417,7 @@ static void send_msg_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, 
 		/* If we have already received a message at least this new before
 		 * the response to the creation arrived, then don't deliver it to
 		 * Pidgin again.... */
-		if (chime_read_last_msg(cxn, TRUE, chat->id, &last_seen, NULL) &&
+		if (chime_read_last_msg(purple_conversation_get_gc(chat->conv), TRUE, chat->id, &last_seen, NULL) &&
 		    g_time_val_from_iso8601(last_seen, &seen_tv) &&
 		    (seen_tv.tv_sec > tv.tv_sec ||
 		     (seen_tv.tv_sec == tv.tv_sec && seen_tv.tv_usec >= tv.tv_usec)))
@@ -528,7 +528,7 @@ void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *
 	const gchar *msg_time;
 	GTimeVal msg_tv;
 
-	if (chime_read_last_msg(cxn, TRUE, id, &msg_time, NULL) &&
+	if (chime_read_last_msg(conn, TRUE, id, &msg_time, NULL) &&
 	    g_time_val_from_iso8601(msg_time, &msg_tv) &&
 	    (mention_tv.tv_sec < msg_tv.tv_sec ||
 	     (mention_tv.tv_sec == msg_tv.tv_sec && mention_tv.tv_usec <= msg_tv.tv_usec))) {

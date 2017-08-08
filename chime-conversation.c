@@ -42,6 +42,7 @@ static GParamSpec *props[LAST_PROP];
 
 enum {
 	TYPING,
+	MESSAGE,
 	LAST_SIGNAL
 };
 
@@ -52,7 +53,7 @@ struct _ChimeConversation {
 
 	ChimeConnection *cxn; /* For unsubscribing from jugg channels */
 
-	GSList *members; /* Not including ourself */
+	GHashTable *members; /* Not including ourself */
 
 	gchar *channel;
 	gboolean favourite;
@@ -74,6 +75,10 @@ chime_conversation_dispose(GObject *object)
 	ChimeConversation *self = CHIME_CONVERSATION(object);
 
 	unsubscribe_conversation(NULL, self, NULL);
+	if (self->members) {
+		g_hash_table_destroy(self->members);
+		self->members = NULL;
+	}
 	printf("Conversation disposed: %p\n", self);
 
 	G_OBJECT_CLASS(chime_conversation_parent_class)->dispose(object);
@@ -257,10 +262,22 @@ static void chime_conversation_class_init(ChimeConversationClass *klass)
 		g_signal_new ("typing",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 2, CHIME_TYPE_CONTACT, G_TYPE_BOOLEAN);
+
+	signals[MESSAGE] =
+		g_signal_new ("message",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, JSON_TYPE_NODE);
 }
 
+static void unref_member(gpointer obj)
+{
+	printf("Unref member %p\n", obj);
+	g_object_unref(obj);
+}
 static void chime_conversation_init(ChimeConversation *self)
 {
+	self->members = g_hash_table_new_full(g_str_hash, g_str_equal,
+					      NULL, unref_member);
 }
 
 const gchar *chime_conversation_get_id(ChimeConversation *self)
@@ -296,6 +313,20 @@ gboolean chime_conversation_get_visibility(ChimeConversation *self)
 	g_return_val_if_fail(CHIME_IS_CONVERSATION(self), FALSE);
 
 	return self->visibility;
+}
+
+GList *chime_conversation_get_members(ChimeConversation *self)
+{
+	g_return_val_if_fail(CHIME_IS_CONVERSATION(self), FALSE);
+
+	return g_hash_table_get_values(self->members);
+}
+
+const gchar *chime_conversation_get_last_sent(ChimeConversation *self)
+{
+	g_return_val_if_fail(CHIME_IS_CONVERSATION(self), FALSE);
+
+	return self->last_sent;
 }
 
 static gboolean parse_boolean(JsonNode *node, const gchar *member, gboolean *val)
@@ -338,8 +369,26 @@ static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNo
 	return TRUE;
 }
 
-static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNode *data_node)
+static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNode *node)
 {
+	ChimeConversation *conv = CHIME_CONVERSATION(_conv);
+
+	JsonObject *obj = json_node_get_object(node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
+	obj = json_node_get_object(record);
+	JsonNode *member_node = json_object_get_member(obj, "Member");
+	if (!member_node)
+		return FALSE;
+
+	ChimeContact *member = chime_connection_parse_conversation_contact(cxn, member_node, NULL);
+	if (member_node) {
+		const gchar *id = chime_contact_get_profile_id(member);
+		g_hash_table_insert(conv->members, (gpointer)id, member);
+		return TRUE;
+		}
 	return FALSE;
 }
 
@@ -354,8 +403,24 @@ subscribe_conversation(ChimeConnection *cxn, ChimeConversation *conv)
 			     conv_typing_jugg_cb, conv);
 }
 
-static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *cxn, JsonNode *node,
-							      GError **error)
+static void parse_members(ChimeConnection *cxn, ChimeConversation *conv, JsonNode *node)
+{
+	JsonArray *arr = json_node_get_array(node);
+	int i, len = json_array_get_length(arr);
+
+	for (i = 0; i < len; i++) {
+		ChimeContact *member = chime_connection_parse_conversation_contact(cxn,
+										   json_array_get_element(arr, i), NULL);
+		if (member) {
+			const gchar *id = chime_contact_get_profile_id(member);
+			g_hash_table_insert(conv->members, (gpointer)id, member);
+			printf("Added %p %s\n", member, id);
+		}
+	}
+}
+
+ChimeConversation *chime_connection_parse_conversation(ChimeConnection *cxn, JsonNode *node,
+						       GError **error)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
 	const gchar *id, *name, *channel, *created_on, *updated_on,
@@ -409,9 +474,9 @@ static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *c
 		subscribe_conversation(cxn, conversation);
 
 		chime_object_collection_hash_object(&priv->conversations, CHIME_OBJECT(conversation), TRUE);
+		parse_members(cxn, conversation, members_node);
 
 		/* Emit signal on ChimeConnection to admit existence of new conversation */
-		printf("new conv %s %p\n", id, conversation);
 		chime_connection_new_conversation(cxn, conversation);
 
 		return conversation;
@@ -459,6 +524,7 @@ static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *c
 	}
 
 	chime_object_collection_hash_object(&priv->conversations, CHIME_OBJECT(conversation), TRUE);
+	parse_members(cxn, conversation, members_node);
 
 	return conversation;
 }
@@ -545,6 +611,87 @@ static void fetch_conversations(ChimeConnection *cxn, const gchar *next_token)
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", conversations_cb,
 					    NULL);
 }
+
+
+struct deferred_conv_jugg {
+	JuggernautCallback cb;
+	JsonNode *node;
+};
+static void fetch_new_conv_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
+			      gpointer _defer)
+{
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	struct deferred_conv_jugg *defer = _defer;
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		JsonObject *obj = json_node_get_object(node);
+		node = json_object_get_member(obj, "Conversation");
+		if (!node)
+			goto bad;
+
+		ChimeConversation *conv = chime_connection_parse_conversation(cxn, node, NULL);
+		if (!conv)
+			goto bad;
+
+		/* Sanity check; we don't want to just keep looping for ever if it goes wrong */
+		const gchar *conv_id;
+		if (!parse_string(node, "ConversationId", &conv_id))
+			goto bad;
+
+		conv = g_hash_table_lookup(priv->conversations.by_id, conv_id);
+		if (!conv)
+			goto bad;
+
+		/* OK, now we know about the new conversation we can play the msg node */
+		defer->cb(cxn, NULL, defer->node);
+		goto out;
+	}
+ bad:
+	;
+ out:
+	json_node_unref(defer->node);
+	g_free(defer);
+}
+
+static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
+{
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
+	const gchar *conv_id;
+	if (!parse_string(record, "ConversationId", &conv_id))
+		return FALSE;
+
+	ChimeConversation *conv = g_hash_table_lookup(priv->conversations.by_id,
+						      conv_id);
+	if (!conv) {
+		/* It seems they don't do the helpful thing and send the notification
+		 * of a new conversation before they send the first message. So let's
+		 * go looking for it... */
+		struct deferred_conv_jugg *defer = g_new0(struct deferred_conv_jugg, 1);
+		defer->node = json_node_ref(data_node);
+		defer->cb = conv_msg_jugg_cb;
+
+		SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/conversations/%s", conv_id);
+		if (chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_new_conv_cb, defer))
+			return TRUE;
+
+		json_node_unref(defer->node);
+		g_free(defer);
+		return FALSE;
+	}
+
+	const gchar *id;
+	if (!parse_string(record, "MessageId", &id))
+		return FALSE;
+
+	g_signal_emit(conv, signals[MESSAGE], 0, record);
+	return TRUE;
+}
+
 static gboolean conv_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
 	JsonObject *obj = json_node_get_object(data_node);
@@ -563,6 +710,9 @@ void chime_init_conversations(ChimeConnection *cxn)
 
 	chime_jugg_subscribe(cxn, priv->device_channel, "Conversation",
 			     conv_jugg_cb, NULL);
+	chime_jugg_subscribe(cxn, priv->device_channel, "ConversationMessage",
+			     conv_msg_jugg_cb, NULL);
+
 	fetch_conversations(cxn, NULL);
 }
 
@@ -585,6 +735,8 @@ void chime_destroy_conversations(ChimeConnection *cxn)
 
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "Conversation",
 			       conv_jugg_cb, NULL);
+	chime_jugg_unsubscribe(cxn, priv->device_channel, "ConversationMessage",
+			     conv_msg_jugg_cb, NULL);
 
 	if (priv->conversations.by_id)
 		g_hash_table_foreach(priv->conversations.by_id, unsubscribe_conversation, NULL);

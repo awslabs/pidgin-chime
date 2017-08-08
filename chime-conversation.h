@@ -40,6 +40,10 @@ gboolean chime_conversation_get_favourite(ChimeConversation *self);
 
 gboolean chime_conversation_get_visibility(ChimeConversation *self);
 
+GList *chime_conversation_get_members(ChimeConversation *self);
+
+const gchar *chime_conversation_get_last_sent(ChimeConversation *self);
+
 ChimeConversation *chime_connection_conversation_by_name(ChimeConnection *cxn,
 					 const gchar *name);
 ChimeConversation *chime_connection_conversation_by_id(ChimeConnection *cxn,

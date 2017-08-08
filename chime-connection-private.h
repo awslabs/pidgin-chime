@@ -181,6 +181,12 @@ ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 /* chime-juggernaut.c */
 gboolean chime_connection_jugg_send(ChimeConnection *self, JsonNode *node);
 
+/* chime-conversation.c */
+void chime_init_conversations(ChimeConnection *cxn);
+void chime_destroy_conversations(ChimeConnection *cxn);
+/* TEMPORARILY exported while transitioning conversations.c over... */
+ChimeConversation *chime_connection_parse_conversation(ChimeConnection *cxn, JsonNode *node,
+						       GError **error);
 
 
 #endif /* __CHIME_CONNECTION_PRIVATE_H__ */

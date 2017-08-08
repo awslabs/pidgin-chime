@@ -211,6 +211,8 @@ static void chime_purple_login(PurpleAccount *account)
 			 G_CALLBACK(on_chime_disconnected), conn);
 	g_signal_connect(cxn, "progress",
 			 G_CALLBACK(on_chime_progress), conn);
+	g_signal_connect(cxn, "new-conversation",
+			 G_CALLBACK(on_chime_new_conversation), conn);
 	/* We don't use 'conn' for this one as we don't want it disconnected
 	   on close, and it doesn't use it anyway. */
 	g_signal_connect(cxn, "log-message",

@@ -23,6 +23,7 @@
 
 #include "chime-connection.h"
 #include "chime-contact.h"
+#include "chime-conversation.h"
 #include "chime-room.h"
 
 #define CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS		(1<<1)
@@ -104,12 +105,12 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data);
 void chime_purple_chat_leave(PurpleConnection *conn, int id);
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags);
 void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn);
+char *chime_purple_cb_real_name(PurpleConnection *conn, int id, const char *who);
 
 /* conversations.c */
-void chime_init_conversations_old(ChimeConnection *cxn);
-void chime_destroy_conversations_old(ChimeConnection *cxn);
-void chime_init_conversations(ChimeConnection *cxn);
-void chime_destroy_conversations(ChimeConnection *cxn);
+void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);
+void purple_chime_init_conversations(ChimeConnection *cxn);
+void purple_chime_destroy_conversations(ChimeConnection *cxn);
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags);
 unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleTypingState state);
 

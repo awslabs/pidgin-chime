@@ -767,3 +767,35 @@ void chime_connection_foreach_conversation(ChimeConnection *cxn, ChimeConversati
 
 	chime_object_collection_foreach_object(cxn, &priv->conversations, (ChimeObjectCB)cb, cbdata);
 }
+
+void chime_conversation_send_typing(ChimeConnection *cxn, ChimeConversation *conv,
+				    gboolean typing)
+{
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	JsonBuilder *jb = json_builder_new();
+
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "channel");
+	jb = json_builder_add_string_value(jb, conv->channel);
+	jb = json_builder_set_member_name(jb, "data");
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "klass");
+	jb = json_builder_add_string_value(jb, "TypingIndicator");
+	jb = json_builder_set_member_name(jb, "state");
+	jb = json_builder_add_boolean_value(jb, typing);
+	jb = json_builder_end_object(jb);
+	jb = json_builder_set_member_name(jb, "except");
+	jb = json_builder_begin_array(jb);
+	jb = json_builder_add_string_value(jb, priv->ws_key);
+	jb = json_builder_end_array(jb);
+	jb = json_builder_set_member_name(jb, "type");
+	jb = json_builder_add_string_value(jb, "publish");
+	jb = json_builder_end_object(jb);
+
+	JsonNode *node = json_builder_get_root(jb);
+	chime_connection_jugg_send(cxn, node);
+
+	json_node_unref(node);
+	g_object_unref(jb);
+
+}

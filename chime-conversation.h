@@ -54,6 +54,9 @@ typedef void (*ChimeConversationCB) (ChimeConnection *, ChimeConversation *, gpo
 void chime_connection_foreach_conversation(ChimeConnection *cxn, ChimeConversationCB cb,
 				   gpointer cbdata);
 
+void chime_conversation_send_typing(ChimeConnection *cxn, ChimeConversation *conv,
+				    gboolean typing);
+
 G_END_DECLS
 
 #endif /* __CHIME_CONVERSATION_H__ */

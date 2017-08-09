@@ -16,6 +16,7 @@
  */
 
 #include <debug.h>
+#include <request.h>
 #include <glib/gi18n.h>
 #include <libxml/HTMLparser.h>
 #include <libxml/tree.h>
@@ -463,10 +464,19 @@ static void signin_page_cb(SoupSession *session, SoupMessage *msg, gpointer data
 void chime_initial_login(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv;
+	PurpleRequestUiOps *ui_ops;
 	SoupMessage *msg;
 	struct login *state;
 
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+
+	ui_ops = purple_request_get_ui_ops();
+	if (!(ui_ops && ui_ops->request_action && ui_ops->request_input)) {
+		purple_debug_error("chime", "Cannot proceed to Chime login: missing essential UI operations");
+		chime_connection_fail(cxn, CHIME_ERROR_AUTH_FAILED,
+				      _("Cannot login to Chime with this software"));
+		return;
+	}
 
 	state = g_new0(struct login, 1);
 	state->connection = g_object_ref(cxn);

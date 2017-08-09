@@ -27,6 +27,10 @@
 #define GWT_RPC_PATH  "WarpDriveLogin/GalaxyInternalService"
 #define USER_FIELD  "username"
 #define PASS_FIELD  "password"
+#define AUTH_TITLE  _("Corporate Login")
+#define AUTH_FAIL  _("Authentication failed")
+#define AUTH_SEND  _("Sign In")
+#define AUTH_CANCEL  _("Cancel")
 
 #define discovery_failure(state, label)					\
 	do {								\
@@ -40,6 +44,7 @@ struct login_wd {
 	gchar *client_id;
 	gchar *redirect_url;
 	gchar *region;
+	gchar *username;
 	/* GWT-RPC specific parameters */
 	SoupURI *gwt_rpc_uri;
 	gchar *gwt_module_base;
@@ -56,6 +61,7 @@ static void free_wd_state(struct login_wd *state)
 	g_free(state->client_id);
 	g_free(state->redirect_url);
 	g_free(state->region);
+	g_free(state->username);
 	soup_uri_free(state->gwt_rpc_uri);
 	g_free(state->gwt_module_base);
 	g_free(state->gwt_permutation);
@@ -73,6 +79,14 @@ static gchar *escape_backslash(const gchar *src)
 			g_string_append_c(dst, '\\');
 	}
 	return g_string_free(dst, FALSE);
+}
+
+static void set_username(struct login_wd *state, const gchar *username)
+{
+	if (state->username)
+		g_free(state->username);
+
+	state->username = escape_backslash(username);
 }
 
 /*
@@ -259,26 +273,44 @@ static void gwt_auth_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 	g_strfreev(response);
 }
 
-static void send_credentials(struct login_wd *state, PurpleRequestFields *fields)
+static void send_credentials(struct login_wd *state, const gchar *password)
 {
 	SoupMessage *msg;
-	gchar *username, *password;
+	gchar *escaped;
 	static const gchar *type = "com.amazonaws.warpdrive.console.shared.LoginRequest_v4/3859384737";
 
-	username = escape_backslash(purple_request_fields_get_string(fields, USER_FIELD));
-	password = escape_backslash(purple_request_fields_get_string(fields, PASS_FIELD));
+	if (!(password && *password)) {
+		request_credentials(state, TRUE);
+		return;
+	}
+
+	escaped = escape_backslash(password);
 
 	msg = gwt_request(state, WARPDRIVE_INTERFACE, "authenticateUser", 11,
 			  type, type, "", "", state->client_id, "", NULL,
-			  state->directory, password, "", username);
+			  state->directory, escaped, "", state->username);
 
 	soup_session_queue_message(login_session(state), msg, gwt_auth_cb, state);
 
-	g_free(password);
-	g_free(username);
+	g_free(escaped);
 }
 
-static void request_credentials(struct login_wd *state, gboolean retry)
+static void gather_credentials_and_send(struct login_wd *state, PurpleRequestFields *fields)
+{
+	const gchar *username, *password;
+
+	username = purple_request_fields_get_string(fields, USER_FIELD);
+	password = purple_request_fields_get_string(fields, PASS_FIELD);
+	if (!(username && *username && password && *password)) {
+		request_credentials(state, TRUE);
+		return;
+	}
+
+	set_username(state, username);
+	send_credentials(state, password);
+}
+
+static void request_credentials_with_fields(struct login_wd *state, gboolean retry)
 {
 	PurpleRequestField *username, *password;
 	PurpleRequestFieldGroup *group;
@@ -298,15 +330,50 @@ static void request_credentials(struct login_wd *state, gboolean retry)
 
 	purple_request_fields_add_group(fields, group);
 
-	purple_request_fields(login_connection(state)->prpl_conn,
-			      _("Corporate Login"),
+	purple_request_fields(login_connection(state)->prpl_conn, AUTH_TITLE,
 			      _("Please sign in with your corporate credentials"),
-			      retry ? _("Authentication failed") : NULL,
-			      fields,
-			      _("Sign In"), G_CALLBACK(send_credentials),
-			      _("Cancel"), G_CALLBACK(chime_login_cancel_ui),
+			      retry ? AUTH_FAIL : NULL, fields,
+			      AUTH_SEND, G_CALLBACK(gather_credentials_and_send),
+			      AUTH_CANCEL, G_CALLBACK(chime_login_cancel_ui),
 			      login_connection(state)->prpl_conn->account,
 			      NULL, NULL, state);
+}
+
+static void request_password_with_input(struct login_wd *state, const gchar *username)
+{
+	if (!(username && *username)) {
+		request_credentials(state, TRUE);
+		return;
+	}
+
+	set_username(state, username);
+
+	purple_request_input(login_connection(state)->prpl_conn, AUTH_TITLE,
+			     _("Corporate password"), NULL,
+			     NULL, FALSE, TRUE, (gchar *) "password",
+			     AUTH_SEND, G_CALLBACK(send_credentials),
+			     AUTH_CANCEL, G_CALLBACK(chime_login_cancel_ui),
+			     login_connection(state)->prpl_conn->account,
+			     NULL, NULL, state);
+}
+
+static void request_username_with_input(struct login_wd *state, gboolean retry)
+{
+	purple_request_input(login_connection(state)->prpl_conn, AUTH_TITLE,
+			     _("Corporate username"), retry ? AUTH_FAIL : NULL,
+			     NULL, FALSE, FALSE, NULL,
+			     _("OK"), G_CALLBACK(request_password_with_input),
+			     AUTH_CANCEL, G_CALLBACK(chime_login_cancel_ui),
+			     login_connection(state)->prpl_conn->account,
+			     NULL, NULL, state);
+}
+
+static void request_credentials(struct login_wd *state, gboolean retry)
+{
+	if (purple_request_get_ui_ops()->request_fields)
+		request_credentials_with_fields(state, retry);
+	else
+		request_username_with_input(state, retry);
 }
 
 static void gwt_region_cb(SoupSession *session, SoupMessage *msg, gpointer data)

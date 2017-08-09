@@ -23,6 +23,11 @@
 #define SIGN_IN_FORM  "//form[@id='ap_signin_form']"
 #define CONSENT_FORM  "//form[@name='consent-form']"
 #define PASS_FIELD  "password"
+#define PASS_TITLE  _("Amazon Login")
+#define PASS_LABEL  _("Please enter the password for <%s>")
+#define PASS_FAIL   _("Authentication failed")
+#define PASS_OK  _("Sign In")
+#define PASS_CANCEL  _("Cancel")
 
 struct login_amzn {
 	struct login b;  /* Base */
@@ -107,12 +112,15 @@ static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer dat
 	chime_login_token_cb(session, msg, state);
 }
 
-static void send_credentials(struct login_amzn *state, PurpleRequestFields *fields)
+static void send_credentials(struct login_amzn *state, const gchar *password)
 {
 	SoupMessage *msg;
-	const gchar *password;
 
-	password = purple_request_fields_get_string(fields, PASS_FIELD);
+	if (!(password && *password)) {
+		request_credentials(state, TRUE);
+		return;
+	}
+
 	g_hash_table_insert(state->form->params,
 			    g_strdup(state->form->password_name),
 			    g_strdup(password));
@@ -125,7 +133,12 @@ static void send_credentials(struct login_amzn *state, PurpleRequestFields *fiel
 	clear_form(state);
 }
 
-static void request_credentials(struct login_amzn *state, gboolean retry)
+static void gather_credentials_and_send(struct login_amzn *state, PurpleRequestFields *fields)
+{
+	send_credentials(state, purple_request_fields_get_string(fields, PASS_FIELD));
+}
+
+static void request_credentials_with_fields(struct login_amzn *state, gboolean retry)
 {
 	PurpleRequestField *password;
 	PurpleRequestFieldGroup *group;
@@ -141,16 +154,40 @@ static void request_credentials(struct login_amzn *state, gboolean retry)
 	purple_request_field_group_add_field(group, password);
 
 	purple_request_fields_add_group(fields, group);
-	text = g_strdup_printf(_("Please enter the password for <%s>"),
-			       login_account_email(state));
+	text = g_strdup_printf(PASS_LABEL, login_account_email(state));
+
 	purple_request_fields(login_connection(state)->prpl_conn,
-			      _("Amazon Login"), text,
-			      retry ? _("Authentication failed") : NULL,
-			      fields,
-			      _("Sign In"), G_CALLBACK(send_credentials),
-			      _("Cancel"), G_CALLBACK(chime_login_cancel_ui),
+			      PASS_TITLE, text, retry ? PASS_FAIL : NULL, fields,
+			      PASS_OK, G_CALLBACK(gather_credentials_and_send),
+			      PASS_CANCEL, G_CALLBACK(chime_login_cancel_ui),
 			      login_connection(state)->prpl_conn->account,
 			      NULL, NULL, state);
+}
+
+static void request_credentials_with_input(struct login_amzn *state, gboolean retry)
+{
+	gchar *text;
+
+	text = g_strdup_printf(PASS_LABEL, login_account_email(state));
+
+	purple_request_input(login_connection(state)->prpl_conn,
+			     PASS_TITLE, text, retry ? PASS_FAIL : NULL, NULL,
+			     FALSE, TRUE, (gchar *) "password",
+			     PASS_OK, G_CALLBACK(send_credentials),
+			     PASS_CANCEL, G_CALLBACK(chime_login_cancel_ui),
+			     login_connection(state)->prpl_conn->account,
+			     NULL, NULL, state);
+}
+
+static void request_credentials(struct login_amzn *state, gboolean retry)
+{
+	/* When loging in with Amazon, we only request a password.  Therefore we
+	   may only use request_input.  However, request_fields provides a
+	   better user experience, so we still prefer it */
+	if (purple_request_get_ui_ops()->request_fields)
+		request_credentials_with_fields(state, retry);
+	else
+		request_credentials_with_input(state, retry);
 }
 
 void chime_login_amazon(SoupSession *session, SoupMessage *msg, gpointer data)

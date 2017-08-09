@@ -51,6 +51,7 @@ typedef void (*chime_msg_cb)(ChimeConnection *cxn, struct chime_msgs *msgs,
 struct chime_msgs {
 	gboolean is_room;
 	const gchar *id; /* of the conversation or room */
+	gchar *last_msg_time;
 	gchar *last_msg; /* MessageId of last known message */
 	GHashTable *messages; /* While fetching */
 	SoupMessage *soup_msg; /* For cancellation */

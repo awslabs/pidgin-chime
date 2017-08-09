@@ -177,6 +177,11 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 
 	if (last_sent && strcmp(last_seen, last_sent)) {
 		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch conv messages for %s\n", im->msgs.id);
+
+		const gchar *after = NULL;
+		if (chime_read_last_msg(conn, FALSE, im->msgs.id, &after, &im->msgs.last_msg) &&
+		    after && after[0])
+			im->msgs.last_msg_time = g_strdup(after);
 		fetch_messages(purple_connection_get_protocol_data(im->conn), &im->msgs, NULL);
 	}
 }

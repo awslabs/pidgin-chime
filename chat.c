@@ -330,7 +330,7 @@ static void kill_member(gpointer _member)
 	g_free(member);
 }
 
-static struct chime_chat *do_join_chat(ChimeConnection *cxn, ChimeRoom *room)
+static struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeRoom *room)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	if (!room)
@@ -347,7 +347,7 @@ static struct chime_chat *do_join_chat(ChimeConnection *cxn, ChimeRoom *room)
 		     "name", &name, "channel", &channel, NULL);
 
 	int chat_id = ++priv->chat_id;
-	chat->conv = serv_got_joined_chat(cxn->prpl_conn, chat_id, name);
+	chat->conv = serv_got_joined_chat(conn, chat_id, name);
 	g_free(name);
 
 	g_hash_table_insert(priv->live_chats, GUINT_TO_POINTER(chat_id), chat);
@@ -365,6 +365,12 @@ static struct chime_chat *do_join_chat(ChimeConnection *cxn, ChimeRoom *room)
 	chat->msgs.is_room = TRUE;
 	chat->msgs.id = chat->id;
 	chat->msgs.cb = chat_deliver_msg;
+
+	const gchar *after = NULL;
+	if (chime_read_last_msg(conn, TRUE, chat->id, &after, &chat->msgs.last_msg) &&
+	    after && after[0])
+		chat->msgs.last_msg_time = g_strdup(after);
+
 	fetch_messages(cxn, &chat->msgs, NULL);
 	fetch_chat_memberships(cxn, chat, NULL);
 
@@ -381,7 +387,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 	ChimeRoom *room = chime_connection_room_by_id(cxn, roomid);
 	if (!room)
 		return;
-	do_join_chat(cxn, room);
+	do_join_chat(conn, cxn, room);
 }
 
 void chime_purple_chat_leave(PurpleConnection *conn, int id)
@@ -470,8 +476,9 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	return ret;
 }
 
-static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
+static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _conn, JsonNode *data_node)
 {
+	PurpleConnection *conn = _conn;
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	JsonObject *obj = json_node_get_object(data_node);
 	JsonNode *record = json_object_get_member(obj, "record");
@@ -490,7 +497,7 @@ static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _unused, Js
 
 	struct chime_chat *chat = g_hash_table_lookup(priv->chats_by_room, room);
 	if (!chat)
-		chat = do_join_chat(cxn, room);
+		chat = do_join_chat(conn, cxn, room);
 	if (!chat) {
 		printf("No chat for room %s\n", room_id);
 		return FALSE;
@@ -503,7 +510,7 @@ void chime_init_chats(ChimeConnection *cxn)
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	priv->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
 	priv->chats_by_room = g_hash_table_new(g_direct_hash, g_direct_equal);
-	chime_jugg_subscribe(cxn, priv->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
+	chime_jugg_subscribe(cxn, priv->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn->prpl_conn);
 }
 
 void chime_destroy_chats(ChimeConnection *cxn)
@@ -511,9 +518,8 @@ void chime_destroy_chats(ChimeConnection *cxn)
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	g_clear_pointer(&priv->live_chats, g_hash_table_unref);
 	g_clear_pointer(&priv->chats_by_room, g_hash_table_unref);
-	chime_jugg_unsubscribe(cxn, priv->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn);
+	chime_jugg_unsubscribe(cxn, priv->device_channel, "RoomMessage", chat_demuxing_jugg_cb, cxn->prpl_conn);
 }
-
 
 void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn)
 {
@@ -537,5 +543,5 @@ void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *
 	}
 
 	/* We have been mentioned since we last looked at this room. Open it now. */
-	do_join_chat(cxn, room);
+	do_join_chat(conn, cxn, room);
 }

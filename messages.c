@@ -72,6 +72,7 @@ void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 	g_hash_table_foreach_remove(msgs->messages, insert_queued_msg, &l);
 	g_hash_table_destroy(msgs->messages);
 	g_clear_pointer(&msgs->last_msg, g_free);
+	g_clear_pointer(&msgs->last_msg_time, g_free);
 	msgs->messages = NULL;
 
 	while (l) {
@@ -139,15 +140,12 @@ void fetch_messages(ChimeConnection *cxn, struct chime_msgs *msgs, const gchar *
 	const gchar *opts[4];
 	int i = 0;
 
-	const gchar *after = NULL;
-	chime_read_last_msg(cxn->prpl_conn, msgs->is_room, msgs->id, &after, &msgs->last_msg);
-
 	if (!msgs->messages)
 		msgs->messages = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);
 
-	if (after && after[0]) {
+	if (msgs->last_msg_time && msgs->last_msg_time[0]) {
 		opts[i++] = "after";
-		opts[i++] = after;
+		opts[i++] = msgs->last_msg_time;
 	}
 	if (next_token) {
 		opts[i++] = "next-token";

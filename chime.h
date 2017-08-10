@@ -32,7 +32,7 @@
 #define CHIME_DEVICE_CAP_PRESENCE_SUBSCRIPTION		(1<<4)
 
 #define CHIME_MAX_STATUS 7
-const gchar *chime_statuses[CHIME_MAX_STATUS];
+extern const gchar *chime_statuses[CHIME_MAX_STATUS];
 
 /* SoupMessage handling for Chime communication, with retry on re-auth
  * and JSON parsing. XX: MAke this a proper superclass of SoupMessage */

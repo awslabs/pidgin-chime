@@ -107,7 +107,7 @@ static void conv_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 
 static void on_conv_msg(ChimeConversation *conv, JsonNode *record, struct chime_im *im)
 {
-	ChimeConnection *cxn = CHIME_CONNECTION(purple_connection_get_protocol_data(im->conn));
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(im->conn);
 	const gchar *id;
 	if (!parse_string(record, "MessageId", &id))
 		return;
@@ -181,7 +181,7 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 		if (chime_read_last_msg(conn, FALSE, im->msgs.id, &after, &im->msgs.last_msg) &&
 		    after && after[0])
 			im->msgs.last_msg_time = g_strdup(after);
-		fetch_messages(purple_connection_get_protocol_data(im->conn), &im->msgs, NULL);
+		fetch_messages(PURPLE_CHIME_CXN(im->conn), &im->msgs, NULL);
 	}
 }
 
@@ -259,7 +259,7 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 	if (state == PURPLE_TYPED)
 		return 0;
 
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_name, name);
@@ -405,7 +405,7 @@ static void autocomplete_im_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode 
 
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(gc);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(gc);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	struct im_send_data *imd = g_new0(struct im_send_data, 1);

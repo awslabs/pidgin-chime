@@ -144,7 +144,7 @@ static void on_buddy_invited(GObject *source, GAsyncResult *result, gpointer use
 
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	ChimeContact *contact = chime_connection_contact_by_email(cxn,
 								  purple_buddy_get_name(buddy));
 	if (contact) {
@@ -184,7 +184,7 @@ void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, Purpl
 		}
 		buddies = g_slist_remove(buddies, b);
 	}
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	ChimeContact *contact = chime_connection_contact_by_email(cxn,
 								  buddy->name);
 	g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_DATA,

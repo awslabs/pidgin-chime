@@ -72,7 +72,7 @@ static void on_set_idle_ready(GObject *source, GAsyncResult *result, gpointer us
 
 static void chime_purple_set_idle(PurpleConnection *conn, int idle_time)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	printf("set idle %d\n", idle_time);
 
 	chime_connection_set_device_status_async(cxn, idle_time ? "Idle" : "Active",
@@ -175,7 +175,6 @@ static void get_machine_id(unsigned char *id, int len)
 static void chime_purple_login(PurpleAccount *account)
 {
 	PurpleConnection *conn = purple_account_get_connection(account);
-	ChimeConnection *cxn;
 
 	const gchar *devtoken = purple_account_get_string(account, "devtoken", NULL);
 	/* Generate a stable device-id based on on the host identity and account name.
@@ -200,22 +199,23 @@ static void chime_purple_login(PurpleAccount *account)
 
 	purple_connection_update_progress(conn, _("Connecting..."), 0, 100);
 
-	cxn = chime_connection_new(conn, server, devtoken, token);
-	purple_connection_set_protocol_data(conn, cxn);
+	struct purple_chime *pc = g_new0(struct purple_chime, 1);
+	purple_connection_set_protocol_data(conn, pc);
+	pc->cxn = chime_connection_new(conn, server, devtoken, token);
 
-	g_signal_connect(cxn, "notify::session-token",
+	g_signal_connect(pc->cxn, "notify::session-token",
 			 G_CALLBACK(on_session_token_changed), conn);
-	g_signal_connect(cxn, "connected",
+	g_signal_connect(pc->cxn, "connected",
 			 G_CALLBACK(on_chime_connected), conn);
-	g_signal_connect(cxn, "disconnected",
+	g_signal_connect(pc->cxn, "disconnected",
 			 G_CALLBACK(on_chime_disconnected), conn);
-	g_signal_connect(cxn, "progress",
+	g_signal_connect(pc->cxn, "progress",
 			 G_CALLBACK(on_chime_progress), conn);
-	g_signal_connect(cxn, "new-conversation",
+	g_signal_connect(pc->cxn, "new-conversation",
 			 G_CALLBACK(on_chime_new_conversation), conn);
 	/* We don't use 'conn' for this one as we don't want it disconnected
 	   on close, and it doesn't use it anyway. */
-	g_signal_connect(cxn, "log-message",
+	g_signal_connect(pc->cxn, "log-message",
 			 G_CALLBACK(on_chime_log_message), NULL);
 
 
@@ -230,15 +230,17 @@ static void disconnect_contact(ChimeConnection *cxn, ChimeContact *contact,
 
 static void chime_purple_close(PurpleConnection *conn)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 
-	chime_connection_foreach_contact(cxn, (ChimeContactCB)disconnect_contact, conn);
+	chime_connection_foreach_contact(pc->cxn, (ChimeContactCB)disconnect_contact, conn);
 
-	g_signal_handlers_disconnect_matched(cxn, G_SIGNAL_MATCH_DATA,
+	g_signal_handlers_disconnect_matched(pc->cxn, G_SIGNAL_MATCH_DATA,
 					     0, 0, NULL, NULL, conn);
-	g_clear_object(&cxn);
+	g_clear_object(&pc->cxn);
+	g_free(pc);
+	purple_connection_set_protocol_data(conn, NULL);
 
-	printf("Chime close\n");
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Chime close");
 }
 
 
@@ -286,7 +288,7 @@ static void on_set_status_ready(GObject *source, GAsyncResult *result, gpointer 
 
 static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(account->gc);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(account->gc);
 	const gchar *status_str  = purple_status_is_available(status) ? "Automatic" : "Busy";
 
 	printf("set status %s for %s\n", status_str, purple_status_get_id(status));

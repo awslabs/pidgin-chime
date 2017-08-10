@@ -248,7 +248,7 @@ static gboolean chat_membership_jugg_cb(ChimeConnection *cxn, gpointer _chat, Js
 void chime_destroy_chat(struct chime_chat *chat)
 {
 	PurpleConnection *conn = chat->conv->account->gc;
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	ChimeRoom *room = chat->room;
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
@@ -379,7 +379,7 @@ static struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *
 
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
 
 	printf("join_chat %p %s %s\n", data, roomid, (gchar *)g_hash_table_lookup(data, "Name"));
@@ -392,7 +392,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 
 void chime_purple_chat_leave(PurpleConnection *conn, int id)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct chime_chat *chat = g_hash_table_lookup(priv->live_chats, GUINT_TO_POINTER(id));
 
@@ -440,7 +440,7 @@ static void send_msg_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, 
 
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct chime_chat *chat = g_hash_table_lookup(priv->live_chats, GUINT_TO_POINTER(id));
 	int ret;

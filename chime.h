@@ -56,6 +56,12 @@ struct chime_msgs {
 	chime_msg_cb cb;
 };
 
+struct purple_chime {
+	ChimeConnection *cxn;
+};
+
+#define PURPLE_CHIME_CXN(conn) (CHIME_CONNECTION(((struct purple_chime *)purple_connection_get_protocol_data(conn))->cxn))
+
 /* login.c */
 void chime_initial_login(ChimeConnection *cxn);
 

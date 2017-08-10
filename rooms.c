@@ -44,7 +44,7 @@ static void add_room_to_list(ChimeConnection *cxn, ChimeRoom *room, gpointer _ro
 
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	PurpleRoomlist *roomlist;
 	GList *fields = NULL;
 
@@ -84,7 +84,7 @@ GList *chime_purple_chat_info(PurpleConnection *conn)
 
 GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name)
 {
-	ChimeConnection *cxn = purple_connection_get_protocol_data(conn);
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	ChimeRoom *room;
 	GHashTable *hash;
 

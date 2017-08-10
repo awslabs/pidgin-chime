@@ -35,7 +35,8 @@ static void on_contact_availability(ChimeContact *contact, GParamSpec *ignored, 
 	ChimeAvailability availability = chime_contact_get_availability(contact);
 
 	if (availability)
-		purple_prpl_got_user_status(conn->account, chime_contact_get_email(contact), chime_statuses[availability], NULL);
+		purple_prpl_got_user_status(conn->account, chime_contact_get_email(contact),
+					    chime_availability_name(availability), NULL);
 }
 
 static void on_contact_display_name(ChimeContact *contact, GParamSpec *ignored, PurpleConnection *conn)
@@ -99,7 +100,7 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 			}
 			if (availability)
 				purple_prpl_got_user_status(conn->account, email,
-							    chime_statuses[availability], NULL);
+							    chime_availability_name(availability), NULL);
 		} else {
 			PurpleGroup *group = purple_find_group(_("Chime Contacts"));
 			if (!group) {
@@ -152,7 +153,7 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 		purple_blist_server_alias_buddy(buddy, chime_contact_get_display_name(contact));
 		if (availability)
 			purple_prpl_got_user_status(conn->account, purple_buddy_get_name(buddy),
-						    chime_statuses[availability], NULL);
+						    chime_availability_name(availability), NULL);
 		if (chime_contact_get_contacts_list(contact))
 			return;
 	}

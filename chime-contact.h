@@ -36,9 +36,20 @@ typedef enum {
 	CHIME_AVAILABILITY_AWAY,
 	CHIME_AVAILABILITY_BUSY,
 	CHIME_AVAILABILITY_MOBILE,
-	CHIME_AVAILABILITY_SIX,
+	CHIME_AVAILABILITY_PRIVATE,
 	CHIME_AVAILABILITY_LAST
 } ChimeAvailability;
+
+#define CHIME_TYPE_AVAILABILITY (chime_availability_get_type ())
+GType chime_availability_get_type (void) G_GNUC_CONST;
+
+typedef enum {
+	CHIME_PRESENCE_AUTOMATIC = 0,
+	CHIME_PRESENCE_AVAILABLE,
+	CHIME_PRESENCE_BUSY,
+} ChimeManualPresence;
+
+const gchar *chime_availability_name(ChimeAvailability av);
 
 const gchar *chime_contact_get_profile_id(ChimeContact *contact);
 

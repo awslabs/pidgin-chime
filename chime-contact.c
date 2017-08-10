@@ -52,6 +52,26 @@ struct _ChimeContact {
 
 G_DEFINE_TYPE(ChimeContact, chime_contact, CHIME_TYPE_OBJECT)
 
+#define CHIME_AVAILABILITY_VALUES \
+       { CHIME_AVAILABILITY_UNKNOWN,	"unknown",	N_("Unknown") },\
+       { CHIME_AVAILABILITY_OFFLINE,	"offline",	N_("Offline") },\
+       { CHIME_AVAILABILITY_AVAILABLE,	"available",	N_("Availabie") },\
+       { CHIME_AVAILABILITY_AWAY,	"away",		N_("Away") },\
+       { CHIME_AVAILABILITY_BUSY,	"busy",		N_("Busy") },\
+       { CHIME_AVAILABILITY_MOBILE,	"mobile",	N_("Mobile") },\
+       { CHIME_AVAILABILITY_PRIVATE,	"private",	N_("Private") },
+
+CHIME_DEFINE_ENUM_TYPE(ChimeAvailability, chime_availability, CHIME_AVAILABILITY_VALUES)
+
+
+const gchar *chime_availability_name(ChimeAvailability av)
+{
+	gpointer klass = g_type_class_ref(CHIME_TYPE_AVAILABILITY);
+	GEnumValue *val = g_enum_get_value(klass, av);
+	g_type_class_unref(klass);
+	return val->value_name;
+}
+
 static void unsubscribe_contact(gpointer key, gpointer val, gpointer data);
 
 static void

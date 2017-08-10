@@ -242,33 +242,33 @@ static void chime_purple_close(PurpleConnection *conn)
 }
 
 
-const gchar *chime_statuses[CHIME_AVAILABILITY_LAST] = {
-	"zero", "offline", "Automatic", "three", "Busy", "Mobile", "six"
+static const PurpleStatusPrimitive purple_statuses[] = {
+	[CHIME_AVAILABILITY_OFFLINE] = PURPLE_STATUS_OFFLINE,
+	[CHIME_AVAILABILITY_AVAILABLE] = PURPLE_STATUS_AVAILABLE,
+	[CHIME_AVAILABILITY_AWAY] = PURPLE_STATUS_AWAY,
+	[CHIME_AVAILABILITY_BUSY] = PURPLE_STATUS_UNAVAILABLE,
+	[CHIME_AVAILABILITY_MOBILE] = PURPLE_STATUS_MOBILE,
+	[CHIME_AVAILABILITY_PRIVATE] = PURPLE_STATUS_INVISIBLE,
 };
 
 static GList *chime_purple_status_types(PurpleAccount *account)
 {
 	PurpleStatusType *type;
+	ChimeAvailability av;
 	GList *types = NULL;
 
-	type = purple_status_type_new(PURPLE_STATUS_OFFLINE, chime_statuses[1],
-				      _("Offline"), TRUE);
-	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_AVAILABLE, chime_statuses[2],
-				      _("Available"), TRUE);
-	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_AWAY, chime_statuses[3],
-				      _("Status 3"), FALSE);
-	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_UNAVAILABLE, chime_statuses[4],
-				      _("Busy"), TRUE);
-	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_MOBILE, chime_statuses[5],
-				      _("Mobile"), FALSE);
-	types = g_list_append(types, type);
-	type = purple_status_type_new(PURPLE_STATUS_UNAVAILABLE, chime_statuses[6],
-				      _("Six"), FALSE);
-	types = g_list_append(types, type);
+	gpointer klass = g_type_class_ref(CHIME_TYPE_AVAILABILITY);
+
+	for (av = CHIME_AVAILABILITY_OFFLINE; av <= CHIME_AVAILABILITY_PRIVATE; av++) {
+		GEnumValue *val = g_enum_get_value(klass, av);
+
+		type = purple_status_type_new(purple_statuses[av], val->value_name,
+					      _(val->value_nick),
+					      (av == CHIME_AVAILABILITY_AVAILABLE ||
+					       av == CHIME_AVAILABILITY_BUSY));
+		types = g_list_append(types, type);
+	}
+	g_type_class_unref(klass);
 
 	return types;
 }
@@ -287,11 +287,12 @@ static void on_set_status_ready(GObject *source, GAsyncResult *result, gpointer 
 static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status)
 {
 	ChimeConnection *cxn = purple_connection_get_protocol_data(account->gc);
-	printf("set status %s\n", purple_status_get_id(status));
+	const gchar *status_str  = purple_status_is_available(status) ? "Automatic" : "Busy";
 
-	chime_connection_set_presence_async(cxn, purple_status_get_id(status), NULL,
-					    NULL, on_set_status_ready,
-					    NULL);
+	printf("set status %s for %s\n", status_str, purple_status_get_id(status));
+
+	chime_connection_set_presence_async(cxn, status_str, NULL, NULL,
+					    on_set_status_ready, NULL);
 }
 
 static PurplePluginProtocolInfo chime_prpl_info = {

@@ -87,7 +87,6 @@ chime_connection_disconnect(ChimeConnection    *self)
 	}
 
 	chime_destroy_rooms(self);
-	purple_chime_destroy_conversations(self);
 	chime_destroy_conversations(self);
 	chime_destroy_chats(self);
 	chime_destroy_contacts(self);
@@ -458,7 +457,6 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 
 	chime_init_contacts(self);
 	chime_init_rooms(self);
-	purple_chime_init_conversations(self);
 	chime_init_conversations(self);
 	chime_init_chats(self);
 }

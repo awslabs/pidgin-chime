@@ -201,6 +201,7 @@ static void chime_purple_login(PurpleAccount *account)
 
 	struct purple_chime *pc = g_new0(struct purple_chime, 1);
 	purple_connection_set_protocol_data(conn, pc);
+	purple_chime_init_conversations(pc);
 	pc->cxn = chime_connection_new(conn, server, devtoken, token);
 
 	g_signal_connect(pc->cxn, "notify::session-token",
@@ -231,6 +232,8 @@ static void disconnect_contact(ChimeConnection *cxn, ChimeContact *contact,
 static void chime_purple_close(PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	purple_chime_destroy_conversations(pc);
 
 	chime_connection_foreach_contact(pc->cxn, (ChimeContactCB)disconnect_contact, conn);
 

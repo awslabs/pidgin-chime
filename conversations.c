@@ -138,6 +138,7 @@ static void on_conv_typing(ChimeConversation *conv, ChimeContact *contact, gbool
 
 void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn)
 {
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	GList *members = chime_conversation_get_members(conv);
@@ -160,7 +161,7 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "New conversation %s with %s\n", chime_object_get_id(CHIME_OBJECT(im->peer)),
 		     chime_contact_get_email(im->peer));
 
-	g_hash_table_insert(priv->im_conversations_by_peer_id,
+	g_hash_table_insert(pc->im_conversations_by_peer_id,
 			    (void *)chime_object_get_id(CHIME_OBJECT(im->peer)), im);
 
 	g_signal_connect(conv, "typing", G_CALLBACK(on_conv_typing), im);
@@ -190,25 +191,24 @@ static void im_destroy(gpointer _im)
 	struct chime_im *im = _im;
 
 	g_hash_table_destroy(im->sent_msgs);
+	g_signal_handlers_disconnect_matched(im->conv, G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, im);
 	g_object_unref(im->conv);
 	g_object_unref(im->peer);
 	g_free(im);
 }
 
-void purple_chime_init_conversations(ChimeConnection *cxn)
+void purple_chime_init_conversations(struct purple_chime *pc)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	priv->im_conversations_by_peer_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, im_destroy);
+	pc->im_conversations_by_peer_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, im_destroy);
 }
 
-void purple_chime_destroy_conversations(ChimeConnection *cxn)
+void purple_chime_destroy_conversations(struct purple_chime *pc)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-
-	g_clear_pointer(&priv->im_conversations_by_peer_id, g_hash_table_destroy);
+	g_clear_pointer(&pc->im_conversations_by_peer_id, g_hash_table_destroy);
 }
 
 struct im_send_data {
+	PurpleConnection *conn;
 	struct chime_im *im;
 	gchar *who;
 	gchar *message;
@@ -226,7 +226,7 @@ static void im_error(ChimeConnection *cxn, struct im_send_data *imd,
 
 	PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY,
 									  imd->who,
-									  cxn->prpl_conn->account);
+									  imd->conn->account);
 	if (pconv)
 		purple_conversation_write(pconv, NULL, msg, PURPLE_MESSAGE_ERROR, time(NULL));
 
@@ -259,19 +259,19 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 	if (state == PURPLE_TYPED)
 		return 0;
 
-	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (pc->cxn);
 
 	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_name, name);
 	if (!contact)
 		return 0;
 
 	const gchar *id = chime_contact_get_profile_id(contact);
-	struct chime_im *imd = g_hash_table_lookup(priv->im_conversations_by_peer_id, id);
+	struct chime_im *imd = g_hash_table_lookup(pc->im_conversations_by_peer_id, id);
 	if (!imd)
 		return 0;
 
-	chime_conversation_send_typing(cxn, imd->conv, state == PURPLE_TYPING);
+	chime_conversation_send_typing(pc->cxn, imd->conv, state == PURPLE_TYPING);
 
 	return 0;
 }
@@ -313,6 +313,7 @@ static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *nod
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct im_send_data *imd = _imd;
+	struct purple_chime *pc = purple_connection_get_protocol_data(imd->conn);
 
 	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
 		JsonObject *obj = json_node_get_object(node);
@@ -332,7 +333,7 @@ static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *nod
 		}
 
 		const gchar *id = chime_contact_get_profile_id(contact);
-		imd->im = g_hash_table_lookup(priv->im_conversations_by_peer_id, id);
+		imd->im = g_hash_table_lookup(pc->im_conversations_by_peer_id, id);
 		if (!imd->im) {
 			printf("No im for %s\n", id);
 			goto bad;
@@ -407,8 +408,9 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(gc);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-
+	struct purple_chime *pc = purple_connection_get_protocol_data(gc);
 	struct im_send_data *imd = g_new0(struct im_send_data, 1);
+	imd->conn = gc;
 	imd->message = purple_unescape_html(message);
 	imd->who = g_strdup(who);
 	imd->flags = flags;
@@ -416,7 +418,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_name, who);
 	if (contact) {
 		const gchar *id = chime_contact_get_profile_id(contact);
-		imd->im = g_hash_table_lookup(priv->im_conversations_by_peer_id, id);
+		imd->im = g_hash_table_lookup(pc->im_conversations_by_peer_id, id);
 		if (imd->im)
 			return send_im(cxn, imd);
 

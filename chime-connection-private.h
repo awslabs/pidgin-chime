@@ -135,11 +135,6 @@ typedef struct {
 	/* Conversations */
 	ChimeObjectCollection conversations;
 	ChimeSyncState conversations_sync;
-
-	GHashTable *im_conversations_by_peer_id;
-	GHashTable *conversations_by_id;
-	GHashTable *conversations_by_name;
-
 } ChimeConnectionPrivate;
 
 #define CHIME_CONNECTION_GET_PRIVATE(o) \

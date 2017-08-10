@@ -64,7 +64,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 
 		const gchar *email = chime_contact_get_email(contact);
 		gchar *escaped = g_markup_escape_text(message, -1);
-		serv_got_im(cxn->prpl_conn, email, escaped, flags, msg_time);
+		serv_got_im(im->conn, email, escaped, flags, msg_time);
 		g_free(escaped);
 	} else {
 		const gchar *msg_id;
@@ -76,7 +76,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		const gchar *email = chime_contact_get_email(im->peer);
 
 		/* Ick, how do we inject a message from ourselves? */
-		PurpleAccount *account = cxn->prpl_conn->account;
+		PurpleAccount *account = im->conn->account;
 		PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
 										  email, account);
 		if (!pconv) {
@@ -128,13 +128,12 @@ static void on_conv_msg(ChimeConversation *conv, JsonNode *record, struct chime_
 
 static void on_conv_typing(ChimeConversation *conv, ChimeContact *contact, gboolean state, struct chime_im *im)
 {
-	ChimeConnection *cxn = CHIME_CONNECTION(purple_connection_get_protocol_data(im->conn));
 	const gchar *email = chime_contact_get_email(contact);
 
 	if (state)
-		serv_got_typing(cxn->prpl_conn, email, 0, PURPLE_TYPING);
+		serv_got_typing(im->conn, email, 0, PURPLE_TYPING);
 	else
-		serv_got_typing_stopped(cxn->prpl_conn, email);
+		serv_got_typing_stopped(im->conn, email);
 }
 
 void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn)

@@ -70,9 +70,8 @@ struct chat_member {
  */
 static int parse_inbound_mentions(ChimeConnection *cxn, GRegex *mention_regex, const char *message, char **parsed)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	*parsed = g_regex_replace(mention_regex, message, -1, 0, MENTION_REPLACEMENT, 0, NULL);
-	return strstr(message, priv->profile_id) || strstr(message, "&lt;@all|") ||
+	return strstr(message, chime_connection_get_profile_id(cxn)) || strstr(message, "&lt;@all|") ||
 		strstr(message, "&lt;@present|");
 }
 
@@ -111,7 +110,6 @@ static gchar *parse_outbound_mentions(GHashTable *members, const gchar *message)
 static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
 			       JsonNode *node, time_t msg_time)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	PurpleConnection *conn = chat->conv->account->gc;
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
 	const gchar *content, *sender;
@@ -123,8 +121,8 @@ static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
 	const gchar *from = _("Unknown sender");
 	int msg_flags;
 
-	if (!strcmp(sender, priv->profile_id)) {
-		from = priv->display_name;
+	if (!strcmp(sender, chime_connection_get_profile_id(cxn))) {
+		from = purple_connection_get_display_name(conn);
 		msg_flags = PURPLE_MESSAGE_SEND;
 	} else {
 		struct chat_member *who = g_hash_table_lookup(chat->members, sender);

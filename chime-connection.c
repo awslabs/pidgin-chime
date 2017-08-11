@@ -921,3 +921,81 @@ gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str,
 
 	return TRUE;
 }
+
+static void send_message_cb(ChimeConnection *self, SoupMessage *msg,
+			    JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	/* Nothing to do o nsuccess */
+	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to send message: %d %s"),
+					msg->status_code, msg->reason_phrase);
+	} else {
+		JsonObject *obj = json_node_get_object(node);
+		JsonNode *node = json_object_get_member(obj, "Message");
+
+		if (node)
+			g_task_return_pointer(task, json_node_ref(node), (GDestroyNotify)json_node_unref);
+		else
+			g_task_return_new_error(task, CHIME_ERROR,
+						CHIME_ERROR_NETWORK,
+						_("Failed to send message"));
+	}
+	g_object_unref(task);
+}
+
+void
+chime_connection_send_message_async(ChimeConnection *self,
+				    ChimeObject *obj,
+				    const gchar *message,
+				    GCancellable *cancellable,
+				    GAsyncReadyCallback callback,
+				    gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(self));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+
+	GTask *task = g_task_new(self, cancellable, callback, user_data);
+
+	/* g_uuid_string_random() not till 2.52. So do this instead... */
+	GChecksum *sum = g_checksum_new(G_CHECKSUM_SHA256);
+	g_checksum_update(sum, (void *)&message, sizeof(&message));
+	g_checksum_update(sum, (void *)message, strlen(message));
+	gint64 t = g_get_monotonic_time();
+	g_checksum_update(sum, (void *)&t, sizeof(t));
+	guint32 r = g_random_int();
+	g_checksum_update(sum, (void *)&r, sizeof(r));
+	const gchar *uuid = g_checksum_get_string(sum);
+
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "Content");
+	jb = json_builder_add_string_value(jb, message);
+	jb = json_builder_set_member_name(jb, "ClientRequestToken");
+	jb = json_builder_add_string_value(jb, uuid);
+	jb = json_builder_end_object(jb);
+
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/%ss/%s/messages",
+					   CHIME_IS_ROOM(obj) ? "room" : "conversation",
+					   chime_object_get_id(obj));
+	JsonNode *node = json_builder_get_root(jb);
+	chime_connection_queue_http_request(self, node, uri, "POST", send_message_cb, task);
+
+	json_node_unref(node);
+	g_object_unref(jb);
+
+	g_checksum_free(sum);
+}
+
+JsonNode *
+chime_connection_send_message_finish(ChimeConnection *self, GAsyncResult *result,
+				     GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_pointer(G_TASK(result), error);
+}

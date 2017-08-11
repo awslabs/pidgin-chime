@@ -63,6 +63,17 @@ void chime_object_collection_foreach_object(ChimeConnection *cxn, ChimeObjectCol
 
 void chime_object_collection_expire_outdated(ChimeObjectCollection *coll);
 
+void             chime_connection_send_message_async         (ChimeConnection    *self,
+                                                              ChimeObject        *obj,
+                                                              const gchar        *message,
+                                                              GCancellable       *cancellable,
+                                                              GAsyncReadyCallback callback,
+                                                              gpointer            user_data);
+
+JsonNode        *chime_connection_send_message_finish        (ChimeConnection  *self,
+                                                              GAsyncResult     *result,
+                                                              GError          **error);
+
 G_END_DECLS
 
 #endif /* __CHIME_OBJECT_H__ */

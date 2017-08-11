@@ -999,3 +999,11 @@ chime_connection_send_message_finish(ChimeConnection *self, GAsyncResult *result
 
 	return g_task_propagate_pointer(G_TASK(result), error);
 }
+
+const gchar *chime_connection_get_profile_id(ChimeConnection *self)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+
+	return priv->profile_id;
+}

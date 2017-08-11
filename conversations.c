@@ -212,8 +212,8 @@ struct im_send_data {
 	PurpleMessageFlags flags;
 };
 
-static void im_error(ChimeConnection *cxn, struct im_send_data *imd,
-		     const gchar *format, ...)
+static void im_send_error(ChimeConnection *cxn, struct im_send_data *imd,
+			  const gchar *format, ...)
 {
 	va_list args;
 
@@ -228,26 +228,6 @@ static void im_error(ChimeConnection *cxn, struct im_send_data *imd,
 		purple_conversation_write(pconv, NULL, msg, PURPLE_MESSAGE_ERROR, time(NULL));
 
 	g_free(msg);
-}
-
-static void send_im_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _imd)
-{
-	struct im_send_data *imd = _imd;
-
-	/* Nothing to do o nsuccess */
-	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
-		im_error(cxn, imd, _("Failed to send message(%d): %s\n"),
-			 msg->status_code, msg->reason_phrase);
-	} else {
-		JsonObject *obj = json_node_get_object(node);
-		JsonNode *node = json_object_get_member(obj, "Message");
-		const gchar *msg_id;
-		if (node && parse_string(node, "MessageId", &msg_id)) {
-			g_hash_table_add(imd->im->sent_msgs, g_strdup(msg_id));
-		}
-	}
-	g_free(imd->message);
-	g_free(imd);
 }
 
 unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleTypingState state)
@@ -266,38 +246,31 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 	return 0;
 }
 
-static int send_im(ChimeConnection *cxn, struct im_send_data *imd)
+static void sent_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	struct im_send_data *imd = _imd;
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	GError *error = NULL;
 
-	/* For idempotency of requests. Not that we retry. */
-	gchar *uuid = purple_uuid_random();
+	JsonNode *msgnode = chime_connection_send_message_finish(cxn, result, &error);
 
-	JsonBuilder *jb = json_builder_new();
-	jb = json_builder_begin_object(jb);
-	jb = json_builder_set_member_name(jb, "Content");
-	jb = json_builder_add_string_value(jb, imd->message);
-	jb = json_builder_set_member_name(jb, "ClientRequestToken");
-	jb = json_builder_add_string_value(jb, uuid);
-	jb = json_builder_end_object(jb);
-
-	int ret;
-	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/conversations/%s/messages",
-					   chime_object_get_id(CHIME_OBJECT(imd->im->conv)));
-	JsonNode *node = json_builder_get_root(jb);
-	if (chime_connection_queue_http_request(cxn, node, uri, "POST", send_im_cb, imd))
-		ret = 1;
-	else {
-		ret = -1;
-		g_free(imd->who);
-		g_free(imd->message);
-		g_free(imd);
+	const gchar *msg_id;
+	if (msgnode) {
+		if (parse_string(msgnode, "MessageId", &msg_id))
+			g_hash_table_add(imd->im->sent_msgs, g_strdup(msg_id));
+		else
+			im_send_error(cxn, imd, _("Failed to send message"));
+		json_node_unref(msgnode);
+	} else {
+		im_send_error(cxn, imd, error->message);
+		g_clear_error(&error);
 	}
 
-	json_node_unref(node);
-	g_object_unref(jb);
-	return ret;
+	g_free(imd->who);
+	g_free(imd->message);
+	g_free(imd);
 }
+
 
 static void create_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 {
@@ -315,11 +288,11 @@ static void create_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 			goto bad;
 		}
 
-		send_im(cxn, imd);
+		chime_connection_send_message_async(cxn, CHIME_OBJECT(imd->im->conv), imd->message, NULL, sent_im_cb, imd);
 		return;
 	}
  bad:
-	im_error(cxn, imd, _("Failed to create IM conversation"));
+	im_send_error(cxn, imd, _("Failed to create IM conversation"));
 	g_free(imd->who);
 	g_free(imd->message);
 	g_free(imd);
@@ -344,7 +317,7 @@ static void autocomplete_im_cb(GObject *source, GAsyncResult *result, gpointer _
 		contacts = g_slist_remove(contacts, contact);
 	}
 
-	im_error(cxn, imd, _("Failed to find user"));
+	im_send_error(cxn, imd, _("Failed to find user"));
 	g_free(imd->who);
 	g_free(imd->message);
 	g_free(imd);
@@ -361,8 +334,10 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 	imd->flags = flags;
 
 	imd->im = g_hash_table_lookup(pc->ims_by_email, who);
-	if (imd->im)
-		return send_im(pc->cxn, imd);
+	if (imd->im) {
+		chime_connection_send_message_async(pc->cxn, CHIME_OBJECT(imd->im->conv), imd->message, NULL, sent_im_cb, imd);
+		return 1;
+	}
 
 	ChimeContact *contact = chime_connection_contact_by_email(pc->cxn, who);
 	if (contact) {

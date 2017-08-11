@@ -171,18 +171,16 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 
 	last_sent = chime_conversation_get_last_sent(conv);
 
-	if (!chime_read_last_msg(conn, FALSE, chime_object_get_id(CHIME_OBJECT(conv)), &last_seen, NULL))
+	if (!chime_read_last_msg(conn, CHIME_OBJECT(conv), &last_seen, &im->msgs.last_msg))
 		last_seen = "1970-01-01T00:00:00.000Z";
 
 	if (last_sent && strcmp(last_seen, last_sent)) {
 		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch conv messages for %s\n", im->msgs.id);
 
-		const gchar *after = NULL;
-		if (chime_read_last_msg(conn, FALSE, im->msgs.id, &after, &im->msgs.last_msg) &&
-		    after && after[0])
-			im->msgs.last_msg_time = g_strdup(after);
+		im->msgs.last_msg_time = g_strdup(last_seen);
 		fetch_messages(PURPLE_CHIME_CXN(im->conn), &im->msgs, NULL);
-	}
+	} else
+		g_clear_pointer(&im->msgs.last_msg, g_free);
 }
 
 static void im_destroy(gpointer _im)

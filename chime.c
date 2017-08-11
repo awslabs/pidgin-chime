@@ -410,11 +410,10 @@ void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
 }
 
 /* WARE! msg_id is allocated, msg_time is const */
-gboolean chime_read_last_msg(PurpleConnection *conn, gboolean is_room,
-			     const gchar *id, const gchar **msg_time,
-			     gchar **msg_id)
+gboolean chime_read_last_msg(PurpleConnection *conn, ChimeObject *obj,
+			     const gchar **msg_time, gchar **msg_id)
 {
-	gchar *key = g_strdup_printf("last-%s-%s", is_room ? "room" : "conversation", id);
+	gchar *key = g_strdup_printf("last-%s-%s", CHIME_IS_ROOM(obj) ? "room" : "conversation", chime_object_get_id(obj));
 	const gchar *val = purple_account_get_string(conn->account, key, NULL);
 	g_free(key);
 

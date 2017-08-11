@@ -124,7 +124,7 @@ static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
 	int msg_flags;
 
 	if (!strcmp(sender, priv->profile_id)) {
-		from = purple_connection_get_display_name(cxn->prpl_conn);
+		from = priv->display_name;
 		msg_flags = PURPLE_MESSAGE_SEND;
 	} else {
 		struct chat_member *who = g_hash_table_lookup(chat->members, sender);

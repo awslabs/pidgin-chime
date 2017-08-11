@@ -799,3 +799,82 @@ void chime_conversation_send_typing(ChimeConnection *cxn, ChimeConversation *con
 	g_object_unref(jb);
 
 }
+
+static void conv_created_cb(ChimeConnection *cxn, SoupMessage *msg,
+			    JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
+		JsonObject *obj = json_node_get_object(node);
+		ChimeConversation *conv = NULL;
+
+		node = json_object_get_member(obj, "Conversation");
+		if (node)
+			conv = chime_connection_parse_conversation(cxn, node, NULL);
+
+		if (conv)
+			g_task_return_pointer(task, g_object_ref(conv), g_object_unref);
+		else
+			g_task_return_new_error(task, CHIME_ERROR, CHIME_ERROR_NETWORK,
+						_("Failed to create conversation"));
+	} else {
+		const gchar *reason = msg->reason_phrase;
+
+		if (node)
+			parse_string(node, "error", &reason);
+
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to create conversation: %s"),
+					reason);
+	}
+
+	g_object_unref(task);
+}
+
+static void add_new_conv_member(gpointer _contact, gpointer _jb)
+{
+	JsonBuilder **jb = _jb;
+	ChimeContact *contact = CHIME_CONTACT(_contact);
+
+	*jb = json_builder_add_string_value(*jb, chime_contact_get_profile_id(contact));
+}
+
+void chime_connection_create_conversation_async(ChimeConnection *cxn,
+						GSList *contacts,
+						GCancellable *cancellable,
+						GAsyncReadyCallback callback,
+						gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "ProfileIds");
+	jb = json_builder_begin_array(jb);
+	g_slist_foreach(contacts, add_new_conv_member, &jb);
+	jb = json_builder_end_array(jb);
+	jb = json_builder_end_object(jb);
+
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/conversations");
+	JsonNode *node = json_builder_get_root(jb);
+	chime_connection_queue_http_request(cxn, node, uri, "POST", conv_created_cb, task);
+
+	json_node_unref(node);
+	g_object_unref(jb);
+}
+
+ChimeConversation *chime_connection_create_conversation_finish(ChimeConnection *self,
+							       GAsyncResult *result,
+							       GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_pointer(G_TASK(result), error);
+}
+

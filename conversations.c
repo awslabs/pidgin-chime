@@ -299,21 +299,15 @@ static int send_im(ChimeConnection *cxn, struct im_send_data *imd)
 	return ret;
 }
 
-static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _imd)
+static void create_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 {
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
 	struct im_send_data *imd = _imd;
+	ChimeConversation *conv = chime_connection_create_conversation_finish(cxn, result, NULL);
 	struct purple_chime *pc = purple_connection_get_protocol_data(imd->conn);
 
-	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
-		JsonObject *obj = json_node_get_object(node);
-		node = json_object_get_member(obj, "Conversation");
-		if (!node)
-			goto bad;
-
-		if (!chime_connection_parse_conversation(cxn, node, NULL)) {
-			printf("No conversation");
-			goto bad;
-		}
+	if (conv) {
+		g_object_unref(conv);
 
 		imd->im = g_hash_table_lookup(pc->ims_by_email, imd->who);
 		if (!imd->im) {
@@ -331,35 +325,6 @@ static void conv_create_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *nod
 	g_free(imd);
 }
 
-static int create_im_conv(ChimeConnection *cxn, struct im_send_data *im, const gchar *profile_id)
-{
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	JsonBuilder *jb = json_builder_new();
-	jb = json_builder_new();
-	jb = json_builder_begin_object(jb);
-	jb = json_builder_set_member_name(jb, "ProfileIds");
-	jb = json_builder_begin_array(jb);
-	jb = json_builder_add_string_value(jb, profile_id);
-	jb = json_builder_end_array(jb);
-	jb = json_builder_end_object(jb);
-
-	int ret;
-	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/conversations");
-	JsonNode *node = json_builder_get_root(jb);
-	if (chime_connection_queue_http_request(cxn, node, uri, "POST", conv_create_cb, im))
-		ret = 1;
-	else {
-		ret = -1;
-		g_free(im->who);
-		g_free(im->message);
-		g_free(im);
-	}
-
-	json_node_unref(node);
-	g_object_unref(jb);
-	return ret;
-}
-
 static void autocomplete_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 {
 	ChimeConnection *cxn = CHIME_CONNECTION(source);
@@ -369,7 +334,9 @@ static void autocomplete_im_cb(GObject *source, GAsyncResult *result, gpointer _
 	while (contacts) {
 		ChimeContact *contact = contacts->data;
 		if (!strcmp(imd->who, chime_contact_get_email(contact))) {
-			create_im_conv(cxn, imd, chime_contact_get_profile_id(contact));
+			GSList *l = g_slist_append(NULL, contact);
+			chime_connection_create_conversation_async(cxn, l, NULL, create_im_cb, imd);
+			g_slist_free_1(l);
 			g_slist_free_full(contacts, g_object_unref);
 			return;
 		}
@@ -398,8 +365,12 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 		return send_im(pc->cxn, imd);
 
 	ChimeContact *contact = chime_connection_contact_by_email(pc->cxn, who);
-	if (contact)
-		return create_im_conv(pc->cxn, imd, chime_contact_get_profile_id(contact));
+	if (contact) {
+		GSList *l = g_slist_append(NULL, contact);
+		chime_connection_create_conversation_async(pc->cxn, l, NULL, create_im_cb, imd);
+		g_slist_free_1(l);
+		return 1;
+	}
 
 	chime_connection_autocomplete_contact_async(pc->cxn, who, NULL, autocomplete_im_cb, imd);
 	return 1;

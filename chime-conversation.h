@@ -57,6 +57,17 @@ void chime_connection_foreach_conversation(ChimeConnection *cxn, ChimeConversati
 void chime_conversation_send_typing(ChimeConnection *cxn, ChimeConversation *conv,
 				    gboolean typing);
 
+
+void chime_connection_create_conversation_async(ChimeConnection *cxn,
+						GSList *contacts,
+						GCancellable *cancellable,
+						GAsyncReadyCallback callback,
+						gpointer user_data);
+
+ChimeConversation *chime_connection_create_conversation_finish(ChimeConnection *self,
+							       GAsyncResult *result,
+							       GError **error);
+
 G_END_DECLS
 
 #endif /* __CHIME_CONVERSATION_H__ */

@@ -399,21 +399,18 @@ void chime_purple_chat_leave(PurpleConnection *conn, int id)
 	chime_destroy_chat(chat);
 }
 
-static void send_msg_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _chat)
+static void sent_msg_cb(GObject *source, GAsyncResult *result, gpointer _chat)
 {
 	struct chime_chat *chat = _chat;
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	GError *error = NULL;
 
-	/* Nothing to do o nsuccess */
-	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
-		gchar *err_msg = g_strdup_printf(_("Failed to deliver message (%d): %s"),
-						 msg->status_code, msg->reason_phrase);
-		purple_conversation_write(chat->conv, NULL, err_msg, PURPLE_MESSAGE_ERROR, time(NULL));
-		g_free(err_msg);
+	JsonNode *msgnode = chime_connection_send_message_finish(cxn, result, &error);
+	if (!msgnode) {
+		purple_conversation_write(chat->conv, NULL, error->message, PURPLE_MESSAGE_ERROR, time(NULL));
+		g_clear_error(&error);
 		return;
-	}
-	JsonObject *obj = json_node_get_object(node);
-	JsonNode *msgnode = json_object_get_member(obj, "Message");
-	if (msgnode) {
+	} else {
 		const gchar *msg_time, *msg_id, *last_seen;
 		GTimeVal tv, seen_tv;
 
@@ -441,13 +438,7 @@ static void send_msg_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, 
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
-	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct chime_chat *chat = g_hash_table_lookup(pc->live_chats, GUINT_TO_POINTER(id));
-	int ret;
-
-	/* For idempotency of requests. Not that we retry. */
-	gchar *uuid = purple_uuid_random();
 
 	/* Chime does not understand HTML. */
 	gchar *unescaped = purple_unescape_html(message);
@@ -456,25 +447,10 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	gchar *expanded = parse_outbound_mentions(chat->members, unescaped);
 	g_free(unescaped);
 
-	JsonBuilder *jb = json_builder_new();
-	jb = json_builder_begin_object(jb);
-	jb = json_builder_set_member_name(jb, "Content");
-	jb = json_builder_add_string_value(jb, expanded);
-	jb = json_builder_set_member_name(jb, "ClientRequestToken");
-	jb = json_builder_add_string_value(jb, uuid);
-	jb = json_builder_end_object(jb);
-
-	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s/messages", chat->id);
-	JsonNode *node = json_builder_get_root(jb);
-	if (chime_connection_queue_http_request(cxn, node, uri, "POST", send_msg_cb, chat)) {
-		ret = 0;
-	} else
-		ret = -1;
+	chime_connection_send_message_async(pc->cxn, CHIME_OBJECT(chat->room), expanded, NULL, sent_msg_cb, chat);
 
 	g_free(expanded);
-	json_node_unref(node);
-	g_object_unref(jb);
-	return ret;
+	return 0;
 }
 
 static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _conn, JsonNode *data_node)

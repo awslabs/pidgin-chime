@@ -61,7 +61,7 @@ struct chime_msgs {
 struct purple_chime {
 	ChimeConnection *cxn;
 
-	GHashTable *im_conversations_by_peer_id;
+	GHashTable *ims_by_email;
 };
 
 #define PURPLE_CHIME_CXN(conn) (CHIME_CONNECTION(((struct purple_chime *)purple_connection_get_protocol_data(conn))->cxn))

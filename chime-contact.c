@@ -785,7 +785,7 @@ static void autocomplete_cb(ChimeConnection *cxn, SoupMessage *msg,
 
 		g_task_return_new_error(task, CHIME_ERROR,
 					CHIME_ERROR_NETWORK,
-					_("Failed to autocomplete: %s\n"),
+					_("Failed to autocomplete: %s"),
 					reason);
 	}
 	g_object_unref(task);

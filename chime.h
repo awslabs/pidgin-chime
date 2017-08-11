@@ -98,6 +98,7 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
 void chime_init_buddies(ChimeConnection *cxn);
 void chime_destroy_buddies(ChimeConnection *cxn);
+void chime_purple_user_search(PurplePluginAction *action);
 
 /* rooms.c */
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);

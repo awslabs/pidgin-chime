@@ -22,6 +22,7 @@
 
 #include <prpl.h>
 #include <blist.h>
+#include <request.h>
 
 #include "chime.h"
 
@@ -193,4 +194,143 @@ void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, Purpl
 	chime_connection_remove_contact_async(cxn, buddy->name,
 					      NULL, on_buddy_removed, conn);
 }
+static void search_add_buddy(PurpleConnection *conn, GList *row, gpointer _unused)
+{
+	purple_blist_request_add_buddy(purple_connection_get_account(conn),
+				       g_list_nth_data(row, 1), NULL, NULL);
+}
 
+static void search_im(PurpleConnection *conn, GList *row, gpointer _unused)
+{
+	PurpleConversation *conv = purple_conversation_new(PURPLE_CONV_TYPE_IM, purple_connection_get_account(conn),
+							   g_list_nth_data(row, 1));
+	purple_conversation_present(conv);
+}
+
+struct search_data {
+	PurpleConnection *conn;
+	void *ui_handle;
+	GSList *contacts;
+	guint refresh_id;
+};
+
+static PurpleNotifySearchResults *generate_search_results(GSList *contacts)
+{
+	PurpleNotifySearchResults *results = purple_notify_searchresults_new();
+	PurpleNotifySearchColumn *column;
+
+	column = purple_notify_searchresults_column_new(_("Name"));
+	purple_notify_searchresults_column_add(results, column);
+	column = purple_notify_searchresults_column_new(_("Email"));
+	purple_notify_searchresults_column_add(results, column);
+	column = purple_notify_searchresults_column_new(_("Availability"));
+	purple_notify_searchresults_column_add(results, column);
+
+	purple_notify_searchresults_button_add(results, PURPLE_NOTIFY_BUTTON_ADD,
+					       search_add_buddy);
+	purple_notify_searchresults_button_add(results, PURPLE_NOTIFY_BUTTON_IM,
+					       search_im);
+
+	gpointer klass = g_type_class_ref(CHIME_TYPE_AVAILABILITY);
+
+	while (contacts) {
+		ChimeContact *contact = contacts->data;
+		GList *row = NULL;
+		row = g_list_append(row, g_strdup(chime_contact_get_display_name(contact)));
+		row = g_list_append(row, g_strdup(chime_contact_get_email(contact)));
+		GEnumValue *val = g_enum_get_value(klass, chime_contact_get_availability(contact));
+		row = g_list_append(row, g_strdup(_(val->value_nick)));
+		purple_notify_searchresults_row_add(results, row);
+		contacts = contacts->next;
+	}
+
+	g_type_class_unref(klass);
+	return results;
+}
+
+static void search_closed_cb(gpointer _sd)
+{
+	struct search_data *sd = _sd;
+
+	if (sd->refresh_id)
+		g_source_remove(sd->refresh_id);
+	while (sd->contacts) {
+		ChimeContact *contact = sd->contacts->data;
+		g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_DATA,
+						     0, 0, NULL, NULL, sd);
+		g_object_unref(contact);
+		sd->contacts = g_slist_remove(sd->contacts, contact);
+	}
+	g_free(sd);
+}
+
+static gboolean renew_search_results(gpointer _sd)
+{
+	struct search_data *sd = _sd;
+
+	PurpleNotifySearchResults *results = generate_search_results(sd->contacts);
+	purple_notify_searchresults_new_rows(sd->conn, results, sd->ui_handle);
+
+	sd->refresh_id = 0;
+	return FALSE;
+}
+
+static void on_search_availability(ChimeContact *contact, GParamSpec *ignored, struct search_data *sd)
+{
+	/* Gather them up to avoid repeatedly redrawing as they come in the first time */
+	if (!sd->refresh_id)
+		sd->refresh_id = g_idle_add(renew_search_results, sd);
+}
+
+static void search_done(GObject *source, GAsyncResult *result, gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	GError *error = NULL;
+	GSList *contacts = chime_connection_autocomplete_contact_finish(CHIME_CONNECTION(source), result, &error);
+
+	if (error) {
+		g_warning("Autocomplete failed: %s\n", error->message);
+		g_error_free(error);
+		return;
+	}
+
+	PurpleNotifySearchResults *results = generate_search_results(contacts);
+
+	struct search_data *sd = g_new0(struct search_data, 1);
+	sd->contacts = contacts;
+	sd->conn = conn;
+	sd->ui_handle = purple_notify_searchresults(conn, _("Chime autocomplete"), _("Search results"),
+						    NULL, results, search_closed_cb, sd);
+	if (!sd->ui_handle) {
+		purple_notify_error(conn, NULL,
+				    _("Unable to display search results."),
+				    NULL);
+		search_closed_cb(sd);
+		return;
+	}
+	/* Strictly speaking we don't own these now but we know we're single-threaded */
+	while (contacts) {
+		ChimeContact *contact = contacts->data;
+		g_signal_connect(contact, "notify::availability",
+				 G_CALLBACK(on_search_availability), sd);
+		contacts = contacts->next;
+	}
+}
+
+static void user_search_begin(PurpleConnection *conn, const char *query)
+{
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
+
+	chime_connection_autocomplete_contact_async(cxn, query, NULL, search_done, conn);
+}
+
+void chime_purple_user_search(PurplePluginAction *action)
+{
+	PurpleConnection *conn = (PurpleConnection *) action->context;
+	purple_request_input(conn, _("Chime user lookup"),
+			     _("Enter the user information to lookup"), NULL, NULL,
+			     FALSE, FALSE, NULL,
+			     _("Search"), PURPLE_CALLBACK(user_search_begin),
+			     _("Cancel"), NULL,
+			     NULL, NULL, NULL, conn);
+}

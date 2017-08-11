@@ -360,26 +360,23 @@ static int create_im_conv(ChimeConnection *cxn, struct im_send_data *im, const g
 	return ret;
 }
 
-static void autocomplete_im_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _imd)
+static void autocomplete_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 {
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
 	struct im_send_data *imd = _imd;
+	GSList *contacts = chime_connection_autocomplete_contact_finish(cxn, result, NULL);
 
-	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
-		JsonArray *arr = json_node_get_array(node);
-
-		guint i, len = json_array_get_length(arr);
-		for (i = 0; i < len; i++) {
-			JsonNode *node = json_array_get_element(arr, i);
-			const gchar *email, *profile_id;
-
-			if (parse_string(node, "email", &email) &&
-			    parse_string(node, "id", &profile_id) &&
-			    !strcmp(imd->who, email)) {
-				create_im_conv(cxn, imd, profile_id);
-				return;
-			}
+	while (contacts) {
+		ChimeContact *contact = contacts->data;
+		if (!strcmp(imd->who, chime_contact_get_email(contact))) {
+			create_im_conv(cxn, imd, chime_contact_get_profile_id(contact));
+			g_slist_free_full(contacts, g_object_unref);
+			return;
 		}
+		g_object_unref(contact);
+		contacts = g_slist_remove(contacts, contact);
 	}
+
 	im_error(cxn, imd, _("Failed to find user"));
 	g_free(imd->who);
 	g_free(imd->message);
@@ -388,9 +385,8 @@ static void autocomplete_im_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode 
 
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags)
 {
-	ChimeConnection *cxn = PURPLE_CHIME_CXN(gc);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	struct purple_chime *pc = purple_connection_get_protocol_data(gc);
+
 	struct im_send_data *imd = g_new0(struct im_send_data, 1);
 	imd->conn = gc;
 	imd->message = purple_unescape_html(message);
@@ -399,32 +395,13 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 
 	imd->im = g_hash_table_lookup(pc->ims_by_email, who);
 	if (imd->im)
-		return send_im(cxn, imd);
+		return send_im(pc->cxn, imd);
 
-	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_name, who);
+	ChimeContact *contact = chime_connection_contact_by_email(pc->cxn, who);
 	if (contact)
-		return create_im_conv(cxn, imd, chime_contact_get_profile_id(contact));
+		return create_im_conv(pc->cxn, imd, chime_contact_get_profile_id(contact));
 
-	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/registered_auto_completes");
-	JsonBuilder *jb = json_builder_new();
-	jb = json_builder_begin_object(jb);
-	jb = json_builder_set_member_name(jb, "q");
-	jb = json_builder_add_string_value(jb, who);
-	jb = json_builder_end_object(jb);
-
-	int ret;
-	JsonNode *node = json_builder_get_root(jb);
-	if (chime_connection_queue_http_request(cxn, node, uri, "POST", autocomplete_im_cb, imd))
-		ret = 1;
-	else {
-		ret = -1;
-		g_free(imd->who);
-		g_free(imd->message);
-		g_free(imd);
-	}
-
-	json_node_unref(node);
-	g_object_unref(jb);
-	return ret;
+	chime_connection_autocomplete_contact_async(pc->cxn, who, NULL, autocomplete_im_cb, imd);
+	return 1;
 }
 

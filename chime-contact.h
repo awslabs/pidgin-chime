@@ -65,6 +65,8 @@ gboolean chime_contact_get_contacts_list(ChimeContact *contact);
 
 ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn,
 						const gchar *email);
+ChimeContact *chime_connection_contact_by_id(ChimeConnection *cxn,
+					     const gchar *id);
 
 /* Designed to match the NEW_CONTACT signal handler */
 typedef void (*ChimeContactCB) (ChimeConnection *, ChimeContact *, gpointer);

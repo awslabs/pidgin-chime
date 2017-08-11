@@ -614,6 +614,16 @@ ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn,
 	return g_hash_table_lookup(priv->contacts.by_name, email);
 }
 
+ChimeContact *chime_connection_contact_by_id(ChimeConnection *cxn,
+					     const gchar *id)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
+	g_return_val_if_fail(id != NULL, NULL);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	return g_hash_table_lookup(priv->contacts.by_id, id);
+}
+
 struct foreach_contact_st {
 	ChimeConnection *cxn;
 	ChimeContactCB cb;

@@ -433,8 +433,10 @@ static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node,
 		return TRUE;
 
 	contact->avail_revision = revision;
-	contact->availability = availability;
-	g_object_notify(G_OBJECT(contact), "availability");
+	if (contact->availability != availability) {
+		contact->availability = availability;
+		g_object_notify(G_OBJECT(contact), "availability");
+	}
 
 	return TRUE;
 }

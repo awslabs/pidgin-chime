@@ -127,11 +127,6 @@ typedef struct {
 	ChimeObjectCollection rooms;
 	ChimeSyncState rooms_sync;
 
-	/* These parts really do belong to Pidgin code */
-	GHashTable *chats_by_room;
-	GHashTable *live_chats;
-	int chat_id;
-
 	/* Conversations */
 	ChimeObjectCollection conversations;
 	ChimeSyncState conversations_sync;

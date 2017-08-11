@@ -106,7 +106,9 @@ static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, 
 	/* And add any that do, and monitor status for all */
 	chime_connection_foreach_contact(cxn, (ChimeContactCB)on_chime_new_contact, conn);
 
-	chime_connection_foreach_room(cxn, (ChimeRoomCB)on_chime_new_room, conn);
+	/* Subscribe to RoomMessage on the device channel (now that we know it) and
+	 * check LastMentions on each known Room, opening a chat immediately if needed. */
+	purple_chime_init_chats_post(conn);
 }
 
 static void on_chime_disconnected(ChimeConnection *cxn, GError *error, PurpleConnection *conn)
@@ -202,6 +204,7 @@ static void chime_purple_login(PurpleAccount *account)
 	struct purple_chime *pc = g_new0(struct purple_chime, 1);
 	purple_connection_set_protocol_data(conn, pc);
 	purple_chime_init_conversations(pc);
+	purple_chime_init_chats(pc);
 	pc->cxn = chime_connection_new(conn, server, devtoken, token);
 
 	g_signal_connect(pc->cxn, "notify::session-token",
@@ -234,6 +237,7 @@ static void chime_purple_close(PurpleConnection *conn)
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 
 	purple_chime_destroy_conversations(pc);
+	purple_chime_destroy_chats(pc);
 
 	chime_connection_foreach_contact(pc->cxn, (ChimeContactCB)disconnect_contact, conn);
 

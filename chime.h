@@ -62,6 +62,10 @@ struct purple_chime {
 	ChimeConnection *cxn;
 
 	GHashTable *ims_by_email;
+
+	GHashTable *chats_by_room;
+	GHashTable *live_chats;
+	int chat_id;
 };
 
 #define PURPLE_CHIME_CXN(conn) (CHIME_CONNECTION(((struct purple_chime *)purple_connection_get_protocol_data(conn))->cxn))
@@ -106,13 +110,13 @@ GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *
 /* chat.c */
 struct chime_chat;
 
-void chime_init_chats(ChimeConnection *cxn);
-void chime_destroy_chats(ChimeConnection *cxn);
+void purple_chime_init_chats_post(PurpleConnection *conn);
+void purple_chime_init_chats(struct purple_chime *pc);
+void purple_chime_destroy_chats(struct purple_chime *pc);
 void chime_destroy_chat(struct chime_chat *chat);
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data);
 void chime_purple_chat_leave(PurpleConnection *conn, int id);
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags);
-void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn);
 char *chime_purple_cb_real_name(PurpleConnection *conn, int id, const char *who);
 
 /* conversations.c */

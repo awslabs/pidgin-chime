@@ -43,7 +43,6 @@ struct chime_im {
 static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 				    JsonNode *record, time_t msg_time)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	const gchar *sender, *message;
 	gint64 sys;
 
@@ -56,9 +55,8 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 	if (sys)
 		flags |= PURPLE_MESSAGE_SYSTEM;
 
-	if (strcmp(sender, priv->profile_id)) {
-		ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_id,
-							    sender);
+	if (strcmp(sender, chime_connection_get_profile_id(cxn))) {
+		ChimeContact *contact = chime_connection_contact_by_id(cxn, sender);
 		if (!contact)
 			return FALSE;
 
@@ -139,7 +137,6 @@ static void on_conv_typing(ChimeConversation *conv, ChimeContact *contact, gbool
 void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	GList *members = chime_conversation_get_members(conv);
 	if (g_list_length(members) != 2) {
@@ -154,7 +151,7 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 	im->sent_msgs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 	im->conv = g_object_ref(conv);
 	im->peer = members->data;
-	if (!strcmp(priv->profile_id, chime_object_get_id(CHIME_OBJECT(im->peer))))
+	if (!strcmp(chime_connection_get_profile_id(cxn), chime_object_get_id(CHIME_OBJECT(im->peer))))
 		im->peer = members->next->data;
 	g_list_free(members);
 	g_object_ref(im->peer);

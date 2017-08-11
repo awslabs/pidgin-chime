@@ -161,8 +161,6 @@ gboolean parse_visibility(JsonNode *node, const gchar *member, gboolean *val);
 /* chime-contact.c */
 void chime_init_contacts(ChimeConnection *cxn);
 void chime_destroy_contacts(ChimeConnection *cxn);
-ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
-					     JsonNode *node, GError **error);
 ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 							  JsonNode *node,
 							  GError **error);

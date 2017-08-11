@@ -91,6 +91,15 @@ gboolean chime_connection_remove_contact_finish(ChimeConnection *self,
 						GAsyncResult *result,
 						GError **error);
 
+void chime_connection_autocomplete_contact_async(ChimeConnection *cxn,
+						 const gchar *query,
+						 GCancellable *cancellable,
+						 GAsyncReadyCallback callback,
+						 gpointer user_data);
+GSList *chime_connection_autocomplete_contact_finish(ChimeConnection *self,
+						     GAsyncResult *result,
+						     GError **error);
+
 G_END_DECLS
 
 #endif /* __CHIME_CONTACT_H__ */

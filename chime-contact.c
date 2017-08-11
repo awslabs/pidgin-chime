@@ -344,8 +344,8 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 
 /* Returns a ChimeContact which is in the contacts list, and
  * caller does not own a ref on it. */
-ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
-					     JsonNode *node, GError **error)
+static ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn, gboolean is_contact,
+						    JsonNode *node, GError **error)
 {
 	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	const gchar *email, *full_name, *presence_channel, *display_name,
@@ -365,7 +365,7 @@ ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
 
 	return find_or_create_contact(cxn, profile_id, presence_channel,
 				      profile_channel, email, full_name,
-				      display_name, TRUE, error);
+				      display_name, is_contact, error);
 }
 
 /* Returns a ChimeConects which is not necessarily in the contacst list,
@@ -524,7 +524,7 @@ static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 		priv->contacts.generation++;
 
 		for (i = 0; i < len; i++) {
-			chime_connection_parse_contact(cxn,
+			chime_connection_parse_contact(cxn, TRUE,
 						       json_array_get_element(arr, i),
 						       NULL);
 		}
@@ -578,8 +578,13 @@ void chime_init_contacts(ChimeConnection *cxn)
 static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
 {
 	ChimeContact *contact = CHIME_CONTACT (val);
-
 	if (contact->cxn) {
+		ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (contact->cxn);
+
+		if (priv->contacts_needed)
+			priv->contacts_needed = g_slist_remove(priv->contacts_needed,
+							       contact);
+
 		chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence",
 				       contact_presence_jugg_cb, contact);
 		if (contact->profile_channel)
@@ -751,4 +756,72 @@ gboolean chime_connection_remove_contact_finish(ChimeConnection *self,
 	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
 
 	return g_task_propagate_boolean(G_TASK(result), error);
+}
+
+static void autocomplete_cb(ChimeConnection *cxn, SoupMessage *msg,
+			    JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
+		GSList *results = NULL;
+		ChimeContact *contact;
+
+		JsonArray *arr = json_node_get_array(node);
+		guint i, len = json_array_get_length(arr);
+
+		for (i = 0; i < len; i++) {
+			contact = chime_connection_parse_contact(cxn, FALSE,
+								 json_array_get_element(arr, i),
+								 NULL);
+			if (contact)
+				results = g_slist_append(results, contact);
+		}
+		g_task_return_pointer(task, results, NULL);
+	} else {
+		const gchar *reason = msg->reason_phrase;
+
+		parse_string(node, "error", &reason);
+
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to autocomplete: %s\n"),
+					reason);
+	}
+	g_object_unref(task);
+}
+
+void chime_connection_autocomplete_contact_async(ChimeConnection *cxn,
+						 const gchar *query,
+						 GCancellable *cancellable,
+						 GAsyncReadyCallback callback,
+						 gpointer user_data)
+{
+
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+
+	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/registered_auto_completes");
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "q");
+	jb = json_builder_add_string_value(jb, query);
+	jb = json_builder_end_object(jb);
+
+	JsonNode *node = json_builder_get_root(jb);
+	chime_connection_queue_http_request(cxn, node, uri, "POST", autocomplete_cb, task);
+	json_node_unref(node);
+	g_object_unref(jb);
+}
+
+GSList *chime_connection_autocomplete_contact_finish(ChimeConnection *self,
+					       GAsyncResult *result,
+					       GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_pointer(G_TASK(result), error);
 }

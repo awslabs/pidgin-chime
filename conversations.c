@@ -30,26 +30,44 @@
 #include <libsoup/soup.h>
 
 struct chime_im {
-	struct chime_msgs msgs;
-
 	PurpleConnection *conn;
 	ChimeConversation *conv;
 	ChimeContact *peer;
+	gchar *last_msg_time;
+	gchar *last_msg_id;
 
-	GHashTable *sent_msgs;
+	GQueue *seen_msgs;
+	GHashTable *msg_gather;
 };
+
+static gboolean is_msg_seen(GQueue *q, const gchar *id)
+{
+	return !!g_queue_find_custom(q, id, (GCompareFunc)strcmp);
+}
+static void mark_msg_seen(GQueue *q, const gchar *id)
+{
+	if (q->length == 10)
+		g_free(g_queue_pop_tail(q));
+	g_queue_push_head(q, g_strdup(id));
+}
 
 /* Called for all deliveries of incoming conversation messages, at startup and later */
 static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 				    JsonNode *record, time_t msg_time)
 {
-	const gchar *sender, *message;
+	const gchar *sender, *message, *id;
 	gint64 sys;
 
 	if (!parse_string(record, "Sender", &sender) ||
 	    !parse_string(record, "Content", &message) ||
+	    !parse_string(record, "MessageId", &id) ||
 	    !parse_int(record, "IsSystemMessage", &sys))
 		return FALSE;
+
+	if (is_msg_seen(im->seen_msgs, id))
+		return TRUE;
+
+	mark_msg_seen(im->seen_msgs, id);
 
 	PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
 	if (sys)
@@ -65,12 +83,6 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		serv_got_im(im->conn, email, escaped, flags, msg_time);
 		g_free(escaped);
 	} else {
-		const gchar *msg_id;
-		if (parse_string(record, "MessageId", &msg_id) &&
-		    g_hash_table_remove(im->sent_msgs, msg_id)) {
-			/* This was a message sent from this client. No need to display it. */
-			return TRUE;
-		}
 		const gchar *email = chime_contact_get_email(im->peer);
 
 		/* Ick, how do we inject a message from ourselves? */
@@ -93,25 +105,15 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 	return TRUE;
 }
 
-/* Callback from message-gathering on startup */
-static void conv_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
-			     JsonNode *node, time_t msg_time)
-{
-	struct chime_im *im = (struct chime_im *)msgs;
-
-	do_conv_deliver_msg(cxn, im, node, msg_time);
-}
-
-
 static void on_conv_msg(ChimeConversation *conv, JsonNode *record, struct chime_im *im)
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(im->conn);
 	const gchar *id;
 	if (!parse_string(record, "MessageId", &id))
 		return;
-	if (im->msgs.messages) {
+	if (im->msg_gather) {
 		/* Still gathering messages. Add to the table, to avoid dupes */
-		g_hash_table_insert(im->msgs.messages, (gchar *)id, json_node_ref(record));
+		g_hash_table_insert(im->msg_gather, (gchar *)id, json_node_ref(record));
 		return;
 	}
 	GTimeVal tv;
@@ -133,6 +135,77 @@ static void on_conv_typing(ChimeConversation *conv, ChimeContact *contact, gbool
 	else
 		serv_got_typing_stopped(im->conn, email);
 }
+/* Duplicated from messages.c for now until rooms are changed to match... */
+
+struct msg_sort {
+	GTimeVal tm;
+	JsonNode *node;
+};
+
+static gint compare_ms(gconstpointer _a, gconstpointer _b)
+{
+	const struct msg_sort *a = _a;
+	const struct msg_sort *b = _b;
+
+	if (a->tm.tv_sec > b->tm.tv_sec)
+		return 1;
+	if (a->tm.tv_sec == b->tm.tv_sec &&
+	    a->tm.tv_usec > b->tm.tv_usec)
+		return 1;
+	return 0;
+}
+
+static int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
+{
+	const gchar *str;
+	GList **l = _list;
+
+	if (parse_string(_node, "CreatedOn", &str)) {
+		struct msg_sort *ms = g_new0(struct msg_sort, 1);
+		if (!g_time_val_from_iso8601(str, &ms->tm)) {
+			g_free(ms);
+			return TRUE;
+		}
+		ms->node = json_node_ref(_node);
+		*l = g_list_insert_sorted(*l, ms, compare_ms);
+	}
+	return TRUE;
+}
+
+/* Once the message fetching is complete, we can play the fetched messages in order */
+static void conv_msgs_flush(GObject *source, GAsyncResult *result, gpointer _im)
+{
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	struct chime_im *im = _im;
+
+	GError *error = NULL;
+	if (!chime_connection_create_conversation_finish(cxn, result, &error)) {
+		purple_debug(PURPLE_DEBUG_ERROR, "chime", "Failed to fetch messages: %s\n", error->message);
+		g_clear_error(&error);
+	}
+
+	GList *l = NULL;
+	/* Sort messages by time */
+	g_hash_table_foreach_remove(im->msg_gather, insert_queued_msg, &l);
+	g_clear_pointer(&im->msg_gather, g_hash_table_destroy);
+
+	while (l) {
+		struct msg_sort *ms = l->data;
+		JsonNode *node = ms->node;
+		do_conv_deliver_msg(cxn, im, node, ms->tm.tv_sec);
+		g_free(ms);
+		l = g_list_remove(l, ms);
+
+		/* Last message, note down the received time */
+		if (!l) {
+			const gchar *tm, *id;
+			if (parse_string(node, "CreatedOn", &tm) &&
+			    parse_string(node, "MessageId", &id))
+				chime_update_last_msg(cxn, FALSE, chime_object_get_id(CHIME_OBJECT(im->conv)), tm, id);
+		}
+		json_node_unref(node);
+	}
+}
 
 void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn)
 {
@@ -144,13 +217,10 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 		return;
 	}
 	struct chime_im *im = g_new0(struct chime_im, 1);
-	im->msgs.id = chime_object_get_id(CHIME_OBJECT(conv));
-	im->msgs.members_done = TRUE;
-	im->msgs.cb = conv_deliver_msg;
 	im->conn = conn;
-	im->sent_msgs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 	im->conv = g_object_ref(conv);
 	im->peer = members->data;
+	im->seen_msgs = g_queue_new();
 	if (!strcmp(chime_connection_get_profile_id(cxn), chime_object_get_id(CHIME_OBJECT(im->peer))))
 		im->peer = members->next->data;
 	g_list_free(members);
@@ -168,24 +238,31 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 
 	last_sent = chime_conversation_get_last_sent(conv);
 
-	if (!chime_read_last_msg(conn, CHIME_OBJECT(conv), &last_seen, &im->msgs.last_msg))
+	if (!chime_read_last_msg(conn, CHIME_OBJECT(conv), &last_seen, &im->last_msg_id))
 		last_seen = "1970-01-01T00:00:00.000Z";
 
-	if (last_sent && strcmp(last_seen, last_sent)) {
-		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch conv messages for %s\n", im->msgs.id);
+	if (im->last_msg_id)
+		mark_msg_seen(im->seen_msgs, im->last_msg_id);
 
-		im->msgs.last_msg_time = g_strdup(last_seen);
-		fetch_messages(PURPLE_CHIME_CXN(im->conn), &im->msgs, NULL);
-	} else
-		g_clear_pointer(&im->msgs.last_msg, g_free);
+	if (last_sent && strcmp(last_seen, last_sent)) {
+		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch conv messages for %s\n", chime_object_get_id(CHIME_OBJECT(im->peer)));
+
+		im->msg_gather = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);
+		im->last_msg_time = g_strdup(last_seen);
+		chime_connection_fetch_messages_async(PURPLE_CHIME_CXN(conn), CHIME_OBJECT(conv), NULL, last_seen, NULL, conv_msgs_flush, im);
+	}
 }
 
 static void im_destroy(gpointer _im)
 {
 	struct chime_im *im = _im;
 
-	g_hash_table_destroy(im->sent_msgs);
 	g_signal_handlers_disconnect_matched(im->conv, G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, im);
+	g_free(im->last_msg_time);
+	g_free(im->last_msg_id);
+	g_queue_free_full(im->seen_msgs, g_free);
+	if (im->msg_gather)
+		g_hash_table_destroy(im->msg_gather);
 	g_object_unref(im->conv);
 	g_object_unref(im->peer);
 	g_free(im);
@@ -253,9 +330,7 @@ static void sent_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 
 	const gchar *msg_id;
 	if (msgnode) {
-		if (parse_string(msgnode, "MessageId", &msg_id))
-			g_hash_table_add(imd->im->sent_msgs, g_strdup(msg_id));
-		else
+		if (!parse_string(msgnode, "MessageId", &msg_id))
 			im_send_error(cxn, imd, _("Failed to send message"));
 		json_node_unref(msgnode);
 	} else {
@@ -333,7 +408,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 	imd->im = g_hash_table_lookup(pc->ims_by_email, who);
 	if (imd->im) {
 		chime_connection_send_message_async(pc->cxn, CHIME_OBJECT(imd->im->conv), imd->message, NULL, sent_im_cb, imd);
-		return 1;
+		return 0;
 	}
 
 	ChimeContact *contact = chime_connection_contact_by_email(pc->cxn, who);
@@ -341,10 +416,10 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 		GSList *l = g_slist_append(NULL, contact);
 		chime_connection_create_conversation_async(pc->cxn, l, NULL, create_im_cb, imd);
 		g_slist_free_1(l);
-		return 1;
+		return 0;
 	}
 
 	chime_connection_autocomplete_contact_async(pc->cxn, who, NULL, autocomplete_im_cb, imd);
-	return 1;
+	return 0;
 }
 

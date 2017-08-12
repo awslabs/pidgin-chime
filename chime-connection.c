@@ -1007,3 +1007,105 @@ const gchar *chime_connection_get_profile_id(ChimeConnection *self)
 
 	return priv->profile_id;
 }
+
+struct fetch_msg_data {
+	ChimeObject *obj;
+	GHashTable *query;
+};
+static void free_fetch_msg_data(gpointer _fmd)
+{
+	struct fetch_msg_data *fmd = _fmd;
+	g_hash_table_destroy(fmd->query);
+	g_object_unref(fmd->obj);
+	g_free(fmd);
+}
+
+static void fetch_messages_req(ChimeConnection *self, GTask *task);
+
+static void fetch_messages_cb(ChimeConnection *self, SoupMessage *msg,
+			      JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+	struct fetch_msg_data *fmd = g_task_get_task_data(task);
+
+	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		const gchar *reason = msg->reason_phrase;
+
+		if (node)
+			parse_string(node, "error", &reason);
+
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to fetch messages: %d %s"),
+					msg->status_code, reason);
+	} else {
+		JsonObject *obj = json_node_get_object(node);
+		JsonNode *msgs_node = json_object_get_member(obj, "Messages");
+		JsonArray *msgs_array = json_node_get_array(msgs_node);
+		guint i, len = json_array_get_length(msgs_array);
+
+		for (i = 0; i < len; i++) {
+			JsonNode *msg_node = json_array_get_element(msgs_array, i);
+			const gchar *id;
+			if (parse_string(msg_node, "MessageId", &id))
+				g_signal_emit_by_name(fmd->obj, "message", msg_node);
+		}
+
+		const gchar *next_token;
+		if (parse_string(node, "NextToken", &next_token)) {
+			g_hash_table_insert(fmd->query, (void *)"next-token", g_strdup(next_token));
+			fetch_messages_req(self, task);
+			return;
+		}
+
+		g_task_return_boolean(task, TRUE);
+	}
+	g_object_unref(task);
+}
+
+static void fetch_messages_req(ChimeConnection *self, GTask *task)
+{
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	struct fetch_msg_data *fmd = g_task_get_task_data(task);
+
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/%ss/%s/messages",
+					   CHIME_IS_ROOM(fmd->obj) ? "room" : "conversation",
+					   chime_object_get_id(fmd->obj));
+	soup_uri_set_query_from_form(uri, fmd->query);
+	chime_connection_queue_http_request(self, NULL, uri, "GET", fetch_messages_cb, task);
+
+}
+
+void chime_connection_fetch_messages_async(ChimeConnection *self,
+					   ChimeObject *obj,
+					   const gchar *before,
+					   const gchar *after,
+					   GCancellable *cancellable,
+					   GAsyncReadyCallback callback,
+					   gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(self));
+
+	GTask *task = g_task_new(self, cancellable, callback, user_data);
+	struct fetch_msg_data *fmd = g_new0(struct fetch_msg_data, 1);
+	fmd->obj = g_object_ref(obj);
+	fmd->query = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
+	g_hash_table_insert(fmd->query, (void *)"max-results", g_strdup("50"));
+	if (before)
+		g_hash_table_insert(fmd->query, (void *)"before", g_strdup(before));
+	if (after)
+		g_hash_table_insert(fmd->query, (void *)"after", g_strdup(after));
+
+	g_task_set_task_data(task, fmd, free_fetch_msg_data);
+	fetch_messages_req(self, task);
+}
+
+gboolean
+chime_connection_fetch_messages_finish(ChimeConnection *self, GAsyncResult *result,
+				       GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_boolean(G_TASK(result), error);
+}

@@ -74,6 +74,17 @@ JsonNode        *chime_connection_send_message_finish        (ChimeConnection  *
                                                               GAsyncResult     *result,
                                                               GError          **error);
 
+void             chime_connection_fetch_messages_async       (ChimeConnection    *self,
+                                                              ChimeObject        *obj,
+                                                              const gchar        *before,
+                                                              const gchar        *after,
+                                                              GCancellable       *cancellable,
+                                                              GAsyncReadyCallback callback,
+                                                              gpointer            user_data);
+
+gboolean         chime_connection_fetch_messages_finish      (ChimeConnection  *self,
+                                                              GAsyncResult     *result,
+                                                              GError          **error);
 G_END_DECLS
 
 #endif /* __CHIME_OBJECT_H__ */

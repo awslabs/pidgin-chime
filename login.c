@@ -471,7 +471,7 @@ void chime_initial_login(ChimeConnection *cxn)
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 
 	ui_ops = purple_request_get_ui_ops();
-	if (!(ui_ops && ui_ops->request_action && ui_ops->request_input)) {
+	if (!(ui_ops && ui_ops->request_input)) {
 		purple_debug_error("chime", "Cannot proceed to Chime login: missing essential UI operations");
 		chime_connection_fail(cxn, CHIME_ERROR_AUTH_FAILED,
 				      _("Cannot login to Chime with this software"));

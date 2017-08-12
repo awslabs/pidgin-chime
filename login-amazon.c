@@ -43,68 +43,44 @@ static void clear_form(struct login_amzn *state)
 	login_free_form(state->form);
 }
 
-static void send_consent(struct login_amzn *state, gint choice)
-{
-	SoupMessage *msg;
-	SoupSessionCallback handler;
-	const gchar *action;
-
-	if (choice == 1) {
-		action = "consentApproved";
-		handler = chime_login_token_cb;
-	} else {
-		action = "consentDenied";
-		handler = chime_login_cancel_cb;
-	}
-	g_hash_table_insert(state->form->params, g_strdup(action), g_strdup(""));
-
-	msg = soup_form_request_new_from_hash(state->form->method,
-					      state->form->action,
-					      state->form->params);
-	soup_session_queue_message(login_session(state), msg, handler, state);
-
-	clear_form(state);
-}
-
-static void request_consent(struct login_amzn *state)
-{
-	gchar *text;
-
-	text = g_strdup_printf(_("Do you want to register %s into AWS Chime?"),
-			       login_account_email(state));
-	purple_request_ok_cancel(login_connection(state)->prpl_conn,
-				 _("Confirm Registration"), text, NULL, 0,
-				 login_connection(state)->prpl_conn->account,
-				 NULL, NULL, state,
-				 G_CALLBACK(send_consent), G_CALLBACK(send_consent));
-	g_free(text);
-}
-
 static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
 	struct login_amzn *state = data;
+	struct login_form *form;
 
 	login_fail_on_error(msg, state);
 
 	/* Here the same HTML document is parsed several times, but this is
 	   better than having a more complicated private API for the sake of
 	   reducing CPU usage */
-	state->form = chime_login_parse_form(msg, CONSENT_FORM);
-	if (state->form) {
-		request_consent(state);
+	form = chime_login_parse_form(msg, CONSENT_FORM);
+	if (form) {
+		SoupMessage *next;
+
+		/* It appears that this is the first login ever, so the server
+		   has presented a consent form;  we obviously say "yes" */
+		g_hash_table_insert(form->params, g_strdup("consentApproved"), g_strdup(""));
+		next = soup_form_request_new_from_hash(form->method,
+						       form->action,
+						       form->params);
+
+		soup_session_queue_message(login_session(state), next, login_result_cb, state);
+
+		login_free_form(form);
 		return;
 	}
 
-	state->form = chime_login_parse_form(msg, SIGN_IN_FORM);
-	if (state->form) {
-		if (!(state->form->email_name && state->form->password_name)) {
+	form = chime_login_parse_form(msg, SIGN_IN_FORM);
+	if (form) {
+		if (!(form->email_name && form->password_name)) {
 			chime_login_bad_response(state, _("Could not find Amazon login form"));
 			return;
 		}
 		/* Authentication failed */
-		g_hash_table_insert(state->form->params,
-				    g_strdup(state->form->email_name),
+		g_hash_table_insert(form->params,
+				    g_strdup(form->email_name),
 				    g_strdup(login_account_email(state)));
+		state->form = form;
 		request_credentials(state, TRUE);
 		return;
 	}

@@ -43,6 +43,15 @@ enum
 
 static GParamSpec *props[LAST_PROP];
 
+enum {
+	MESSAGE,
+	MEMBERSHIP,
+	MEMBERS_DONE,
+	LAST_SIGNAL,
+};
+
+static guint signals[LAST_SIGNAL];
+
 struct _ChimeRoom {
 	ChimeObject parent_instance;
 
@@ -58,6 +67,13 @@ struct _ChimeRoom {
 	gchar *updated_on;
 	ChimeNotifyPref mobile_notification;
 	ChimeNotifyPref desktop_notification;
+
+	/* For open rooms */
+	guint opens;
+	GTask *open_task;
+	ChimeConnection *cxn;
+	GHashTable *members;
+	gboolean members_done[2];
 };
 
 G_DEFINE_TYPE(ChimeRoom, chime_room, CHIME_TYPE_OBJECT)
@@ -72,12 +88,16 @@ CHIME_DEFINE_ENUM_TYPE(ChimeNotifyPref, chime_notify_pref,		\
        CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_DIRECT_ONLY,	"directOnly")	\
        CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_NEVER,	"nevers"))
 
+static void close_room(gpointer key, gpointer val, gpointer data);
+
 static void
 chime_room_dispose(GObject *object)
 {
 	ChimeRoom *self = CHIME_ROOM(object);
 
 	printf("Room disposed: %p\n", self);
+
+	close_room(NULL, self, NULL);
 
 	G_OBJECT_CLASS(chime_room_parent_class)->dispose(object);
 }
@@ -93,6 +113,9 @@ chime_room_finalize(GObject *object)
 	g_free(self->last_mentioned);
 	g_free(self->created_on);
 	g_free(self->updated_on);
+
+	if (self->members)
+		g_hash_table_destroy(self->members);
 
 	G_OBJECT_CLASS(chime_room_parent_class)->finalize(object);
 }
@@ -319,6 +342,22 @@ static void chime_room_class_init(ChimeRoomClass *klass)
 				  G_PARAM_STATIC_STRINGS);
 
 	g_object_class_install_properties(object_class, LAST_PROP, props);
+
+	signals[MESSAGE] =
+		g_signal_new ("message",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, JSON_TYPE_NODE);
+
+	signals[MEMBERSHIP] =
+		g_signal_new ("membership",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_POINTER);
+
+	signals[MEMBERS_DONE] =
+		g_signal_new ("members-done",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
+
 }
 
 static void chime_room_init(ChimeRoom *self)
@@ -643,6 +682,100 @@ static gboolean room_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *d
 	return !!chime_connection_parse_room(cxn, record_node, NULL);
 }
 
+static gboolean room_msg_jugg_cb(ChimeConnection *cxn, gpointer _room, JsonNode *data_node)
+{
+	ChimeRoom *room = CHIME_ROOM(_room);
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
+	const gchar *id;
+	if (!parse_string(record, "MessageId", &id))
+		return FALSE;
+
+	g_signal_emit(room, signals[MESSAGE], 0, record);
+	return TRUE;
+}
+
+struct deferred_room_jugg {
+	JuggernautCallback cb;
+	JsonNode *node;
+};
+static void fetch_new_room_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
+			      gpointer _defer)
+{
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	struct deferred_room_jugg *defer = _defer;
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		JsonObject *obj = json_node_get_object(node);
+		node = json_object_get_member(obj, "Room");
+		if (!node)
+			goto bad;
+
+		ChimeRoom *room = chime_connection_parse_room(cxn, node, NULL);
+		if (!room)
+			goto bad;
+
+		/* Sanity check; we don't want to just keep looping for ever if it goes wrong */
+		const gchar *room_id;
+		if (!parse_string(node, "RoomId", &room_id))
+			goto bad;
+
+		room = g_hash_table_lookup(priv->rooms.by_id, room_id);
+		if (!room)
+			goto bad;
+
+		/* OK, now we know about the new room we can play the msg node */
+		defer->cb(cxn, room, defer->node);
+		goto out;
+	}
+ bad:
+	;
+ out:
+	json_node_unref(defer->node);
+	g_free(defer);
+}
+
+static gboolean demux_room_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
+{
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
+	const gchar *room_id;
+	if (!parse_string(record, "RoomId", &room_id))
+		return FALSE;
+
+	ChimeRoom *room = chime_connection_room_by_id(cxn, room_id);
+	if (!room) {
+		ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+		/* It seems they don't do the helpful thing and send the notification
+		 * of a new room before they send the first message. So let's go
+		 * looking for it... */
+		/* XXX: We *do* get VisibleRooms first though, and could avoid this
+		 * query if that one is already running... */
+		struct deferred_room_jugg *defer = g_new0(struct deferred_room_jugg, 1);
+		defer->node = json_node_ref(data_node);
+		defer->cb = demux_room_msg_jugg_cb;
+
+		SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s", room_id);
+		if (chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_new_room_cb, defer))
+			return TRUE;
+
+		json_node_unref(defer->node);
+		g_free(defer);
+		return FALSE;
+	}
+	if (room->opens)
+		return room_msg_jugg_cb(cxn, room, data_node);
+
+	g_signal_emit_by_name(cxn, "room-mention", 0, room, record);
+	return TRUE;
+}
+
 void chime_init_rooms(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
@@ -655,6 +788,8 @@ void chime_init_rooms(ChimeConnection *cxn)
 			     visible_rooms_jugg_cb, NULL);
 	chime_jugg_subscribe(cxn, priv->device_channel, "Room",
 			     room_jugg_cb, NULL);
+	chime_jugg_subscribe(cxn, priv->device_channel, "RoomMessage",
+			     demux_room_msg_jugg_cb, NULL);
 	fetch_rooms(cxn, NULL);
 }
 
@@ -668,6 +803,11 @@ void chime_destroy_rooms(ChimeConnection *cxn)
 			     visible_rooms_jugg_cb, NULL);
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "Room",
 			       room_jugg_cb, NULL);
+	chime_jugg_unsubscribe(cxn, priv->device_channel, "RoomMessage",
+			       demux_room_msg_jugg_cb, NULL);
+
+	if (priv->rooms.by_id)
+		g_hash_table_foreach(priv->rooms.by_id, close_room, NULL);
 
 	chime_object_collection_destroy(&priv->rooms);
 }
@@ -694,4 +834,171 @@ void chime_connection_foreach_room(ChimeConnection *cxn, ChimeRoomCB cb,
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
 
 	chime_object_collection_foreach_object(cxn, &priv->rooms, (ChimeObjectCB)cb, cbdata);
+}
+
+static void free_member(gpointer _member)
+{
+	ChimeRoomMember *member = _member;
+
+	g_object_unref(member->contact);
+	g_free(member->last_read);
+	g_free(member->last_delivered);
+	g_free(member);
+}
+
+static gboolean add_room_member(ChimeConnection *cxn, ChimeRoom *room, JsonNode *node)
+{
+	JsonObject *obj = json_node_get_object(node);
+	JsonNode *member_node = json_object_get_member(obj, "Member");
+	if (!member_node)
+		return FALSE;
+
+	ChimeContact *contact = chime_connection_parse_conversation_contact(cxn, member_node, NULL);
+	if (!contact)
+		return FALSE;
+
+	ChimeRoomMember *member = g_hash_table_lookup(room->members, chime_contact_get_profile_id(contact));
+	if (!member) {
+		member = g_new0(ChimeRoomMember, 1);
+		member->contact = contact;
+		g_hash_table_insert(room->members, (void *)chime_contact_get_profile_id(contact), member);
+	} else {
+		g_object_unref(contact);
+	}
+
+	const char *role, *presence, *status, *last_read, *last_delivered;
+
+	if (parse_string(member_node, "LastRead", &last_read) &&
+	    g_strcmp0(last_read, member->last_read)) {
+		    g_free(member->last_read);
+		    member->last_read = g_strdup(last_read);
+	}
+	if (parse_string(member_node, "LastDelivered", &last_delivered) &&
+	    g_strcmp0(last_delivered, member->last_delivered)) {
+		    g_free(member->last_delivered);
+		    member->last_read = g_strdup(last_delivered);
+	}
+	member->admin = parse_string(node, "Role", &role) && !strcmp(role, "administrator");
+	member->present = parse_string(node, "Presence", &presence) && !strcmp(presence, "present");
+	member->active = parse_string(node, "Status", &status) && !strcmp(status, "active");
+
+	g_signal_emit(room, signals[MEMBERSHIP], 0, member);
+	return TRUE;
+}
+
+static gboolean room_membership_jugg_cb(ChimeConnection *cxn, gpointer _room, JsonNode *data_node)
+{
+	ChimeRoom *room = CHIME_ROOM(_room);
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
+	return add_room_member(cxn, room, record);
+}
+
+
+void fetch_room_memberships(ChimeConnection *cxn, ChimeRoom *room, gboolean active, const gchar *next_token);
+gboolean chime_connection_open_room(ChimeConnection *cxn, ChimeRoom *room)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), FALSE);
+	g_return_val_if_fail(CHIME_IS_ROOM(room), FALSE);
+
+	if (!room->opens++) {
+		room->members = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, free_member);
+		room->cxn = cxn;
+		chime_jugg_subscribe(cxn, room->channel, "RoomMessage", room_msg_jugg_cb, room);
+		chime_jugg_subscribe(cxn, room->channel, "RoomMembership", room_membership_jugg_cb, room);
+		fetch_room_memberships(cxn, room, TRUE, NULL);
+		fetch_room_memberships(cxn, room, FALSE, NULL);
+	}
+
+	return room->members_done[0] && room->members_done[1];
+}
+
+static void close_room(gpointer key, gpointer val, gpointer data)
+{
+	ChimeRoom *room = CHIME_ROOM (val);
+	if (room->cxn) {
+		chime_jugg_unsubscribe(room->cxn, room->channel, "RoomMessage", room_msg_jugg_cb, room);
+		chime_jugg_unsubscribe(room->cxn, room->channel, "RoomMembership", room_membership_jugg_cb, room);
+		room->cxn = NULL;
+	}
+	if (room->members)
+		g_hash_table_remove_all(room->members);
+	room->members_done[0] = room->members_done[1] = FALSE;
+}
+
+void chime_connection_close_room(ChimeConnection *cxn, ChimeRoom *room)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+	g_return_if_fail(CHIME_IS_ROOM(room));
+	g_return_if_fail(room->opens);
+
+	if (!--room->opens)
+		close_room(NULL, room, NULL);
+}
+
+
+static void fetch_members_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _roomx)
+{
+	ChimeRoom *room = CHIME_ROOM((void *)((unsigned long)_roomx & ~1UL));
+	gboolean active = (unsigned long) _roomx & 1;
+	const gchar *next_token;
+
+	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		const gchar *reason = msg->reason_phrase;
+
+		if (node)
+			parse_string(node, "error", &reason);
+
+		g_warning("Failed to fetch room memberships: %d %s\n", msg->status_code, reason);
+ 	} else {
+		JsonObject *obj = json_node_get_object(node);
+		JsonNode *members_node = json_object_get_member(obj, "RoomMemberships");
+		JsonArray *members_array = json_node_get_array(members_node);
+
+		int i, len = json_array_get_length(members_array);
+		for (i = 0; i < len; i++) {
+			JsonNode *member_node = json_array_get_element(members_array, i);
+			add_room_member(cxn, room, member_node);
+		}
+
+		if (parse_string(node, "NextToken", &next_token)) {
+			fetch_room_memberships(cxn, room, active, next_token);
+			return;
+		}
+	}
+	room->members_done[active] = TRUE;
+	if (room->members_done[!active])
+		g_signal_emit(room, signals[MEMBERS_DONE], 0);
+}
+
+void fetch_room_memberships(ChimeConnection *cxn, ChimeRoom *room, gboolean active, const gchar *next_token)
+{
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s/memberships",
+					   chime_object_get_id(CHIME_OBJECT(room)));
+	const gchar *opts[4];
+	int i = 0;
+
+	if (!active) {
+		opts[i++] = "status";
+		opts[i++] = "inActive";
+	}
+	if (next_token) {
+		opts[i++] = "next-token";
+		opts[i++] = next_token;
+	}
+	while (i <= 4)
+		opts[i++] = NULL;
+
+	soup_uri_set_query_from_fields(uri, "max-results", "50", opts[0], opts[1], opts[3], opts[4], NULL);
+	chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_members_cb, (void *)((unsigned long)room | active));
+}
+
+GList *chime_room_get_members(ChimeRoom *room)
+{
+	return g_hash_table_get_values(room->members);
 }

@@ -59,6 +59,20 @@ typedef void (*ChimeRoomCB) (ChimeConnection *, ChimeRoom *, gpointer);
 void chime_connection_foreach_room(ChimeConnection *cxn, ChimeRoomCB cb,
 				   gpointer cbdata);
 
+typedef struct {
+	ChimeContact *contact;
+	gboolean admin;
+	gboolean present;
+	gboolean active;
+	char *last_read;
+	char *last_delivered;
+} ChimeRoomMember;
+
+gboolean chime_connection_open_room(ChimeConnection *cxn, ChimeRoom *room);
+void chime_connection_close_room(ChimeConnection *cxn, ChimeRoom *room);
+
+GList *chime_room_get_members(ChimeRoom *room);
+
 G_END_DECLS
 
 #endif /* __CHIME_ROOM_H__ */

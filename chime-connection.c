@@ -39,6 +39,7 @@ enum {
 	DISCONNECTED,
 	NEW_CONTACT,
 	NEW_ROOM,
+	ROOM_MENTION,
 	NEW_CONVERSATION,
 	LOG_MESSAGE,
 	PROGRESS,
@@ -258,6 +259,11 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 		g_signal_new ("new-room",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, CHIME_TYPE_ROOM);
+
+	signals[ROOM_MENTION] =
+		g_signal_new ("room-mention",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 2, CHIME_TYPE_ROOM, JSON_TYPE_NODE);
 
 	signals[NEW_CONVERSATION] =
 		g_signal_new ("new-conversation",

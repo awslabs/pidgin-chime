@@ -55,7 +55,7 @@ G_DEFINE_TYPE(ChimeContact, chime_contact, CHIME_TYPE_OBJECT)
 #define CHIME_AVAILABILITY_VALUES \
        { CHIME_AVAILABILITY_UNKNOWN,	"unknown",	N_("Unknown") },\
        { CHIME_AVAILABILITY_OFFLINE,	"offline",	N_("Offline") },\
-       { CHIME_AVAILABILITY_AVAILABLE,	"available",	N_("Availabie") },\
+       { CHIME_AVAILABILITY_AVAILABLE,	"available",	N_("Available") },\
        { CHIME_AVAILABILITY_AWAY,	"away",		N_("Away") },\
        { CHIME_AVAILABILITY_BUSY,	"busy",		N_("Busy") },\
        { CHIME_AVAILABILITY_MOBILE,	"mobile",	N_("Mobile") },\

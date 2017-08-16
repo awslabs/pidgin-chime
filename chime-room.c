@@ -994,7 +994,7 @@ void fetch_room_memberships(ChimeConnection *cxn, ChimeRoom *room, gboolean acti
 	while (i <= 4)
 		opts[i++] = NULL;
 
-	soup_uri_set_query_from_fields(uri, "max-results", "50", opts[0], opts[1], opts[3], opts[4], NULL);
+	soup_uri_set_query_from_fields(uri, "max-results", "50", opts[0], opts[1], opts[2], opts[3], NULL);
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_members_cb, (void *)((unsigned long)room | active));
 }
 

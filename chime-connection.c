@@ -910,7 +910,7 @@ gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
 		return FALSE;
 
 	*res = str;
-	printf("Got %s = %s\n", name, str);
+	chime_debug("Got %s = %s\n", name, str);
 	return TRUE;
 }
 

@@ -80,7 +80,7 @@ chime_contact_dispose(GObject *object)
 	ChimeContact *self = CHIME_CONTACT(object);
 
 	unsubscribe_contact(NULL, self, NULL);
-	printf("Contact disposed: %p\n", self);
+	chime_debug("Contact disposed: %p\n", self);
 
 	G_OBJECT_CLASS(chime_contact_parent_class)->dispose(object);
 }

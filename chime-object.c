@@ -65,7 +65,7 @@ chime_object_dispose(GObject *object)
 		g_hash_table_remove(priv->collection->by_id, priv->id);
 	}
 
-	printf("Object disposed: %p\n", self);
+	chime_debug("Object disposed: %p\n", self);
 
 	G_OBJECT_CLASS(chime_object_parent_class)->dispose(object);
 }

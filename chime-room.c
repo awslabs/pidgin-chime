@@ -95,7 +95,7 @@ chime_room_dispose(GObject *object)
 {
 	ChimeRoom *self = CHIME_ROOM(object);
 
-	printf("Room disposed: %p\n", self);
+	chime_debug("Room disposed: %p\n", self);
 
 	close_room(NULL, self, NULL);
 

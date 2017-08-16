@@ -136,6 +136,8 @@ typedef struct {
 	(G_TYPE_INSTANCE_GET_PRIVATE ((o), CHIME_TYPE_CONNECTION, \
 				      ChimeConnectionPrivate))
 
+#define chime_debug(...) do { if (getenv("CHIME_DEBUG")) printf(__VA_ARGS__); } while (0)
+
 /* chime-connection.c */
 void chime_connection_fail(ChimeConnection *cxn, gint code,
 			   const gchar *format, ...);

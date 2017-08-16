@@ -79,7 +79,7 @@ chime_conversation_dispose(GObject *object)
 		g_hash_table_destroy(self->members);
 		self->members = NULL;
 	}
-	printf("Conversation disposed: %p\n", self);
+	chime_debug("Conversation disposed: %p\n", self);
 
 	G_OBJECT_CLASS(chime_conversation_parent_class)->dispose(object);
 }
@@ -271,7 +271,7 @@ static void chime_conversation_class_init(ChimeConversationClass *klass)
 
 static void unref_member(gpointer obj)
 {
-	printf("Unref member %p\n", obj);
+	chime_debug("Unref member %p\n", obj);
 	g_object_unref(obj);
 }
 static void chime_conversation_init(ChimeConversation *self)
@@ -364,7 +364,6 @@ static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNo
 	if (!contact)
 		return FALSE;
 
-	printf("emit %ld for %s\n", state, chime_contact_get_email(contact));
 	g_signal_emit(conv, signals[TYPING], 0, contact, state);
 	return TRUE;
 }
@@ -414,7 +413,6 @@ static void parse_members(ChimeConnection *cxn, ChimeConversation *conv, JsonNod
 		if (member) {
 			const gchar *id = chime_contact_get_profile_id(member);
 			g_hash_table_insert(conv->members, (gpointer)id, member);
-			printf("Added %p %s\n", member, id);
 		}
 	}
 }

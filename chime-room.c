@@ -399,6 +399,13 @@ const gchar *chime_room_get_channel(ChimeRoom *self)
 	return self->channel;
 }
 
+const gchar *chime_room_get_last_mentioned(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
+
+	return self->last_mentioned;
+}
+
 static gboolean parse_boolean(JsonNode *node, const gchar *member, gboolean *val)
 {
 	gint64 intval;

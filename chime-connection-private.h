@@ -88,6 +88,7 @@ typedef struct {
 	/* Service config */
 	JsonNode *reg_node;
 	const gchar *display_name;
+	const gchar *email;
 
 	const gchar *session_id;
 	const gchar *profile_id;

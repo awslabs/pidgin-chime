@@ -363,7 +363,8 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 	if (!parse_string(node, "profile_channel", &priv->profile_channel) ||
 	    !parse_string(node, "presence_channel", &priv->presence_channel) ||
 	    !parse_string(node, "id", &priv->profile_id) ||
-	    !parse_string(node, "display_name", &priv->display_name))
+	    !parse_string(node, "display_name", &priv->display_name) ||
+	    !parse_string(node, "email", &priv->email))
 		return FALSE;
 
 	node = json_object_get_member(obj, "Device");
@@ -1012,6 +1013,22 @@ const gchar *chime_connection_get_profile_id(ChimeConnection *self)
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
 	return priv->profile_id;
+}
+
+const gchar *chime_connection_get_display_name(ChimeConnection *self)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+
+	return priv->display_name;
+}
+
+const gchar *chime_connection_get_email(ChimeConnection *self)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+
+	return priv->email;
 }
 
 struct fetch_msg_data {

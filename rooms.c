@@ -91,13 +91,14 @@ GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *
 	if (!name)
 		return NULL;
 
-	room = chime_connection_room_by_name(cxn, name);
-	if (!room)
-		return NULL;
+	hash = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
 
-	hash = g_hash_table_new(g_str_hash, g_str_equal);
-	g_hash_table_insert(hash, (char *)"Name", (char *)chime_room_get_name(room));
-	g_hash_table_insert(hash, (char *)"RoomId", (char *)chime_room_get_id(room));
+	g_hash_table_insert(hash, (char *)"Name", g_strdup(name));
+
+	room = chime_connection_room_by_name(cxn, name);
+	if (room)
+		g_hash_table_insert(hash, (char *)"RoomId", (char *)chime_room_get_id(room));
+
 	return hash;
 }
 

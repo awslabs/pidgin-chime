@@ -89,7 +89,7 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 
 	GList *members = chime_conversation_get_members(conv);
 	if (g_list_length(members) != 2) {
-		/* We don't support non-1:1 conversations yet. We need to handle them as 'chats'. */
+		on_chime_new_group_conv(cxn, conv, conn);
 		return;
 	}
 	struct chime_im *im = g_new0(struct chime_im, 1);

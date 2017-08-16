@@ -112,24 +112,28 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	int msg_flags;
 
 	if (!strcmp(sender, chime_connection_get_profile_id(cxn))) {
-		from = purple_connection_get_display_name(conn);
+		from = chime_connection_get_email(cxn);
 		msg_flags = PURPLE_MESSAGE_SEND;
 	} else {
 		ChimeContact *who = chime_connection_contact_by_id(cxn, sender);
 		if (who)
-			from = chime_contact_get_display_name(who);
+			from = chime_contact_get_email(who);
 		msg_flags = PURPLE_MESSAGE_RECV;
 	}
 
 	gchar *escaped = g_markup_escape_text(content, -1);
 
 	gchar *parsed = NULL;
-	if (parse_inbound_mentions(cxn, pc->mention_regex, escaped, &parsed) &&
-	    (msg_flags & PURPLE_MESSAGE_RECV)) {
-		// Presumably this will trigger a notification.
-		msg_flags |= PURPLE_MESSAGE_NICK;
-	}
-	g_free(escaped);
+	if (CHIME_IS_ROOM(chat->m.obj)) {
+		if (parse_inbound_mentions(cxn, pc->mention_regex, escaped, &parsed) &&
+		    (msg_flags & PURPLE_MESSAGE_RECV)) {
+			// Presumably this will trigger a notification.
+			msg_flags |= PURPLE_MESSAGE_NICK;
+		}
+		g_free(escaped);
+	} else
+		parsed = escaped;
+
 	serv_got_chat_in(conn, id, from, msg_flags, parsed, msg_time);
 	g_free(parsed);
 }
@@ -169,47 +173,74 @@ void chime_destroy_chat(struct chime_chat *chat)
 	PurpleConnection *conn = chat->conv->account->gc;
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
-	ChimeRoom *room = CHIME_ROOM(chat->m.obj);
 
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
 
-	g_signal_handlers_disconnect_matched(room, G_SIGNAL_MATCH_DATA,
+	g_signal_handlers_disconnect_matched(chat->m.obj, G_SIGNAL_MATCH_DATA,
 					     0, 0, NULL, NULL, chat);
-	chime_connection_close_room(cxn, room);
+	if (CHIME_IS_ROOM(chat->m.obj))
+		chime_connection_close_room(cxn, CHIME_ROOM(chat->m.obj));
+
 	serv_got_chat_left(conn, id);
 
 	g_hash_table_remove(pc->live_chats, GUINT_TO_POINTER(id));
-	g_hash_table_remove(pc->chats_by_room, room);
+	g_hash_table_remove(pc->chats_by_room, chat->m.obj);
 	cleanup_msgs(&chat->m);
 	g_free(chat);
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Destroyed chat %p\n", chat);
 }
 
-static struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeRoom *room, JsonNode *first_msg)
+static void on_group_conv_msg(ChimeConversation *conv, JsonNode *node, PurpleConnection *conn);
+
+static struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeObject *obj, JsonNode *first_msg)
 {
-	if (!room)
+	if (!obj)
 		return NULL;
 
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
-	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, room);
+	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, obj);
 	if (chat)
 		return chat;
 
 	chat = g_new0(struct chime_chat, 1);
 
 	int chat_id = ++pc->chat_id;
-	chat->conv = serv_got_joined_chat(conn, chat_id, chime_room_get_name(room));
+	const gchar *name = chime_object_get_name(obj);
+	if (!name || !name[0])
+		name = chime_object_get_id(obj);
+
+	chat->conv = serv_got_joined_chat(conn, chat_id, name);
 
 	g_hash_table_insert(pc->live_chats, GUINT_TO_POINTER(chat_id), chat);
-	g_hash_table_insert(pc->chats_by_room, room, chat);
+	g_hash_table_insert(pc->chats_by_room, obj, chat);
+	init_msgs(conn, &chat->m, obj, do_chat_deliver_msg, name, first_msg);
 
-	g_signal_connect(room, "membership", G_CALLBACK(on_room_membership), chat);
+	if (CHIME_IS_ROOM(obj)) {
+		g_signal_connect(obj, "membership", G_CALLBACK(on_room_membership), chat);
+		chime_connection_open_room(cxn, CHIME_ROOM(obj));
+	} else {
+		g_signal_handlers_disconnect_matched(chat->m.obj, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA, 0, 0, NULL,
+						     G_CALLBACK(on_group_conv_msg), conn);
 
-	init_msgs(conn, &chat->m, CHIME_OBJECT(room), do_chat_deliver_msg, chime_room_get_name(room), first_msg);
-
-	chime_connection_open_room(cxn, room);
+		GList *members = chime_conversation_get_members(CHIME_CONVERSATION(obj));
+		while (members) {
+			ChimeContact *member = members->data;
+			purple_conv_chat_add_user(PURPLE_CONV_CHAT(chat->conv), chime_contact_get_email(member),
+						  NULL, 0, FALSE);
+			members = g_list_remove(members, member);
+		}
+	}
 
 	return chat;
+}
+
+static void on_group_conv_msg(ChimeConversation *conv, JsonNode *node, PurpleConnection *conn)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, conv);
+
+	if (!chat)
+		chat = do_join_chat(conn, pc->cxn, CHIME_OBJECT(conv), node);
 }
 
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
@@ -222,13 +253,18 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 	ChimeRoom *room = chime_connection_room_by_id(cxn, roomid);
 	if (!room)
 		return;
-	do_join_chat(conn, cxn, room, NULL);
+	do_join_chat(conn, cxn, CHIME_OBJECT(room), NULL);
 }
 
 void chime_purple_chat_leave(PurpleConnection *conn, int id)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	struct chime_chat *chat = g_hash_table_lookup(pc->live_chats, GUINT_TO_POINTER(id));
+
+	/* If it's a group conversation, we need to subscribe to the 'message' signal
+	 * in order to bring it back again if there's a new message. */
+	if (CHIME_IS_CONVERSATION(chat->m.obj))
+		g_signal_connect(chat->m.obj, "message", G_CALLBACK(on_group_conv_msg), conn);
 
 	chime_destroy_chat(chat);
 }
@@ -257,11 +293,14 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	struct chime_chat *chat = g_hash_table_lookup(pc->live_chats, GUINT_TO_POINTER(id));
 
 	/* Chime does not understand HTML. */
-	gchar *unescaped = purple_unescape_html(message);
+	gchar *expanded, *unescaped = purple_unescape_html(message);
 
-	/* Expand member names into the format Chime understands */
-	gchar *expanded = parse_outbound_mentions(CHIME_ROOM(chat->m.obj), unescaped);
-	g_free(unescaped);
+	if (CHIME_IS_ROOM(chat->m.obj)) {
+		/* Expand member names into the format Chime understands */
+		expanded = parse_outbound_mentions(CHIME_ROOM(chat->m.obj), unescaped);
+		g_free(unescaped);
+	} else
+		expanded = unescaped;
 
 	chime_connection_send_message_async(pc->cxn, chat->m.obj, expanded, NULL, sent_msg_cb, chat);
 
@@ -285,22 +324,22 @@ void purple_chime_destroy_chats(struct purple_chime *pc)
 	g_clear_pointer(&pc->mention_regex, g_regex_unref);
 }
 
-static void on_chime_room_mentioned(ChimeConnection *cxn, ChimeRoom *room, JsonNode *node, PurpleConnection *conn)
+static void on_chime_room_mentioned(ChimeConnection *cxn, ChimeObject *obj, JsonNode *node, PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
-	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, room);
+	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, obj);
 
 	if (!chat)
-		chat = do_join_chat(conn, cxn, room, node);
+		chat = do_join_chat(conn, cxn, obj, node);
 }
 
 static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn)
 {
-	const gchar *id, *last_mentioned;
+	const gchar *last_mentioned;
 	GTimeVal mention_tv;
 
 	/* If no LastMentioned or we can't parse it, nothing to do */
-	g_object_get(room, "id", &id, "last-mentioned", &last_mentioned, NULL);
+	last_mentioned = chime_room_get_last_mentioned(room);
 	if (!last_mentioned || !g_time_val_from_iso8601(last_mentioned, &mention_tv))
 		return;
 
@@ -316,7 +355,32 @@ static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConne
 	}
 
 	/* We have been mentioned since we last looked at this room. Open it now. */
-	do_join_chat(conn, cxn, room, NULL);
+	do_join_chat(conn, cxn, CHIME_OBJECT(room), NULL);
+}
+
+void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn)
+{
+	const gchar *last_sent;
+	GTimeVal sent_tv;
+
+	/* If no LastMentioned or we can't parse it, nothing to do */
+	last_sent = chime_conversation_get_last_sent(conv);
+	if (!last_sent || !g_time_val_from_iso8601(last_sent, &sent_tv))
+		return;
+
+	const gchar *seen_time;
+	GTimeVal seen_tv;
+
+	if (chime_read_last_msg(conn, CHIME_OBJECT(conv), &seen_time, NULL) &&
+	    g_time_val_from_iso8601(seen_time, &seen_tv) &&
+	    (sent_tv.tv_sec < seen_tv.tv_sec ||
+	     (sent_tv.tv_sec == seen_tv.tv_sec && sent_tv.tv_usec <= seen_tv.tv_usec))) {
+		/* LastSent is older than we've already seen. Nothing to do. */
+		return;
+	}
+
+	/* There is a recent message in this conversation. Open it now. */
+	do_join_chat(conn, cxn, CHIME_OBJECT(conv), NULL);
 }
 
 void purple_chime_init_chats_post(PurpleConnection *conn)

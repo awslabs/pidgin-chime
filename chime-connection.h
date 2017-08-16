@@ -90,7 +90,8 @@ void             chime_connection_set_session_token          (ChimeConnection  *
                                                               const gchar      *sess_tok);
 
 const gchar *chime_connection_get_profile_id(ChimeConnection *self);
-
+const gchar *chime_connection_get_display_name(ChimeConnection *self);
+const gchar *chime_connection_get_email(ChimeConnection *self);
 void chime_connection_connect(ChimeConnection *cxn);
 void chime_connection_disconnect(ChimeConnection *cxn);
 

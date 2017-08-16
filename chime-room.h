@@ -49,6 +49,8 @@ gboolean chime_room_get_visibility(ChimeRoom *self);
 
 const gchar *chime_room_get_channel(ChimeRoom *self);
 
+const gchar *chime_room_get_last_mentioned(ChimeRoom *self);
+
 ChimeRoom *chime_connection_room_by_name(ChimeConnection *cxn,
 					 const gchar *name);
 ChimeRoom *chime_connection_room_by_id(ChimeConnection *cxn,

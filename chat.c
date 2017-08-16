@@ -91,9 +91,11 @@ static gchar *parse_outbound_mentions(ChimeRoom *room, const gchar *message)
 		const gchar *id = chime_contact_get_profile_id(member->contact);
 		const gchar *display_name = chime_contact_get_display_name(member->contact);
 
-		gchar *chime_mention = g_strdup_printf("<@%s|%s>", id, display_name);
-		replace(&parsed, chime_contact_get_display_name(member->contact), chime_mention);
-		g_free(chime_mention);
+		if (strstr(parsed, display_name)) {
+			gchar *chime_mention = g_strdup_printf("<@%s|%s>", id, display_name);
+			replace(&parsed, display_name, chime_mention);
+			g_free(chime_mention);
+		}
 
 		members = g_list_remove(members, member);
 	}

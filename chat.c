@@ -451,35 +451,6 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	return 0;
 }
 
-static gboolean chat_demuxing_jugg_cb(ChimeConnection *cxn, gpointer _conn, JsonNode *data_node)
-{
-	PurpleConnection *conn = _conn;
-	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
-	JsonObject *obj = json_node_get_object(data_node);
-	JsonNode *record = json_object_get_member(obj, "record");
-	if (!record)
-		return FALSE;
-
-	const gchar *room_id;
-	if (!parse_string(record, "RoomId", &room_id))
-		return FALSE;
-
-	ChimeRoom *room = chime_connection_room_by_id(cxn, room_id);
-	if (!room) {
-		printf("No room %s for RoomMessage\n", room_id);
-		return FALSE;
-	}
-
-	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, room);
-	if (!chat)
-		chat = do_join_chat(conn, cxn, room);
-	if (!chat) {
-		printf("No chat for room %s\n", room_id);
-		return FALSE;
-	}
-	return chat_msg_jugg_cb(cxn, chat, data_node);
-}
-
 void purple_chime_init_chats(struct purple_chime *pc)
 {
 	pc->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -492,7 +463,16 @@ void purple_chime_destroy_chats(struct purple_chime *pc)
 	g_clear_pointer(&pc->chats_by_room, g_hash_table_unref);
 }
 
+static void on_chime_room_mentioned(ChimeConnection *cxn, ChimeRoom *room, JsonNode *node, PurpleConnection *conn)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, room);
 
+	if (!chat)
+		chat = do_join_chat(conn, cxn, room);
+	if (chat)
+		chat_msg_jugg_cb(cxn, chat, node);
+}
 
 static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn)
 {
@@ -522,8 +502,8 @@ static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConne
 void purple_chime_init_chats_post(PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (pc->cxn);
-	chime_jugg_subscribe(pc->cxn, priv->device_channel, "RoomMessage", chat_demuxing_jugg_cb, conn);
 
 	chime_connection_foreach_room(pc->cxn, (ChimeRoomCB)on_chime_new_room, conn);
+
+	g_signal_connect(pc->cxn, "room-mention", G_CALLBACK(on_chime_room_mentioned), conn);
 }

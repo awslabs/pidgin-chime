@@ -772,7 +772,7 @@ static gboolean demux_room_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, J
 	if (room->opens)
 		return room_msg_jugg_cb(cxn, room, data_node);
 
-	g_signal_emit_by_name(cxn, "room-mention", 0, room, record);
+	g_signal_emit_by_name(cxn, "room-mention", room, record);
 	return TRUE;
 }
 

@@ -63,6 +63,7 @@ struct purple_chime {
 
 	GHashTable *ims_by_email;
 
+	GRegex *mention_regex;
 	GHashTable *chats_by_room;
 	GHashTable *live_chats;
 	int chat_id;

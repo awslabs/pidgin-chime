@@ -41,8 +41,6 @@ struct chime_chat {
 	PurpleConversation *conv;
 	gboolean got_members;
 
-	GRegex *mention_regex;
-
 	GHashTable *sent_msgs;
 };
 
@@ -106,6 +104,7 @@ static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
 			       JsonNode *node, time_t msg_time)
 {
 	PurpleConnection *conn = chat->conv->account->gc;
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
 	const gchar *content, *sender;
 
@@ -129,7 +128,7 @@ static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
 	gchar *escaped = g_markup_escape_text(content, -1);
 
 	gchar *parsed = NULL;
-	if (parse_inbound_mentions(cxn, chat->mention_regex, escaped, &parsed) &&
+	if (parse_inbound_mentions(cxn, pc->mention_regex, escaped, &parsed) &&
 	    (msg_flags & PURPLE_MESSAGE_RECV)) {
 		// Presumably this will trigger a notification.
 		msg_flags |= PURPLE_MESSAGE_NICK;
@@ -207,7 +206,6 @@ void chime_destroy_chat(struct chime_chat *chat)
 	if (chat->sent_msgs)
 		g_hash_table_destroy(chat->sent_msgs);
 	g_object_unref(chat->room);
-	g_regex_unref(chat->mention_regex);
 	g_free(chat);
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Destroyed chat %p\n", chat);
 }
@@ -268,8 +266,6 @@ static struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *
 	g_hash_table_insert(pc->live_chats, GUINT_TO_POINTER(chat_id), chat);
 	g_hash_table_insert(pc->chats_by_room, room, chat);
 	chat->sent_msgs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-
-	chat->mention_regex = g_regex_new(MENTION_PATTERN, G_REGEX_EXTENDED, 0, NULL);
 
 	chat->msgs.is_room = TRUE;
 	chat->msgs.id = chime_room_get_id(room);
@@ -369,12 +365,16 @@ void purple_chime_init_chats(struct purple_chime *pc)
 {
 	pc->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
 	pc->chats_by_room = g_hash_table_new(g_direct_hash, g_direct_equal);
+
+	pc->mention_regex = g_regex_new(MENTION_PATTERN, G_REGEX_EXTENDED, 0, NULL);
+
 }
 
 void purple_chime_destroy_chats(struct purple_chime *pc)
 {
 	g_clear_pointer(&pc->live_chats, g_hash_table_unref);
 	g_clear_pointer(&pc->chats_by_room, g_hash_table_unref);
+	g_clear_pointer(&pc->mention_regex, g_regex_unref);
 }
 
 static void on_chime_room_mentioned(ChimeConnection *cxn, ChimeRoom *room, JsonNode *node, PurpleConnection *conn)

@@ -46,22 +46,13 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 	    !parse_int(record, "IsSystemMessage", &sys))
 		return FALSE;
 
-	PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
+	PurpleMessageFlags flags = 0;
 	if (sys)
 		flags |= PURPLE_MESSAGE_SYSTEM;
 
-	if (strcmp(sender, chime_connection_get_profile_id(cxn))) {
-		ChimeContact *contact = chime_connection_contact_by_id(cxn, sender);
-		if (!contact)
-			return FALSE;
-
-		const gchar *email = chime_contact_get_email(contact);
-		gchar *escaped = g_markup_escape_text(message, -1);
-		serv_got_im(im->m.conn, email, escaped, flags, msg_time);
-		g_free(escaped);
-	} else {
-		const gchar *email = chime_contact_get_email(im->peer);
-
+	const gchar *email = chime_contact_get_email(im->peer);
+	gchar *escaped = g_markup_escape_text(message, -1);
+	if (!strcmp(sender, chime_connection_get_profile_id(cxn))) {
 		/* Ick, how do we inject a message from ourselves? */
 		PurpleAccount *account = im->m.conn->account;
 		PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
@@ -70,15 +61,15 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 			pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM, account, email);
 			if (!pconv) {
 				purple_debug_error("chime", "NO CONV FOR %s\n", email);
-
+				g_free(escaped);
 				return FALSE;
 			}
 		}
-		gchar *escaped = g_markup_escape_text(message, -1);
-		purple_conversation_write(pconv, NULL, escaped, PURPLE_MESSAGE_SEND, msg_time);
-		g_free(escaped);
+		purple_conversation_write(pconv, NULL, escaped, flags | PURPLE_MESSAGE_SEND, msg_time);
+	} else {
+		serv_got_im(im->m.conn, email, escaped, flags | PURPLE_MESSAGE_RECV, msg_time);
 	}
-
+	g_free(escaped);
 	return TRUE;
 }
 

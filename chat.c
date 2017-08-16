@@ -33,15 +33,8 @@
 
 struct chime_chat {
 	/* msgs first as it's a "subclass". Really ought to do proper GTypes here... */
-	struct chime_msgs msgs;
-
-	ChimeRoom *room;
-	const gchar *id;
-
+	struct chime_msgs m;
 	PurpleConversation *conv;
-	gboolean got_members;
-
-	GHashTable *sent_msgs;
 };
 
 /*
@@ -102,9 +95,10 @@ static gchar *parse_outbound_mentions(ChimeRoom *room, const gchar *message)
 	return parsed;
 }
 
-static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
-			       JsonNode *node, time_t msg_time)
+static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
+				JsonNode *node, time_t msg_time)
 {
+	struct chime_chat *chat = (struct chime_chat *)msgs;
 	PurpleConnection *conn = chat->conv->account->gc;
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
@@ -140,19 +134,6 @@ static void parse_incoming_msg(ChimeConnection *cxn, struct chime_chat *chat,
 	g_free(parsed);
 }
 
-static void chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
-			     JsonNode *node, time_t msg_time)
-{
-	struct chime_chat *chat = (struct chime_chat *)msgs; /* Really */
-	const gchar *msg_id;
-
-	/* Eliminate duplicates with outbound messages */
-	if (parse_string(node, "MessageId", &msg_id) &&
-	    g_hash_table_remove(chat->sent_msgs, msg_id))
-		return;
-
-	parse_incoming_msg(cxn, chat, node, msg_time);
-}
 
 static void on_room_membership(ChimeRoom *room, ChimeRoomMember *member, struct chime_chat *chat)
 {
@@ -174,7 +155,7 @@ static void on_room_membership(ChimeRoom *room, ChimeRoomMember *member, struct 
 		purple_conv_chat_user_set_flags(PURPLE_CONV_CHAT(chat->conv), who, flags);
 	else {
 		purple_conv_chat_add_user(PURPLE_CONV_CHAT(chat->conv), who,
-					  NULL, flags, chat->msgs.members_done);
+					  NULL, flags, FALSE);
 		PurpleConvChatBuddy *cbuddy = purple_conv_chat_cb_find(PURPLE_CONV_CHAT(chat->conv), who);
 		if (cbuddy) {
 			g_free(cbuddy->alias);
@@ -188,68 +169,23 @@ void chime_destroy_chat(struct chime_chat *chat)
 	PurpleConnection *conn = chat->conv->account->gc;
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	ChimeRoom *room = chat->room;
+	ChimeRoom *room = CHIME_ROOM(chat->m.obj);
+
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
 
-	if (chat->msgs.soup_msg) {
-		soup_session_cancel_message(priv->soup_sess, chat->msgs.soup_msg, 1);
-		chat->msgs.soup_msg = NULL;
-	}
 	g_signal_handlers_disconnect_matched(room, G_SIGNAL_MATCH_DATA,
 					     0, 0, NULL, NULL, chat);
-	chime_connection_close_room(cxn, chat->room);
+	chime_connection_close_room(cxn, room);
 	serv_got_chat_left(conn, id);
+
 	g_hash_table_remove(pc->live_chats, GUINT_TO_POINTER(id));
 	g_hash_table_remove(pc->chats_by_room, room);
-
-	if (chat->msgs.messages)
-		g_hash_table_destroy(chat->msgs.messages);
-	if (chat->sent_msgs)
-		g_hash_table_destroy(chat->sent_msgs);
-	g_object_unref(chat->room);
+	cleanup_msgs(&chat->m);
 	g_free(chat);
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Destroyed chat %p\n", chat);
 }
 
-static void on_room_members_done(ChimeRoom *room, struct chime_chat *chat)
-{
-	PurpleConnection *conn = chat->conv->account->gc;
-	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
-
-	chat->msgs.members_done = TRUE;
-	if (chat->msgs.msgs_done)
-		chime_complete_messages(cxn, &chat->msgs);
-}
-
-
-static void on_room_message(ChimeRoom *room, JsonNode *node, struct chime_chat *chat)
-{
-	PurpleConnection *conn = chat->conv->account->gc;
-	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
-
-	const gchar *msg_id;
-	if (!parse_string(node, "MessageId", &msg_id))
-		return;
-
-	if (chat->msgs.messages) {
-		/* Still gathering messages. Add to the table, to avoid dupes */
-		g_hash_table_insert(chat->msgs.messages, (gchar *)msg_id,
-				    json_node_ref(node));
-		return;
-	}
-
-	const gchar *msg_time;
-	GTimeVal tv;
-	if (!parse_time(node, "CreatedOn", &msg_time, &tv))
-		return;
-
-	chime_update_last_msg(cxn, TRUE, chime_room_get_id(chat->room), msg_time, msg_id);
-
-	chat_deliver_msg(cxn, &chat->msgs, node, tv.tv_sec);
-}
-
-static struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeRoom *room)
+static struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeRoom *room, JsonNode *first_msg)
 {
 	if (!room)
 		return NULL;
@@ -260,29 +196,17 @@ static struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *
 		return chat;
 
 	chat = g_new0(struct chime_chat, 1);
-	chat->room = g_object_ref(room);
 
 	int chat_id = ++pc->chat_id;
 	chat->conv = serv_got_joined_chat(conn, chat_id, chime_room_get_name(room));
 
 	g_hash_table_insert(pc->live_chats, GUINT_TO_POINTER(chat_id), chat);
 	g_hash_table_insert(pc->chats_by_room, room, chat);
-	chat->sent_msgs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 
-	chat->msgs.is_room = TRUE;
-	chat->msgs.id = chime_room_get_id(room);
-	chat->msgs.cb = chat_deliver_msg;
-
-	const gchar *after = NULL;
-	if (chime_read_last_msg(conn, CHIME_OBJECT(chat->room), &after, &chat->msgs.last_msg) &&
-	    after && after[0])
-		chat->msgs.last_msg_time = g_strdup(after);
-
-	fetch_messages(cxn, &chat->msgs, NULL);
-
-	g_signal_connect(room, "message", G_CALLBACK(on_room_message), chat);
-	g_signal_connect(room, "members-done", G_CALLBACK(on_room_members_done), chat);
 	g_signal_connect(room, "membership", G_CALLBACK(on_room_membership), chat);
+
+	init_msgs(conn, &chat->m, CHIME_OBJECT(room), do_chat_deliver_msg, chime_room_get_name(room), first_msg);
+
 	chime_connection_open_room(cxn, room);
 
 	return chat;
@@ -298,7 +222,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 	ChimeRoom *room = chime_connection_room_by_id(cxn, roomid);
 	if (!room)
 		return;
-	do_join_chat(conn, cxn, room);
+	do_join_chat(conn, cxn, room, NULL);
 }
 
 void chime_purple_chat_leave(PurpleConnection *conn, int id)
@@ -316,32 +240,14 @@ static void sent_msg_cb(GObject *source, GAsyncResult *result, gpointer _chat)
 	GError *error = NULL;
 
 	JsonNode *msgnode = chime_connection_send_message_finish(cxn, result, &error);
-	if (!msgnode) {
+	if (msgnode) {
+		const gchar *msg_id;
+		if (!parse_string(msgnode, "MessageId", &msg_id))
+			purple_conversation_write(chat->conv, NULL, _("Failed to send message"), PURPLE_MESSAGE_ERROR, time(NULL));
+		json_node_unref(msgnode);
+	} else {
 		purple_conversation_write(chat->conv, NULL, error->message, PURPLE_MESSAGE_ERROR, time(NULL));
 		g_clear_error(&error);
-		return;
-	} else {
-		const gchar *msg_time, *msg_id, *last_seen;
-		GTimeVal tv, seen_tv;
-
-		if (!parse_time(msgnode, "CreatedOn", &msg_time, &tv))
-			tv.tv_sec = time(NULL);
-
-		/* If we have already received a message at least this new before
-		 * the response to the creation arrived, then don't deliver it to
-		 * Pidgin again.... */
-		if (chime_read_last_msg(purple_conversation_get_gc(chat->conv), CHIME_OBJECT(chat->room), &last_seen, NULL) &&
-		    g_time_val_from_iso8601(last_seen, &seen_tv) &&
-		    (seen_tv.tv_sec > tv.tv_sec ||
-		     (seen_tv.tv_sec == tv.tv_sec && seen_tv.tv_usec >= tv.tv_usec)))
-			return;
-
-		/* If we're doing it, then stick it into the hash table so that
-		 * chat_deliver_msg won't do it again when it does come back in. */
-		if (parse_string(msgnode, "MessageId", &msg_id))
-			g_hash_table_add(chat->sent_msgs, g_strdup(msg_id));
-
-		parse_incoming_msg(cxn, chat, msgnode, tv.tv_sec);
 	}
 }
 
@@ -354,10 +260,10 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	gchar *unescaped = purple_unescape_html(message);
 
 	/* Expand member names into the format Chime understands */
-	gchar *expanded = parse_outbound_mentions(chat->room, unescaped);
+	gchar *expanded = parse_outbound_mentions(CHIME_ROOM(chat->m.obj), unescaped);
 	g_free(unescaped);
 
-	chime_connection_send_message_async(pc->cxn, CHIME_OBJECT(chat->room), expanded, NULL, sent_msg_cb, chat);
+	chime_connection_send_message_async(pc->cxn, chat->m.obj, expanded, NULL, sent_msg_cb, chat);
 
 	g_free(expanded);
 	return 0;
@@ -385,9 +291,7 @@ static void on_chime_room_mentioned(ChimeConnection *cxn, ChimeRoom *room, JsonN
 	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, room);
 
 	if (!chat)
-		chat = do_join_chat(conn, cxn, room);
-	if (chat)
-		on_room_message(room, node, chat);
+		chat = do_join_chat(conn, cxn, room, node);
 }
 
 static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn)
@@ -412,7 +316,7 @@ static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConne
 	}
 
 	/* We have been mentioned since we last looked at this room. Open it now. */
-	do_join_chat(conn, cxn, room);
+	do_join_chat(conn, cxn, room, NULL);
 }
 
 void purple_chime_init_chats_post(PurpleConnection *conn)

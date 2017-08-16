@@ -23,14 +23,30 @@
 #include <prpl.h>
 #include <blist.h>
 #include <roomlist.h>
+#include <debug.h>
 
 #include "chime.h"
 #include "chime-connection-private.h"
 
 #include <libsoup/soup.h>
 
+static void mark_msg_seen(GQueue *q, const gchar *id)
+{
+	if (q->length == 10)
+		g_free(g_queue_pop_tail(q));
+	g_queue_push_head(q, g_strdup(id));
+}
+static gboolean is_msg_unseen(GQueue *q, const gchar *id)
+{
+	if (g_queue_find_custom(q, id, (GCompareFunc)strcmp))
+		return FALSE;
+	mark_msg_seen(q, id);
+	return TRUE;
+}
+
 struct msg_sort {
 	GTimeVal tm;
+	const gchar *id;
 	JsonNode *node;
 };
 
@@ -59,6 +75,7 @@ static int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
 			return TRUE;
 		}
 		ms->node = json_node_ref(_node);
+		ms->id = _id;
 		*l = g_list_insert_sorted(*l, ms, compare_ms);
 	}
 	return TRUE;
@@ -69,94 +86,208 @@ void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 	GList *l = NULL;
 
 	/* Sort messages by time */
-	g_hash_table_foreach_remove(msgs->messages, insert_queued_msg, &l);
-	g_hash_table_destroy(msgs->messages);
-	g_clear_pointer(&msgs->last_msg, g_free);
-	g_clear_pointer(&msgs->last_msg_time, g_free);
-	msgs->messages = NULL;
+	g_hash_table_foreach_remove(msgs->msg_gather, insert_queued_msg, &l);
+	g_clear_pointer(&msgs->msg_gather, g_hash_table_destroy);
 
 	while (l) {
 		struct msg_sort *ms = l->data;
+		const gchar *id = ms->id;
 		JsonNode *node = ms->node;
-		msgs->cb(cxn, msgs, node, ms->tm.tv_sec);
+		if (is_msg_unseen(msgs->seen_msgs, id))
+			msgs->cb(cxn, msgs, node, ms->tm.tv_sec);
 		g_free(ms);
 		l = g_list_remove(l, ms);
 
 		/* Last message, note down the received time */
-		if (!l) {
-			const gchar *tm, *id;
-			if (parse_string(node, "CreatedOn", &tm) &&
-			    parse_string(node, "MessageId", &id))
-				chime_update_last_msg(cxn, msgs->is_room, msgs->id, tm, id);
+		if (!l && !msgs->msgs_failed) {
+			const gchar *tm;
+			if (parse_string(node, "CreatedOn", &tm))
+				chime_update_last_msg(cxn, msgs->obj, tm, id);
 		}
 		json_node_unref(node);
 	}
 }
 
-static void one_msg_cb(JsonArray *array, guint index_,
-		       JsonNode *node, gpointer _msgs)
+static gboolean msg_newer(JsonNode *old, JsonNode *new)
 {
-	struct chime_msgs *msgs = _msgs;
-	const char *id;
+	const gchar *old_updated = NULL, *new_updated = NULL;
 
+	if (!parse_string(new, "UpdatedOn", &new_updated))
+		return FALSE;
+	if (!parse_string(old, "UpdatedOn", &old_updated))
+		return TRUE;
+
+	GTimeVal old_tv, new_tv;
+	if (!g_time_val_from_iso8601(new_updated, &new_tv) ||
+	    !g_time_val_from_iso8601(old_updated, &old_tv))
+		return FALSE;
+
+	if (new_tv.tv_sec > old_tv.tv_sec ||
+	    (new_tv.tv_sec == old_tv.tv_sec && new_tv.tv_usec > old_tv.tv_usec))
+		return TRUE;
+
+	return FALSE;
+}
+
+static void on_message_received(ChimeObject *obj, JsonNode *node, struct chime_msgs *msgs)
+{
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(msgs->conn);
+	const gchar *id;
 	if (!parse_string(node, "MessageId", &id))
 		return;
-
-	/* Drop if it it's the last of the messages we'd already seen */
-	if (msgs->last_msg && !strcmp(id, msgs->last_msg)) {
-		g_clear_pointer(&msgs->last_msg, g_free);
+	if (msgs->msg_gather) {
+		/* Still gathering messages. Add to the table, to avoid dupes */
+		JsonNode *old_node = g_hash_table_lookup(msgs->msg_gather, id);
+		if (old_node) {
+			if (!msg_newer(node, old_node))
+				return;
+			/* Remove first because the key belongs to the value */
+			g_hash_table_remove(msgs->msg_gather, id);
+		}
+		g_hash_table_insert(msgs->msg_gather, (gchar *)id, json_node_ref(node));
 		return;
 	}
+	GTimeVal tv;
+	const gchar *created;
+	if (!parse_time(node, "CreatedOn", &created, &tv))
+		return;
 
-	g_hash_table_insert(msgs->messages, (gpointer)id, json_node_ref(node));
+	if (!msgs->msgs_failed)
+		chime_update_last_msg(cxn, msgs->obj, created, id);
+
+	if (is_msg_unseen(msgs->seen_msgs, id))
+		msgs->cb(cxn, msgs, node, tv.tv_sec);
 }
 
-static void fetch_msgs_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _msgs)
+/* Once the message fetching is complete, we can play the fetched messages in order */
+static void fetch_msgs_cb(GObject *source, GAsyncResult *result, gpointer _msgs)
 {
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
 	struct chime_msgs *msgs = _msgs;
-	const gchar *next_token;
 
-	JsonObject *obj = json_node_get_object(node);
-	JsonNode *msgs_node = json_object_get_member(obj, "Messages");
-	JsonArray *msgs_array = json_node_get_array(msgs_node);
+	GError *error = NULL;
+	if (!chime_connection_create_conversation_finish(cxn, result, &error)) {
+		purple_debug(PURPLE_DEBUG_ERROR, "chime", "Failed to fetch messages: %s\n", error->message);
+		g_clear_error(&error);
 
-	msgs->soup_msg = NULL;
-	json_array_foreach_element(msgs_array, one_msg_cb, msgs);
-
-	if (parse_string(node, "NextToken", &next_token))
-		fetch_messages(cxn, _msgs, next_token);
-	else {
-		msgs->msgs_done = TRUE;
-		if (msgs->members_done)
-			chime_complete_messages(cxn, msgs);
+		/* Don't update the 'last seen'. Better luck next time... */
+		msgs->msgs_failed = TRUE;
 	}
+	msgs->msgs_done = TRUE;
+	if (msgs->members_done)
+		chime_complete_messages(cxn, msgs);
 }
 
-void fetch_messages(ChimeConnection *cxn, struct chime_msgs *msgs, const gchar *next_token)
+static void on_room_members_done(ChimeRoom *room, struct chime_msgs *msgs)
+{
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(msgs->conn);
+
+	msgs->members_done = TRUE;
+	if (msgs->msgs_done)
+		chime_complete_messages(cxn, msgs);
+}
+
+void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj, chime_msg_cb cb, const gchar *name, JsonNode *first_msg)
+{
+	msgs->conn = conn;
+	msgs->obj = g_object_ref(obj);
+	msgs->cb = cb;
+	msgs->seen_msgs = g_queue_new();
+
+	g_signal_connect(obj, "message", G_CALLBACK(on_message_received), msgs);
+	if (CHIME_IS_ROOM(obj))
+		g_signal_connect(obj, "members-done", G_CALLBACK(on_room_members_done), msgs);
+	else
+		msgs->members_done = TRUE;
+
+	/* Do we need to fetch new messages? */
+	gchar *last_sent, *last_id = NULL;
+	g_object_get(obj, "last-sent", &last_sent, NULL);
+
+	const gchar *last_seen;
+	if (!chime_read_last_msg(conn, obj, &last_seen, &last_id))
+		last_seen = "1970-01-01T00:00:00.000Z";
+
+	if (last_sent && strcmp(last_seen, last_sent)) {
+		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch messages for %s\n", name);
+
+		chime_connection_fetch_messages_async(PURPLE_CHIME_CXN(conn), obj, NULL, last_seen, NULL, fetch_msgs_cb, msgs);
+	} else
+		msgs->msgs_done = TRUE;
+	g_free(last_sent);
+
+	if (last_id) {
+		mark_msg_seen(msgs->seen_msgs, last_id);
+		g_free(last_id);
+	}
+
+	if (!msgs->msgs_done || !msgs->members_done)
+		msgs->msg_gather = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);
+
+	if (first_msg)
+		on_message_received(obj, first_msg, msgs);
+}
+
+void cleanup_msgs(struct chime_msgs *msgs)
+{
+	g_queue_free_full(msgs->seen_msgs, g_free);
+	if (msgs->msg_gather)
+		g_hash_table_destroy(msgs->msg_gather);
+	g_clear_object(&msgs->obj);
+}
+
+void chime_update_last_msg(ChimeConnection *cxn, ChimeObject *obj,
+			   const gchar *msg_time, const gchar *msg_id)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/%ss/%s/messages",
-					   msgs->is_room ? "room" : "conversation", msgs->id);
-	const gchar *opts[4];
-	int i = 0;
+	gchar *key = g_strdup_printf("last-%s-%s",
+				     CHIME_IS_ROOM(obj) ? "room" : "conversation",
+				     chime_object_get_id(obj));
+	gchar *val = g_strdup_printf("%s|%s", msg_id, msg_time);
 
-	if (!msgs->messages)
-		msgs->messages = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);
+	purple_account_set_string(cxn->prpl_conn->account, key, val);
+	g_free(key);
+	g_free(val);
 
-	if (msgs->last_msg_time && msgs->last_msg_time[0]) {
-		opts[i++] = "after";
-		opts[i++] = msgs->last_msg_time;
-	}
-	if (next_token) {
-		opts[i++] = "next-token";
-		opts[i++] = next_token;
-	}
-	while (i < 4)
-		opts[i++] = NULL;
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "LastReadMessageId");
+	jb = json_builder_add_string_value(jb, msg_id);
+	jb = json_builder_end_object(jb);
 
-	soup_uri_set_query_from_fields(uri, "max-results", "50", opts[0], opts[1], opts[2], opts[3], NULL);
-	msgs->soup_msg = chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_msgs_cb, msgs);
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url,
+					   "/%ss/%s",
+					   CHIME_IS_ROOM(obj) ? "room" : "conversation",
+					   chime_object_get_id(obj));
+	JsonNode *node = json_builder_get_root(jb);
+	chime_connection_queue_http_request(cxn, node, uri, "POST", NULL, NULL);
+	json_node_unref(node);
+	g_object_unref(jb);
 }
 
+/* WARE! msg_id is allocated, msg_time is const */
+gboolean chime_read_last_msg(PurpleConnection *conn, ChimeObject *obj,
+			     const gchar **msg_time, gchar **msg_id)
+{
+	gchar *key = g_strdup_printf("last-%s-%s", CHIME_IS_ROOM(obj) ? "room" : "conversation", chime_object_get_id(obj));
+	const gchar *val = purple_account_get_string(conn->account, key, NULL);
+	g_free(key);
 
+	if (!val || !val[0])
+		return FALSE;
 
+	*msg_time = strrchr(val, '|');
+	if (!*msg_time) {
+		/* Only a date, no msgid */
+		*msg_time = val;
+		if (msg_id)
+			*msg_id = NULL;
+		return TRUE;
+	}
+
+	if (msg_id)
+		*msg_id = g_strndup(val, *msg_time - val);
+	(*msg_time)++; /* Past the | */
+
+	return TRUE;
+}

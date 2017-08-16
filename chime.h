@@ -44,18 +44,17 @@ struct chime_msg {
 };
 
 struct chime_msgs;
+
 typedef void (*chime_msg_cb)(ChimeConnection *cxn, struct chime_msgs *msgs,
 			     JsonNode *node, time_t tm);
 
 struct chime_msgs {
-	gboolean is_room;
-	const gchar *id; /* of the conversation or room */
-	gchar *last_msg_time;
-	gchar *last_msg; /* MessageId of last known message */
-	GHashTable *messages; /* While fetching */
-	SoupMessage *soup_msg; /* For cancellation */
-	gboolean members_done, msgs_done;
+	PurpleConnection *conn;
+	ChimeObject *obj;
+	GQueue *seen_msgs;
+	GHashTable *msg_gather;
 	chime_msg_cb cb;
+	gboolean msgs_done, members_done, msgs_failed;
 };
 
 struct purple_chime {
@@ -75,9 +74,8 @@ struct purple_chime {
 void chime_initial_login(ChimeConnection *cxn);
 
 /* chime.c */
-void chime_update_last_msg(ChimeConnection *cxn, gboolean is_room,
-			   const gchar *id, const gchar *msg_time,
-			   const gchar *msg_id);
+void chime_update_last_msg(ChimeConnection *cxn, ChimeObject *obj,
+			   const gchar *msg_time, const gchar *msg_id);
 /* BEWARE: msg_id is allocated, msg_time is const. I am going to hate myself
    for that one day, but it's convenient for now... */
 gboolean chime_read_last_msg(PurpleConnection *conn, ChimeObject *obj,
@@ -130,4 +128,8 @@ unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleT
 /* messages.c */
 void fetch_messages(ChimeConnection *cxn, struct chime_msgs *msgs, const gchar *next_token);
 void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs);
+void cleanup_msgs(struct chime_msgs *msgs);
+void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj, chime_msg_cb cb, const gchar *name, JsonNode *first_msg);
+
+
 #endif /* __CHIME_H__ */

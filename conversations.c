@@ -92,7 +92,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		if (!pconv) {
 			pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM, account, email);
 			if (!pconv) {
-				printf("\n***** NO CONV FOR %s\n", email);
+				purple_debug_error("chime", "NO CONV FOR %s\n", email);
 
 				return FALSE;
 			}
@@ -356,7 +356,7 @@ static void create_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 
 		imd->im = g_hash_table_lookup(pc->ims_by_email, imd->who);
 		if (!imd->im) {
-			printf("No im for %s\n", imd->who);
+			purple_debug(PURPLE_DEBUG_INFO, "chime", "No im for %s\n", imd->who);
 			goto bad;
 		}
 

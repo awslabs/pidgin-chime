@@ -36,22 +36,17 @@
 
 static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
 {
-	printf("Chime plugin load\n");
 	setvbuf(stdout, NULL, _IONBF, 0);
-	purple_notify_message(plugin, PURPLE_NOTIFY_MSG_ERROR, "Foo",
-			      "Chime plugin starting...", NULL, NULL, NULL);
 	return TRUE;
 }
 
 static gboolean chime_purple_plugin_unload(PurplePlugin *plugin)
 {
-	printf("Plugin unload\n");
 	return TRUE;
 }
 
 static void chime_purple_plugin_destroy(PurplePlugin *plugin)
 {
-	printf("Plugin destroy\n");
 }
 
 static const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
@@ -73,7 +68,6 @@ static void on_set_idle_ready(GObject *source, GAsyncResult *result, gpointer us
 static void chime_purple_set_idle(PurpleConnection *conn, int idle_time)
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
-	printf("set idle %d\n", idle_time);
 
 	chime_connection_set_device_status_async(cxn, idle_time ? "Idle" : "Active",
 						 NULL, on_set_idle_ready,
@@ -124,7 +118,6 @@ static void on_chime_disconnected(ChimeConnection *cxn, GError *error, PurpleCon
 
 static void on_chime_progress(ChimeConnection *cxn, int percent, const gchar *msg, PurpleConnection *conn)
 {
-	printf("CHIME PROGRESS %p %d %s\n", conn, percent, msg);
 	purple_connection_update_progress(conn, msg, percent, 100);
 }
 
@@ -297,8 +290,6 @@ static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(account->gc);
 	const gchar *status_str  = purple_status_is_available(status) ? "Automatic" : "Busy";
-
-	printf("set status %s for %s\n", status_str, purple_status_get_id(status));
 
 	chime_connection_set_presence_async(cxn, status_str, NULL, NULL,
 					    on_set_status_ready, NULL);

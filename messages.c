@@ -67,7 +67,7 @@ static int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
 void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 {
 	GList *l = NULL;
-	printf("List at %p\n", &l);
+
 	/* Sort messages by time */
 	g_hash_table_foreach_remove(msgs->messages, insert_queued_msg, &l);
 	g_hash_table_destroy(msgs->messages);

@@ -129,7 +129,8 @@ void on_chime_new_contact(ChimeConnection *cxn, ChimeContact *contact, PurpleCon
 
 void chime_purple_buddy_free(PurpleBuddy *buddy)
 {
-	printf("buddy_free %s\n", purple_buddy_get_name(buddy));
+	/* We don't need to unref the underlying contact as we'll do that when the
+	 * connection is destroyed anyway. */
 }
 
 static void on_buddy_invited(GObject *source, GAsyncResult *result, gpointer user_data)

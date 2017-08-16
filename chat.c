@@ -23,6 +23,7 @@
 #include <prpl.h>
 #include <blist.h>
 #include <roomlist.h>
+#include <debug.h>
 
 #include "chime.h"
 #include "chime-connection-private.h"
@@ -208,7 +209,7 @@ void chime_destroy_chat(struct chime_chat *chat)
 	g_object_unref(chat->room);
 	g_regex_unref(chat->mention_regex);
 	g_free(chat);
-	printf("Destroyed chat %p\n", chat);
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Destroyed chat %p\n", chat);
 }
 
 static void on_room_members_done(ChimeRoom *room, struct chime_chat *chat)
@@ -294,7 +295,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
 
-	printf("join_chat %p %s %s\n", data, roomid, (gchar *)g_hash_table_lookup(data, "Name"));
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "join_chat %p %s %s\n", data, roomid, (gchar *)g_hash_table_lookup(data, "Name"));
 
 	ChimeRoom *room = chime_connection_room_by_id(cxn, roomid);
 	if (!room)

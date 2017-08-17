@@ -194,6 +194,9 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
 	msgs->cb = cb;
 	msgs->seen_msgs = g_queue_new();
 
+	/* XXX: We also need to handle notify::last-sent here, because if a message happens
+	 * while the juggernaut is reconnecting, that's all we'll get. We need to notice
+	 * if it's newer than our idea, and refetch messages. */
 	g_signal_connect(obj, "message", G_CALLBACK(on_message_received), msgs);
 	if (CHIME_IS_ROOM(obj))
 		g_signal_connect(obj, "members-done", G_CALLBACK(on_room_members_done), msgs);

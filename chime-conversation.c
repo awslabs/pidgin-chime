@@ -417,6 +417,26 @@ static void parse_members(ChimeConnection *cxn, ChimeConversation *conv, JsonNod
 	}
 }
 
+static void generate_conv_name(ChimeConnection *cxn, ChimeConversation *conv)
+{
+	GList *m = g_hash_table_get_values(conv->members);
+	GPtrArray *names = g_ptr_array_new();
+
+	while (m) {
+		ChimeContact *contact = m->data;
+		if (strcmp(chime_contact_get_profile_id(contact), chime_connection_get_profile_id(cxn)))
+			g_ptr_array_add(names, (gchar *)chime_contact_get_display_name(contact));
+		m = g_list_remove(m, contact);
+	}
+	g_ptr_array_add(names, NULL);
+	gchar *name = g_strjoinv(",", (gchar **)names->pdata);
+	g_ptr_array_unref(names);
+
+	chime_object_rename(CHIME_OBJECT(conv), name);
+	/* No need to notify since nobody's seen it yet anyway. */
+	g_free(name);
+}
+
 ChimeConversation *chime_connection_parse_conversation(ChimeConnection *cxn, JsonNode *node,
 						       GError **error)
 {
@@ -474,13 +494,16 @@ ChimeConversation *chime_connection_parse_conversation(ChimeConnection *cxn, Jso
 		chime_object_collection_hash_object(&priv->conversations, CHIME_OBJECT(conversation), TRUE);
 		parse_members(cxn, conversation, members_node);
 
+		if (!name || !name[0])
+			generate_conv_name(cxn, conversation);
+
 		/* Emit signal on ChimeConnection to admit existence of new conversation */
 		chime_connection_new_conversation(cxn, conversation);
 
 		return conversation;
 	}
 
-	if (name && g_strcmp0(name, chime_object_get_name(CHIME_OBJECT(conversation)))) {
+	if (name && name[0] && g_strcmp0(name, chime_object_get_name(CHIME_OBJECT(conversation)))) {
 		chime_object_rename(CHIME_OBJECT(conversation), name);
 		g_object_notify(G_OBJECT(conversation), "name");
 	}

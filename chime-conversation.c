@@ -873,7 +873,6 @@ void chime_connection_create_conversation_async(ChimeConnection *cxn,
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	JsonBuilder *jb = json_builder_new();
-	jb = json_builder_new();
 	jb = json_builder_begin_object(jb);
 	jb = json_builder_set_member_name(jb, "ProfileIds");
 	jb = json_builder_begin_array(jb);

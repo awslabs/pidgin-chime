@@ -1079,3 +1079,55 @@ gboolean chime_connection_add_room_member_finish(ChimeConnection *self,
 	return g_task_propagate_boolean(G_TASK(result), error);
 }
 
+
+static void member_removed_cb(ChimeConnection *cxn, SoupMessage *msg,
+			      JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		const gchar *reason = msg->reason_phrase;
+
+		if (node)
+			parse_string(node, "Message", &reason);
+
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to remove room member: %s"),
+					reason);
+	}
+
+	g_object_unref(task);
+}
+
+void chime_connection_remove_room_member_async(ChimeConnection *cxn,
+					       ChimeRoom *room,
+					       ChimeContact *contact,
+					       GCancellable *cancellable,
+					       GAsyncReadyCallback callback,
+					       gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+	g_return_if_fail(CHIME_IS_ROOM(room));
+	g_return_if_fail(CHIME_IS_CONTACT(contact));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+	g_task_set_task_data(task, g_object_ref(room), g_object_unref);
+
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s/memberships/%s",
+					   chime_room_get_id(room), chime_contact_get_profile_id(contact));
+	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE", member_removed_cb, task);
+
+}
+
+gboolean chime_connection_remove_room_member_finish(ChimeConnection *self,
+						    GAsyncResult *result,
+						    GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_boolean(G_TASK(result), error);
+}
+

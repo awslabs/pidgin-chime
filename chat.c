@@ -375,7 +375,9 @@ void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, Purp
 	    g_time_val_from_iso8601(seen_time, &seen_tv) &&
 	    (sent_tv.tv_sec < seen_tv.tv_sec ||
 	     (sent_tv.tv_sec == seen_tv.tv_sec && sent_tv.tv_usec <= seen_tv.tv_usec))) {
-		/* LastSent is older than we've already seen. Nothing to do. */
+		/* LastSent is older than we've already seen. Nothing to do except
+		 * hook up the signal to open the "chat" when a message comes in */
+		g_signal_connect(conv, "message", G_CALLBACK(on_group_conv_msg), conn);
 		return;
 	}
 

@@ -393,3 +393,69 @@ void purple_chime_init_chats_post(PurpleConnection *conn)
 
 	g_signal_connect(pc->cxn, "room-mention", G_CALLBACK(on_chime_room_mentioned), conn);
 }
+
+static void add_member_cb(GObject *source, GAsyncResult *result, gpointer _chat)
+{
+	struct chime_chat *chat = _chat;
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	GError *error = NULL;
+
+	if (!chime_connection_add_room_member_finish(cxn, result, &error)) {
+		purple_conversation_write(chat->conv, NULL, error->message,
+					  PURPLE_MESSAGE_ERROR, time(NULL));
+	}
+	/* If it succeeds, that's self-evident. */
+}
+struct member_add_data {
+	struct chime_chat *chat;
+	char *who;
+};
+
+static void autocomplete_mad_cb(GObject *source, GAsyncResult *result, gpointer _mad)
+{
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	struct member_add_data *mad = _mad;
+	GSList *contacts = chime_connection_autocomplete_contact_finish(cxn, result, NULL);
+
+	while (contacts) {
+		ChimeContact *contact = contacts->data;
+		if (!strcmp(mad->who, chime_contact_get_email(contact))) {
+			chime_connection_add_room_member_async(cxn, CHIME_ROOM(mad->chat->m.obj), contact, NULL, add_member_cb, mad->chat);
+			g_slist_free_full(contacts, g_object_unref);
+			goto out;
+		}
+		g_object_unref(contact);
+		contacts = g_slist_remove(contacts, contact);
+	}
+	purple_conversation_write(mad->chat->conv, NULL, _("Failed to find user to add"),
+				  PURPLE_MESSAGE_ERROR, time(NULL));
+ out:
+	g_free(mad->who);
+	g_free(mad);
+}
+
+void chime_purple_chat_invite(PurpleConnection *conn, int id, const char *message, const char *who)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	struct chime_chat *chat = g_hash_table_lookup(pc->live_chats, GUINT_TO_POINTER(id));
+	if (!chat)
+		return;
+
+	if (!CHIME_IS_ROOM(chat->m.obj)) {
+		purple_conversation_write(chat->conv, NULL, _("You only add people to chat rooms, not conversations"),
+					  PURPLE_MESSAGE_ERROR, time(NULL));
+		return;
+	}
+
+	ChimeContact *contact = chime_connection_contact_by_email(pc->cxn, who);
+	if (contact) {
+		chime_connection_add_room_member_async(pc->cxn, CHIME_ROOM(chat->m.obj), contact, NULL, add_member_cb, chat);
+		return;
+	}
+
+	struct member_add_data *mad = g_new0(struct member_add_data, 1);
+	mad->chat = chat;
+	mad->who = g_strdup(who);
+	chime_connection_autocomplete_contact_async(pc->cxn, who, NULL, autocomplete_mad_cb, mad);
+}

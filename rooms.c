@@ -101,5 +101,3 @@ GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *
 
 	return hash;
 }
-
-

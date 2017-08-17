@@ -75,6 +75,17 @@ void chime_connection_close_room(ChimeConnection *cxn, ChimeRoom *room);
 
 GList *chime_room_get_members(ChimeRoom *room);
 
+void chime_connection_add_room_member_async(ChimeConnection *cxn,
+					    ChimeRoom *room,
+					    ChimeContact *contact,
+					    GCancellable *cancellable,
+					    GAsyncReadyCallback callback,
+					    gpointer user_data);
+
+gboolean chime_connection_add_room_member_finish(ChimeConnection *self,
+						 GAsyncResult *result,
+						 GError **error);
+
 G_END_DECLS
 
 #endif /* __CHIME_ROOM_H__ */

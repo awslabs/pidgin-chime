@@ -118,6 +118,7 @@ void chime_purple_chat_leave(PurpleConnection *conn, int id);
 int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, PurpleMessageFlags flags);
 char *chime_purple_cb_real_name(PurpleConnection *conn, int id, const char *who);
 void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);
+void chime_purple_chat_invite(PurpleConnection *conn, int id, const char *message, const char *who);
 
 /* conversations.c */
 void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);

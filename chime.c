@@ -304,6 +304,7 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.set_status = chime_purple_set_status,
 	.send_im = chime_purple_send_im,
 	.chat_info = chime_purple_chat_info,
+	.chat_invite = chime_purple_chat_invite,
 	.join_chat = chime_purple_join_chat,
 	.chat_leave = chime_purple_chat_leave,
 	.chat_send = chime_purple_chat_send,

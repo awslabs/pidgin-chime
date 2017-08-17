@@ -1009,3 +1009,73 @@ GList *chime_room_get_members(ChimeRoom *room)
 {
 	return g_hash_table_get_values(room->members);
 }
+
+static void member_added_cb(ChimeConnection *cxn, SoupMessage *msg,
+			    JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
+		JsonObject *obj = json_node_get_object(node);
+
+		node = json_object_get_member(obj, "RoomMembership");
+		if (node) {
+			add_room_member(cxn, CHIME_ROOM(g_task_get_task_data(task)), node);
+			g_task_return_boolean(task, TRUE);
+		} else
+			g_task_return_new_error(task, CHIME_ERROR, CHIME_ERROR_NETWORK,
+						_("Failed to add room member"));
+	} else {
+		const gchar *reason = msg->reason_phrase;
+
+		if (node)
+			parse_string(node, "Message", &reason);
+
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to add room member: %s"),
+					reason);
+	}
+
+	g_object_unref(task);
+}
+
+void chime_connection_add_room_member_async(ChimeConnection *cxn,
+					    ChimeRoom *room,
+					    ChimeContact *contact,
+					    GCancellable *cancellable,
+					    GAsyncReadyCallback callback,
+					    gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+	g_return_if_fail(CHIME_IS_ROOM(room));
+	g_return_if_fail(CHIME_IS_CONTACT(contact));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+	g_task_set_task_data(task, g_object_ref(room), g_object_unref);
+
+	JsonBuilder *jb = json_builder_new();
+ 	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "ProfileId");
+	jb = json_builder_add_string_value(jb, chime_contact_get_profile_id(contact));
+	jb = json_builder_end_object(jb);
+
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s/memberships", chime_room_get_id(room));
+	JsonNode *node = json_builder_get_root(jb);
+	chime_connection_queue_http_request(cxn, node, uri, "POST", member_added_cb, task);
+
+	json_node_unref(node);
+	g_object_unref(jb);
+}
+
+gboolean chime_connection_add_room_member_finish(ChimeConnection *self,
+						 GAsyncResult *result,
+						 GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_boolean(G_TASK(result), error);
+}
+

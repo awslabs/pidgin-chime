@@ -944,9 +944,10 @@ static void send_message_cb(ChimeConnection *self, SoupMessage *msg,
 		JsonObject *obj = json_node_get_object(node);
 		JsonNode *node = json_object_get_member(obj, "Message");
 
-		if (node)
+		if (node) {
+			g_signal_emit_by_name(CHIME_OBJECT(g_task_get_task_data(task)), "message", node);
 			g_task_return_pointer(task, json_node_ref(node), (GDestroyNotify)json_node_unref);
-		else
+		} else
 			g_task_return_new_error(task, CHIME_ERROR,
 						CHIME_ERROR_NETWORK,
 						_("Failed to send message"));
@@ -966,6 +967,7 @@ chime_connection_send_message_async(ChimeConnection *self,
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
 	GTask *task = g_task_new(self, cancellable, callback, user_data);
+	g_task_set_task_data(task, g_object_ref(obj), g_object_unref);
 
 	/* g_uuid_string_random() not till 2.52. So do this instead... */
 	GChecksum *sum = g_checksum_new(G_CHECKSUM_SHA256);

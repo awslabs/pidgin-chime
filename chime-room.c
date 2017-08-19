@@ -993,7 +993,7 @@ void fetch_room_memberships(ChimeConnection *cxn, ChimeRoom *room, gboolean acti
 
 	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s/memberships",
 					   chime_object_get_id(CHIME_OBJECT(room)));
-	const gchar *opts[4];
+	const gchar *opts[4] = {NULL};
 	int i = 0;
 
 	if (!active) {
@@ -1004,8 +1004,6 @@ void fetch_room_memberships(ChimeConnection *cxn, ChimeRoom *room, gboolean acti
 		opts[i++] = "next-token";
 		opts[i++] = next_token;
 	}
-	while (i <= 4)
-		opts[i++] = NULL;
 
 	soup_uri_set_query_from_fields(uri, "max-results", "50", opts[0], opts[1], opts[2], opts[3], NULL);
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_members_cb, (void *)((unsigned long)room | active));

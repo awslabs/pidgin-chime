@@ -821,6 +821,9 @@ void chime_destroy_rooms(ChimeConnection *cxn)
 ChimeRoom *chime_connection_room_by_name(ChimeConnection *cxn,
 					 const gchar *name)
 {
+	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
+	g_return_val_if_fail(name, NULL);
+
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	return g_hash_table_lookup(priv->rooms.by_name, name);
@@ -829,6 +832,9 @@ ChimeRoom *chime_connection_room_by_name(ChimeConnection *cxn,
 ChimeRoom *chime_connection_room_by_id(ChimeConnection *cxn,
 				       const gchar *id)
 {
+	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
+	g_return_val_if_fail(id, NULL);
+
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	return g_hash_table_lookup(priv->rooms.by_id, id);
@@ -837,6 +843,7 @@ ChimeRoom *chime_connection_room_by_id(ChimeConnection *cxn,
 void chime_connection_foreach_room(ChimeConnection *cxn, ChimeRoomCB cb,
 				   gpointer cbdata)
 {
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
 
 	chime_object_collection_foreach_object(cxn, &priv->rooms, (ChimeObjectCB)cb, cbdata);

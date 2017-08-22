@@ -769,6 +769,9 @@ void chime_destroy_conversations(ChimeConnection *cxn)
 ChimeConversation *chime_connection_conversation_by_name(ChimeConnection *cxn,
 							 const gchar *name)
 {
+	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
+	g_return_val_if_fail(name, NULL);
+
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	return g_hash_table_lookup(priv->conversations.by_name, name);
@@ -777,6 +780,9 @@ ChimeConversation *chime_connection_conversation_by_name(ChimeConnection *cxn,
 ChimeConversation *chime_connection_conversation_by_id(ChimeConnection *cxn,
 						       const gchar *id)
 {
+	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
+	g_return_val_if_fail(id, NULL);
+
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	return g_hash_table_lookup(priv->conversations.by_id, id);
@@ -785,6 +791,8 @@ ChimeConversation *chime_connection_conversation_by_id(ChimeConnection *cxn,
 void chime_connection_foreach_conversation(ChimeConnection *cxn, ChimeConversationCB cb,
 					   gpointer cbdata)
 {
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
 
 	chime_object_collection_foreach_object(cxn, &priv->conversations, (ChimeObjectCB)cb, cbdata);

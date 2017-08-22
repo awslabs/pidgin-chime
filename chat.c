@@ -250,6 +250,9 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "join_chat %p %s %s\n", data, roomid, (gchar *)g_hash_table_lookup(data, "Name"));
 
+	if (!roomid)
+		return;
+
 	ChimeRoom *room = chime_connection_room_by_id(cxn, roomid);
 	if (!room)
 		return;

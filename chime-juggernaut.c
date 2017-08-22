@@ -20,9 +20,6 @@
 #include <glib/gi18n.h>
 #include <glib/glist.h>
 
-#include <prpl.h>
-
-#include "chime.h"
 #include "chime-connection-private.h"
 
 #include <libsoup/soup.h>

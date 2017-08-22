@@ -28,35 +28,6 @@
 #include "chime-conversation.h"
 #include "chime-room.h"
 
-#define CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS		(1<<1)
-#define CHIME_DEVICE_CAP_PRESENCE_PUSH			(1<<2)
-#define CHIME_DEVICE_CAP_WEBINAR			(1<<3)
-#define CHIME_DEVICE_CAP_PRESENCE_SUBSCRIPTION		(1<<4)
-
-/* SoupMessage handling for Chime communication, with retry on re-auth
- * and JSON parsing. XX: MAke this a proper superclass of SoupMessage */
-struct chime_msg {
-	ChimeConnection *cxn;
-	ChimeSoupMessageCallback cb;
-	gpointer cb_data;
-	SoupMessage *msg;
-	gboolean auto_renew;
-};
-
-struct chime_msgs;
-
-typedef void (*chime_msg_cb)(ChimeConnection *cxn, struct chime_msgs *msgs,
-			     JsonNode *node, time_t tm);
-
-struct chime_msgs {
-	PurpleConnection *conn;
-	ChimeObject *obj;
-	GQueue *seen_msgs;
-	GHashTable *msg_gather;
-	chime_msg_cb cb;
-	gboolean msgs_done, members_done, msgs_failed;
-};
-
 struct purple_chime {
 	ChimeConnection *cxn;
 
@@ -70,9 +41,6 @@ struct purple_chime {
 
 #define PURPLE_CHIME_CXN(conn) (CHIME_CONNECTION(((struct purple_chime *)purple_connection_get_protocol_data(conn))->cxn))
 
-/* login.c */
-void chime_initial_login(ChimeConnection *cxn);
-
 /* chime.c */
 void chime_update_last_msg(ChimeConnection *cxn, ChimeObject *obj,
 			   const gchar *msg_time, const gchar *msg_id);
@@ -81,28 +49,15 @@ void chime_update_last_msg(ChimeConnection *cxn, ChimeObject *obj,
 gboolean chime_read_last_msg(PurpleConnection *conn, ChimeObject *obj,
 			     const gchar **msg_time, gchar **msg_id);
 
-/* jugg.c */
-void chime_init_juggernaut(ChimeConnection *cxn);
-void chime_destroy_juggernaut(ChimeConnection *cxn);
-
-typedef gboolean (*JuggernautCallback)(ChimeConnection *cxn, gpointer cb_data, JsonNode *data_node);
-void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);
-void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass, JuggernautCallback cb, gpointer cb_data);
-void chime_purple_keepalive(PurpleConnection *conn);
-
 /* buddy.c */
 void on_chime_new_contact(ChimeConnection *cxn, ChimeContact *contact, PurpleConnection *conn);
 void chime_purple_buddy_free(PurpleBuddy *buddy);
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
 void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
-void chime_init_buddies(ChimeConnection *cxn);
-void chime_destroy_buddies(ChimeConnection *cxn);
 void chime_purple_user_search(PurplePluginAction *action);
 
 /* rooms.c */
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);
-void chime_init_rooms(ChimeConnection *cxn);
-void chime_destroy_rooms(ChimeConnection *cxn);
 GList *chime_purple_chat_info(PurpleConnection *conn);
 GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name);
 
@@ -128,6 +83,19 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleTypingState state);
 
 /* messages.c */
+struct chime_msgs;
+
+typedef void (*chime_msg_cb)(ChimeConnection *cxn, struct chime_msgs *msgs,
+			     JsonNode *node, time_t tm);
+struct chime_msgs {
+	PurpleConnection *conn;
+	ChimeObject *obj;
+	GQueue *seen_msgs;
+	GHashTable *msg_gather;
+	chime_msg_cb cb;
+	gboolean msgs_done, members_done, msgs_failed;
+};
+
 void fetch_messages(ChimeConnection *cxn, struct chime_msgs *msgs, const gchar *next_token);
 void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs);
 void cleanup_msgs(struct chime_msgs *msgs);

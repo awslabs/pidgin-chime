@@ -437,7 +437,8 @@ static void generate_conv_name(ChimeConnection *cxn, ChimeConversation *conv)
 	g_free(name);
 }
 
-ChimeConversation *chime_connection_parse_conversation(ChimeConnection *cxn, JsonNode *node,
+static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *cxn,
+							      JsonNode *node,
 						       GError **error)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);

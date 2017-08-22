@@ -95,6 +95,11 @@ const gchar *chime_connection_get_email(ChimeConnection *self);
 void chime_connection_connect(ChimeConnection *cxn);
 void chime_connection_disconnect(ChimeConnection *cxn);
 
+/* XXX: Expose something other than a JsonNode for messages? */
+gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
+gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
+gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv);
+
 G_END_DECLS
 
 #endif /* __CHIME_CONNECTION_H__ */

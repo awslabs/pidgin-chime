@@ -28,8 +28,6 @@
 #include "chime.h"
 #include "chime-connection-private.h"
 
-#include <libsoup/soup.h>
-
 static void mark_msg_seen(GQueue *q, const gchar *id)
 {
 	if (q->length == 10)

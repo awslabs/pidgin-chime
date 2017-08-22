@@ -19,7 +19,6 @@
 
 #include "chime-connection-private.h"
 #include "chime-contact.h"
-#include "chime.h"
 
 #include <glib/gi18n.h>
 

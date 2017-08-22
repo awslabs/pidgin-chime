@@ -25,7 +25,6 @@
 #include <debug.h>
 
 #include "chime.h"
-#include "chime-connection-private.h"
 
 #include <libsoup/soup.h>
 

@@ -76,6 +76,21 @@ typedef enum {
 	CHIME_SYNC_FETCHING,
 } ChimeSyncState;
 
+#define CHIME_DEVICE_CAP_PUSH_DELIVERY_RECEIPTS		(1<<1)
+#define CHIME_DEVICE_CAP_PRESENCE_PUSH			(1<<2)
+#define CHIME_DEVICE_CAP_WEBINAR			(1<<3)
+#define CHIME_DEVICE_CAP_PRESENCE_SUBSCRIPTION		(1<<4)
+
+/* SoupMessage handling for Chime communication, with retry on re-auth
+ * and JSON parsing. XX: MAke this a proper superclass of SoupMessage */
+struct chime_msg {
+	ChimeConnection *cxn;
+	ChimeSoupMessageCallback cb;
+	gpointer cb_data;
+	SoupMessage *msg;
+	gboolean auto_renew;
+};
+
 typedef struct {
 	ChimeConnectionState state;
 
@@ -154,9 +169,6 @@ SoupMessage *chime_connection_queue_http_request(ChimeConnection *self, JsonNode
 						 ChimeSoupMessageCallback callback,
 						 gpointer cb_data);
 SoupURI *soup_uri_new_printf(const gchar *base, const gchar *format, ...);
-gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
-gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
-gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv);
 gboolean parse_notify_pref(JsonNode *node, const gchar *member, ChimeNotifyPref *type);
 gboolean parse_visibility(JsonNode *node, const gchar *member, gboolean *val);
 
@@ -175,9 +187,26 @@ gboolean chime_connection_jugg_send(ChimeConnection *self, JsonNode *node);
 /* chime-conversation.c */
 void chime_init_conversations(ChimeConnection *cxn);
 void chime_destroy_conversations(ChimeConnection *cxn);
-/* TEMPORARILY exported while transitioning conversations.c over... */
-ChimeConversation *chime_connection_parse_conversation(ChimeConnection *cxn, JsonNode *node,
-						       GError **error);
 
+/* chime-juggernaut.c */
+void chime_init_juggernaut(ChimeConnection *cxn);
+void chime_destroy_juggernaut(ChimeConnection *cxn);
+
+typedef gboolean (*JuggernautCallback)(ChimeConnection *cxn,
+				       gpointer cb_data, JsonNode *data_node);
+void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel,
+			  const gchar *klass, JuggernautCallback cb,
+			  gpointer cb_data);
+void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel,
+			    const gchar *klass, JuggernautCallback cb,
+			    gpointer cb_data);
+void chime_purple_keepalive(PurpleConnection *conn);
+
+/* chime-rooms.c */
+void chime_init_rooms(ChimeConnection *cxn);
+void chime_destroy_rooms(ChimeConnection *cxn);
+
+/* login.c */
+void chime_initial_login(ChimeConnection *cxn);
 
 #endif /* __CHIME_CONNECTION_PRIVATE_H__ */

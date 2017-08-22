@@ -85,6 +85,17 @@ void             chime_connection_fetch_messages_async       (ChimeConnection   
 gboolean         chime_connection_fetch_messages_finish      (ChimeConnection  *self,
                                                               GAsyncResult     *result,
                                                               GError          **error);
+
+void             chime_connection_update_last_read_sync      (ChimeConnection    *self,
+                                                              ChimeObject        *obj,
+                                                              const gchar        *msg_id,
+                                                              GCancellable       *cancellable,
+                                                              GAsyncReadyCallback callback,
+                                                              gpointer            user_data);
+
+gboolean         chime_connection_update_last_read_finish    (ChimeConnection  *self,
+                                                              GAsyncResult     *result,
+                                                              GError          **error);
 G_END_DECLS
 
 #endif /* __CHIME_OBJECT_H__ */

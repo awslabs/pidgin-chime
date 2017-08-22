@@ -26,7 +26,6 @@
 #include <debug.h>
 
 #include "chime.h"
-#include "chime-connection-private.h"
 
 static void mark_msg_seen(GQueue *q, const gchar *id)
 {
@@ -240,7 +239,6 @@ void cleanup_msgs(struct chime_msgs *msgs)
 void chime_update_last_msg(ChimeConnection *cxn, ChimeObject *obj,
 			   const gchar *msg_time, const gchar *msg_id)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	gchar *key = g_strdup_printf("last-%s-%s",
 				     CHIME_IS_ROOM(obj) ? "room" : "conversation",
 				     chime_object_get_id(obj));
@@ -250,20 +248,7 @@ void chime_update_last_msg(ChimeConnection *cxn, ChimeObject *obj,
 	g_free(key);
 	g_free(val);
 
-	JsonBuilder *jb = json_builder_new();
-	jb = json_builder_begin_object(jb);
-	jb = json_builder_set_member_name(jb, "LastReadMessageId");
-	jb = json_builder_add_string_value(jb, msg_id);
-	jb = json_builder_end_object(jb);
-
-	SoupURI *uri = soup_uri_new_printf(priv->messaging_url,
-					   "/%ss/%s",
-					   CHIME_IS_ROOM(obj) ? "room" : "conversation",
-					   chime_object_get_id(obj));
-	JsonNode *node = json_builder_get_root(jb);
-	chime_connection_queue_http_request(cxn, node, uri, "POST", NULL, NULL);
-	json_node_unref(node);
-	g_object_unref(jb);
+	chime_connection_update_last_read_sync(cxn, obj, msg_id, NULL, NULL, NULL);
 }
 
 /* WARE! msg_id is allocated, msg_time is const */

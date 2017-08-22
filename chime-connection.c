@@ -1133,3 +1133,61 @@ chime_connection_fetch_messages_finish(ChimeConnection *self, GAsyncResult *resu
 
 	return g_task_propagate_boolean(G_TASK(result), error);
 }
+
+
+
+static void update_last_read_cb(ChimeConnection *self, SoupMessage *msg,
+				JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	/* Nothing to do o nsuccess */
+	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to set LastReadMessageID: %d %s"),
+					msg->status_code, msg->reason_phrase);
+	} else
+		g_task_return_boolean(task, TRUE);
+
+	g_object_unref(task);
+}
+
+
+void chime_connection_update_last_read_sync (ChimeConnection    *self,
+					     ChimeObject        *obj,
+					     const gchar        *msg_id,
+					     GCancellable       *cancellable,
+					     GAsyncReadyCallback callback,
+					     gpointer            user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(self));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+
+	GTask *task = g_task_new(self, cancellable, callback, user_data);
+
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "LastReadMessageId");
+	jb = json_builder_add_string_value(jb, msg_id);
+	jb = json_builder_end_object(jb);
+
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url,
+					   "/%ss/%s",
+					   CHIME_IS_ROOM(obj) ? "room" : "conversation",
+					   chime_object_get_id(obj));
+	JsonNode *node = json_builder_get_root(jb);
+	chime_connection_queue_http_request(self, node, uri, "POST", update_last_read_cb, task);
+	json_node_unref(node);
+	g_object_unref(jb);
+}
+
+gboolean chime_connection_update_last_read_finish (ChimeConnection  *self,
+						   GAsyncResult     *result,
+						   GError          **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_boolean(G_TASK(result), error);
+}

@@ -280,7 +280,7 @@ GHashTable *chime_login_parse_json_object(SoupMessage *msg)
 	}
 	g_list_free(members);
  out:
-	g_error_free(error);
+	g_clear_error(&error);
 	g_object_unref(parser);
 	return result;
 }

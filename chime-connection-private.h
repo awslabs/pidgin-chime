@@ -23,6 +23,7 @@
 #include "chime-contact.h"
 #include "chime-room.h"
 #include "chime-conversation.h"
+#include "chime-meeting.h"
 
 #include <libsoup/soup.h>
 
@@ -98,7 +99,7 @@ typedef struct {
 	gchar *device_token;
 	gchar *session_token;
 
-	gboolean jugg_online, contacts_online, rooms_online, convs_online;
+	gboolean jugg_online, contacts_online, rooms_online, convs_online, meetings_online;
 
 	/* Service config */
 	JsonNode *reg_node;
@@ -146,6 +147,9 @@ typedef struct {
 	/* Conversations */
 	ChimeObjectCollection conversations;
 	ChimeSyncState conversations_sync;
+
+	/* Meetings */
+	ChimeObjectCollection meetings;
 } ChimeConnectionPrivate;
 
 #define CHIME_CONNECTION_GET_PRIVATE(o) \
@@ -162,6 +166,7 @@ void chime_connection_calculate_online(ChimeConnection *cxn);
 void chime_connection_new_contact(ChimeConnection *cxn, ChimeContact *contact);
 void chime_connection_new_room(ChimeConnection *cxn, ChimeRoom *room);
 void chime_connection_new_conversation(ChimeConnection *cxn, ChimeConversation *conversation);
+void chime_connection_new_meeting(ChimeConnection *cxn, ChimeMeeting *meeting);
 void chime_connection_log(ChimeConnection *cxn, ChimeLogLevel level, const gchar *format, ...);
 void chime_connection_progress(ChimeConnection *cxn, int percent, const gchar *message);
 SoupMessage *chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
@@ -205,6 +210,10 @@ void chime_purple_keepalive(PurpleConnection *conn);
 /* chime-rooms.c */
 void chime_init_rooms(ChimeConnection *cxn);
 void chime_destroy_rooms(ChimeConnection *cxn);
+
+/* chime-meetings.c */
+void chime_init_meetings(ChimeConnection *cxn);
+void chime_destroy_meetings(ChimeConnection *cxn);
 
 /* login.c */
 void chime_initial_login(ChimeConnection *cxn);

@@ -40,6 +40,7 @@ enum {
 	NEW_ROOM,
 	ROOM_MENTION,
 	NEW_CONVERSATION,
+	NEW_MEETING,
 	LOG_MESSAGE,
 	PROGRESS,
 	LAST_SIGNAL
@@ -86,6 +87,7 @@ chime_connection_disconnect(ChimeConnection    *self)
 		g_clear_object(&priv->soup_sess);
 	}
 
+	chime_destroy_meetings(self);
 	chime_destroy_rooms(self);
 	chime_destroy_conversations(self);
 	chime_destroy_contacts(self);
@@ -268,6 +270,11 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 		g_signal_new ("new-conversation",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, CHIME_TYPE_CONVERSATION);
+
+	signals[NEW_MEETING] =
+		g_signal_new ("new-meeting",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, CHIME_TYPE_MEETING);
 
 	signals[LOG_MESSAGE] =
 		g_signal_new ("log-message",
@@ -463,6 +470,7 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 	chime_init_contacts(self);
 	chime_init_rooms(self);
 	chime_init_conversations(self);
+	chime_init_meetings(self);
 }
 
 void chime_connection_calculate_online(ChimeConnection *self)
@@ -470,7 +478,7 @@ void chime_connection_calculate_online(ChimeConnection *self)
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
 	if (priv->contacts_online && priv->rooms_online &&
-	    priv->convs_online && priv->jugg_online) {
+	    priv->convs_online && priv->jugg_online && priv->meetings_online) {
 		g_signal_emit (self, signals[CONNECTED], 0, priv->display_name);
 		priv->state = CHIME_STATE_CONNECTED;
 	}
@@ -805,6 +813,11 @@ void chime_connection_new_room(ChimeConnection *cxn, ChimeRoom *room)
 void chime_connection_new_conversation(ChimeConnection *cxn, ChimeConversation *conversation)
 {
 	g_signal_emit(cxn, signals[NEW_CONVERSATION], 0, conversation);
+}
+
+void chime_connection_new_meeting(ChimeConnection *cxn, ChimeMeeting *meeting)
+{
+	g_signal_emit(cxn, signals[NEW_MEETING], 0, meeting);
 }
 
 void chime_connection_log(ChimeConnection *cxn, ChimeLogLevel level, const gchar *format, ...)

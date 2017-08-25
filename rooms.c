@@ -96,7 +96,7 @@ GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *
 
 	room = chime_connection_room_by_name(cxn, name);
 	if (room)
-		g_hash_table_insert(hash, (char *)"RoomId", (char *)chime_room_get_id(room));
+		g_hash_table_insert(hash, (char *)"RoomId", g_strdup(chime_room_get_id(room)));
 
 	return hash;
 }

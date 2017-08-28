@@ -405,17 +405,6 @@ const gchar *chime_room_get_last_mentioned(ChimeRoom *self)
 	return self->last_mentioned;
 }
 
-static gboolean parse_boolean(JsonNode *node, const gchar *member, gboolean *val)
-{
-	gint64 intval;
-
-	if (!parse_int(node, member, &intval))
-		return FALSE;
-
-	*val = !!intval;
-	return TRUE;
-}
-
 static gboolean parse_privacy(JsonNode *node, const gchar *member, gboolean *val)
 {
 	const gchar *str;

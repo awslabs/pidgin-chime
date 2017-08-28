@@ -99,7 +99,7 @@ void chime_connection_disconnect(ChimeConnection *cxn);
 gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val);
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res);
 gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv);
-
+gboolean parse_boolean(JsonNode *node, const gchar *member, gboolean *val);
 G_END_DECLS
 
 #endif /* __CHIME_CONNECTION_H__ */

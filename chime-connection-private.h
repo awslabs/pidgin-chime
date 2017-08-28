@@ -184,6 +184,9 @@ void chime_destroy_contacts(ChimeConnection *cxn);
 ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 							  JsonNode *node,
 							  GError **error);
+ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn,
+					     gboolean is_contact,
+					     JsonNode *node, GError **error);
 
 
 /* chime-juggernaut.c */

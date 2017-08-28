@@ -24,6 +24,16 @@
 #include "chime.h"
 #include "chime-meeting.h"
 
+static gchar *format_pin(const gchar *pin)
+{
+	if (strlen(pin) == 10)
+		return g_strdup_printf("%.4s %.2s %.4s", pin, pin + 4, pin + 6);
+	else if (strlen(pin) == 13)
+		return g_strdup_printf("%.4s %.2s %.4s %.3s", pin, pin + 4, pin + 6, pin + 10);
+	else
+		return g_strdup(pin);
+}
+
 static void schedule_meeting_cb(GObject *source, GAsyncResult *result, gpointer _conn)
 {
 	PurpleConnection *conn = _conn;
@@ -38,7 +48,8 @@ static void schedule_meeting_cb(GObject *source, GAsyncResult *result, gpointer 
 		return;
 	}
 
-	gchar *secondary = g_strdup_printf(_("Remember to include Chime in the invites:\n%s"), mtg->delegate_scheduling_email);
+	gchar *secondary = g_strdup_printf(_("Remember to invite:\n%s, %s"),
+					   "meet@chime.aws", mtg->delegate_scheduling_email);
 	GString *invite_str = g_string_new("");
 
 	g_string_append_printf(invite_str, _("---------- %s ----------<br><br>"),
@@ -47,11 +58,7 @@ static void schedule_meeting_cb(GObject *source, GAsyncResult *result, gpointer 
 	g_string_append_printf(invite_str, _("1. Click to join the meeting: %s<br>Meeting ID: %s<br><br>"),
 			       mtg->meeting_join_url, mtg->meeting_id_for_display);
 	if (mtg->bridge_passcode) {
-		gchar *pin = (gchar *)mtg->bridge_passcode;
-		if (strlen(pin) == 10)
-			pin = g_strdup_printf("%.4s %.2s %.4s", pin, pin + 4, pin + 6);
-		else if (strlen(pin) == 13)
-			pin = g_strdup_printf("%.4s %.2s %.4s %.3s", pin, pin + 4, pin + 6, pin + 10);
+		gchar *pin = format_pin(mtg->bridge_passcode);
 
 		g_string_append_printf(invite_str, _("2. You can use your computer's microphone and speakers; however, a headset is recommended. Or, call in using your phone:<br><br>"));
 		GSList *l = mtg->international_dialin_info;
@@ -74,8 +81,7 @@ static void schedule_meeting_cb(GObject *source, GAsyncResult *result, gpointer 
 		g_string_append_printf(invite_str, _("International: %s<br><br>"),
 				       mtg->international_dialin_info_url);
 
-		if (pin != mtg->bridge_passcode)
-			g_free(pin);
+		g_free(pin);
 
 	}
 	g_string_append_printf(invite_str, "---------- %s ---------",
@@ -146,15 +152,24 @@ void chime_purple_pin_join(PurplePluginAction *action)
 
 void on_chime_new_meeting(ChimeConnection *cxn, ChimeMeeting *mtg, PurpleConnection *conn)
 {
-	gchar *secondary = g_strdup_printf(_("Meeting PIN: %s"),
-					     chime_meeting_get_passcode(mtg));
+	ChimeContact *org = chime_meeting_get_organiser(mtg);
+	gchar *pin = format_pin(chime_meeting_get_passcode(mtg));
 
-	gchar *text = g_strdup_printf(_("Web join URL: %s"),
-				      chime_meeting_get_passcode(mtg));
+	gchar *secondary = g_strdup_printf(_("%s <%s> has invited %s:"),
+					   chime_contact_get_display_name(org),
+					   chime_contact_get_email(org),
+					   conn->account->username);
+
+	GString *text_str = g_string_new("");
+	g_string_append_printf(text_str, _("Meeting PIN: %s<br>"), pin);
+	g_string_append_printf(text_str, _("Web join URL: %s"),
+			       chime_meeting_get_screen_share_url(mtg));
 
 	purple_notify_formatted(conn, _("Amazon Chime Meeting"),
-				chime_meeting_get_name(mtg), secondary,
-				text, NULL, NULL);
-	g_free(text);
+				chime_meeting_get_name(mtg),
+				secondary,
+				text_str->str, NULL, NULL);
+	g_string_free(text_str, TRUE);
+	g_free(pin);
 	g_free(secondary);
 }

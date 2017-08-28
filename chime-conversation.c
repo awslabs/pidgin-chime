@@ -329,17 +329,6 @@ const gchar *chime_conversation_get_last_sent(ChimeConversation *self)
 	return self->last_sent;
 }
 
-static gboolean parse_boolean(JsonNode *node, const gchar *member, gboolean *val)
-{
-	gint64 intval;
-
-	if (!parse_int(node, member, &intval))
-		return FALSE;
-
-	*val = !!intval;
-	return TRUE;
-}
-
 static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNode *data_node)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);

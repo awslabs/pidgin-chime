@@ -271,8 +271,9 @@ subscribe_contact(ChimeConnection *cxn, ChimeContact *contact)
 
 	contact->cxn = cxn;
 
-	chime_jugg_subscribe(cxn, contact->presence_channel, "Presence",
-			     contact_presence_jugg_cb, contact);
+	if (contact->profile_channel)
+		chime_jugg_subscribe(cxn, contact->presence_channel, "Presence",
+				     contact_presence_jugg_cb, contact);
 
 	if (contact->profile_channel)
 		chime_jugg_subscribe(cxn, contact->profile_channel,
@@ -333,8 +334,23 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 		g_object_notify(G_OBJECT(contact), "display-name");
 	}
 
+	gboolean need_resubscribe = FALSE;
+	if (presence_channel && !contact->presence_channel) {
+		contact->presence_channel = g_strdup(presence_channel);
+		g_object_notify(G_OBJECT(contact), "presence-channel");
+		need_resubscribe = TRUE;
+	}
+	if (profile_channel && !contact->profile_channel) {
+		contact->profile_channel = g_strdup(profile_channel);
+		g_object_notify(G_OBJECT(contact), "profile-channel");
+		need_resubscribe = TRUE;
+	}
+	if (need_resubscribe && contact->cxn)
+		subscribe_contact(cxn, contact);
+
 	if (is_contact)
-		chime_object_collection_hash_object(&priv->contacts, CHIME_OBJECT(contact), TRUE);
+		chime_object_collection_hash_object(&priv->contacts,
+						    CHIME_OBJECT(contact), TRUE);
 	else
 		g_object_ref(contact);
 
@@ -343,17 +359,15 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 
 /* Returns a ChimeContact which is in the contacts list, and
  * caller does not own a ref on it. */
-static ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn, gboolean is_contact,
-						    JsonNode *node, GError **error)
+ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn, gboolean is_contact,
+					     JsonNode *node, GError **error)
 {
 	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
-	const gchar *email, *full_name, *presence_channel, *display_name,
-		*profile_id, *profile_channel;
+	const gchar *email, *full_name, *display_name, *profile_id;
+	const gchar *profile_channel = NULL, *presence_channel = NULL;
 
 	if (!parse_string(node, "email", &email) ||
 	    !parse_string(node, "full_name", &full_name) ||
-	    !parse_string(node, "presence_channel", &presence_channel) ||
-	    !parse_string(node, "profile_channel", &profile_channel) ||
 	    !parse_string(node, "display_name", &display_name) ||
 	    !parse_string(node, "id", &profile_id)) {
 		g_set_error(error, CHIME_ERROR,
@@ -361,6 +375,8 @@ static ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn, gboole
 			    _("Failed to parse Contact node"));
 		return NULL;
 	}
+	parse_string(node, "presence_channel", &presence_channel);
+	parse_string(node, "profile_channel", &profile_channel);
 
 	return find_or_create_contact(cxn, profile_id, presence_channel,
 				      profile_channel, email, full_name,
@@ -584,8 +600,9 @@ static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
 			priv->contacts_needed = g_slist_remove(priv->contacts_needed,
 							       contact);
 
-		chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence",
-				       contact_presence_jugg_cb, contact);
+		if (contact->profile_channel)
+			chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence",
+					       contact_presence_jugg_cb, contact);
 		if (contact->profile_channel)
 			chime_jugg_unsubscribe(contact->cxn, contact->profile_channel, NULL, NULL, NULL);
 		contact->cxn = NULL;

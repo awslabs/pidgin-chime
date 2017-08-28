@@ -900,6 +900,18 @@ gboolean parse_int(JsonNode *node, const gchar *member, gint64 *val)
 	return TRUE;
 }
 
+gboolean parse_boolean(JsonNode *node, const gchar *member, gboolean *val)
+{
+	gint64 intval;
+
+	if (!parse_int(node, member, &intval))
+		return FALSE;
+
+	*val = !!intval;
+	return TRUE;
+}
+
+
 /* Helper function to get a string from a JSON child node */
 gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
 {

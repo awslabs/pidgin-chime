@@ -45,6 +45,7 @@ const gchar *chime_meeting_get_id(ChimeMeeting *self);
 const gchar *chime_meeting_get_name(ChimeMeeting *self);
 ChimeContact *chime_meeting_get_organiser(ChimeMeeting *self);
 const gchar *chime_meeting_get_passcode(ChimeMeeting *self);
+const gchar *chime_meeting_get_screen_share_url(ChimeMeeting *self);
 const gchar *chime_meeting_get_start_at(ChimeMeeting *self);
 const gchar *chime_meeting_get_channel(ChimeMeeting *self);
 const gchar *chime_meeting_get_roster_channel(ChimeMeeting *self);

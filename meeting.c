@@ -19,6 +19,7 @@
 #include <glib/glist.h>
 
 #include <prpl.h>
+#include <request.h>
 
 #include "chime.h"
 #include "chime-meeting.h"
@@ -36,9 +37,6 @@ static void schedule_meeting_cb(GObject *source, GAsyncResult *result, gpointer 
 				    error->message);
 		return;
 	}
-
-	/* XXX: Choose the best one (not that chime does) */
-	ChimeDialin *d = mtg->international_dialin_info->data;
 
 	gchar *secondary = g_strdup_printf(_("Remember to include Chime in the invites:\n%s"), mtg->delegate_scheduling_email);
 	GString *invite_str = g_string_new("");
@@ -109,5 +107,55 @@ void chime_purple_schedule_onetime(PurplePluginAction *action)
 void chime_purple_schedule_personal(PurplePluginAction *action)
 {
 	do_schedule_meeting(action, FALSE);
+}
 
+static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	GError *error = NULL;
+	ChimeMeeting *mtg = chime_connection_lookup_meeting_by_pin_finish(CHIME_CONNECTION(source), result, &error);
+
+	if (!mtg) {
+		purple_notify_error(conn, NULL,
+				    _("Unable to join meeting"),
+				    error->message);
+		return;
+	}
+	/* Actually we'll handle it in the NEW_MEETING signal handler */
+}
+
+static void pin_join_begin(PurpleConnection *conn, const char *query)
+{
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
+
+	chime_connection_lookup_meeting_by_pin_async(cxn, query, NULL,
+						     pin_join_done, conn);
+}
+
+void chime_purple_pin_join(PurplePluginAction *action)
+{
+	PurpleConnection *conn = (PurpleConnection *) action->context;
+
+	purple_request_input(conn, _("Chime PIN join meeting"),
+			     _("Enter the meeting PIN"), NULL, NULL,
+			     FALSE, FALSE, NULL,
+			     _("Search"), PURPLE_CALLBACK(pin_join_begin),
+			     _("Cancel"), NULL,
+			     NULL, NULL, NULL, conn);
+}
+
+void on_chime_new_meeting(ChimeConnection *cxn, ChimeMeeting *mtg, PurpleConnection *conn)
+{
+	gchar *secondary = g_strdup_printf(_("Meeting PIN: %s"),
+					     chime_meeting_get_passcode(mtg));
+
+	gchar *text = g_strdup_printf(_("Web join URL: %s"),
+				      chime_meeting_get_passcode(mtg));
+
+	purple_notify_formatted(conn, _("Amazon Chime Meeting"),
+				chime_meeting_get_name(mtg), secondary,
+				text, NULL, NULL);
+	g_free(text);
+	g_free(secondary);
+	g_object_unref(mtg);
 }

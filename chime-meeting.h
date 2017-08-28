@@ -114,6 +114,17 @@ ChimeScheduledMeeting *chime_connection_meeting_schedule_info_finish(ChimeConnec
 								     GError **error);
 
 
+void chime_connection_lookup_meeting_by_pin_async(ChimeConnection *cxn,
+						  const gchar *pin,
+						  GCancellable *cancellable,
+						  GAsyncReadyCallback callback,
+						  gpointer user_data);
+
+ChimeMeeting *chime_connection_lookup_meeting_by_pin_finish(ChimeConnection *self,
+							    GAsyncResult *result,
+							    GError **error);
+
+
 G_END_DECLS
 
 #endif /* __CHIME_MEETING_H__ */

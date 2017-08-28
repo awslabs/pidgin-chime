@@ -61,7 +61,7 @@ G_DEFINE_TYPE(ChimeMeeting, chime_meeting, CHIME_TYPE_OBJECT)
 CHIME_DEFINE_ENUM_TYPE(ChimeMeetingType, chime_meeting_type,				\
        CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_ADHOC,		"AdHocMeeting")		\
        CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_GOOGLE_CALENDAR,	"GoogleCalendarMeeting")\
-       CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_CONFERENCE_BRIDGE,	"ConferenceBridge")	\
+       CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_CONFERENCE_BRIDGE,	"ConferenceBridgeMeeting") \
        CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_WEBINAR,		"Webinar"))
 
 static void close_meeting(gpointer key, gpointer val, gpointer data);
@@ -456,7 +456,7 @@ void chime_init_meetings(ChimeConnection *cxn)
 			     meeting_jugg_cb, NULL);
 	chime_jugg_subscribe(cxn, priv->device_channel, "AdHocMeeting",
 			     meeting_jugg_cb, NULL);
-	chime_jugg_subscribe(cxn, priv->device_channel, "ConferenceBridge",
+	chime_jugg_subscribe(cxn, priv->device_channel, "ConferenceBridgeMeeting",
 			     meeting_jugg_cb, NULL);
 	chime_jugg_subscribe(cxn, priv->device_channel, "Webinar",
 			     meeting_jugg_cb, NULL);
@@ -473,7 +473,7 @@ void chime_destroy_meetings(ChimeConnection *cxn)
 			     meeting_jugg_cb, NULL);
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "AdHocMeeting",
 			     meeting_jugg_cb, NULL);
-	chime_jugg_unsubscribe(cxn, priv->device_channel, "ConferenceBridge",
+	chime_jugg_unsubscribe(cxn, priv->device_channel, "ConferenceBridgeMeeting",
 			     meeting_jugg_cb, NULL);
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "Webinar",
 			     meeting_jugg_cb, NULL);
@@ -674,3 +674,72 @@ ChimeScheduledMeeting *chime_connection_meeting_schedule_info_finish(ChimeConnec
 	return g_task_propagate_pointer(G_TASK(result), error);
 }
 
+static void pin_join_cb(ChimeConnection *cxn, SoupMessage *msg,
+			JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
+		GError *error = NULL;
+		JsonObject *obj = json_node_get_object(node);
+		node = json_object_get_member(obj, "meeting");
+		if (!node)
+			goto eparse;
+
+		ChimeMeeting *mtg = chime_connection_parse_meeting(cxn, node, &error);
+		if (mtg)
+			g_task_return_pointer(task, mtg, (GDestroyNotify)g_object_unref);
+		else
+			g_task_return_error(task, error);
+		return;
+	} else {
+		const gchar *reason;
+	eparse:
+		reason = msg->reason_phrase;
+
+		if (node)
+			parse_string(node, "Message", &reason);
+
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to obtain meeting details: %s"),
+					reason);
+	}
+
+	g_object_unref(task);
+}
+
+void chime_connection_lookup_meeting_by_pin_async(ChimeConnection *cxn,
+						  const gchar *pin,
+						  GCancellable *cancellable,
+						  GAsyncReadyCallback callback,
+						  gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "pin");
+	jb = json_builder_add_string_value(jb, pin);
+	jb = json_builder_end_object(jb);
+
+	JsonNode *node = json_builder_get_root(jb);
+	SoupURI *uri = soup_uri_new_printf(priv->conference_url, "/pin_joins");
+	chime_connection_queue_http_request(cxn, node, uri, "POST", pin_join_cb, task);
+	json_node_unref(node);
+	g_object_unref(jb);
+
+}
+
+ChimeMeeting *chime_connection_lookup_meeting_by_pin_finish(ChimeConnection *self,
+							    GAsyncResult *result,
+							    GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_pointer(G_TASK(result), error);
+}

@@ -27,6 +27,7 @@
 #include "chime-contact.h"
 #include "chime-conversation.h"
 #include "chime-room.h"
+#include "chime-meeting.h"
 
 struct purple_chime {
 	ChimeConnection *cxn;
@@ -59,6 +60,8 @@ void chime_purple_user_search(PurplePluginAction *action);
 /* meeting.c */
 void chime_purple_schedule_onetime(PurplePluginAction *action);
 void chime_purple_schedule_personal(PurplePluginAction *action);
+void chime_purple_pin_join(PurplePluginAction *action);
+void on_chime_new_meeting(ChimeConnection *cxn, ChimeMeeting *mtg, PurpleConnection *conn);
 
 /* rooms.c */
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);

@@ -198,6 +198,7 @@ static void chime_purple_login(PurpleAccount *account)
 	purple_connection_set_protocol_data(conn, pc);
 	purple_chime_init_conversations(pc);
 	purple_chime_init_chats(pc);
+
 	pc->cxn = chime_connection_new(conn, server, devtoken, token);
 
 	g_signal_connect(pc->cxn, "notify::session-token",
@@ -210,6 +211,8 @@ static void chime_purple_login(PurpleAccount *account)
 			 G_CALLBACK(on_chime_progress), conn);
 	g_signal_connect(pc->cxn, "new-conversation",
 			 G_CALLBACK(on_chime_new_conversation), conn);
+	g_signal_connect(pc->cxn, "new-meeting",
+			 G_CALLBACK(on_chime_new_meeting), conn);
 	/* We don't use 'conn' for this one as we don't want it disconnected
 	   on close, and it doesn't use it anyway. */
 	g_signal_connect(pc->cxn, "log-message",
@@ -344,6 +347,10 @@ static GList *chime_purple_plugin_actions(PurplePlugin *plugin,
 
 	act = purple_plugin_action_new(_("Schedule meeting (Onetime PIN)..."),
 				       chime_purple_schedule_onetime);
+	acts = g_list_append(acts, act);
+
+	act = purple_plugin_action_new(_("Join meeting by PIN..."),
+				       chime_purple_pin_join);
 	acts = g_list_append(acts, act);
 
 	return acts;

@@ -510,12 +510,27 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 	parse_string(node, "meeting_join_url", &meeting_join_url);
 	parse_string(node, "screen_share_url", &screen_share_url);
 
-	node = json_object_get_member(obj, "organizer");
-	if (!node)
-		goto eparse;
+	/* Get the personal passcode if we can */
+	JsonNode *att_array_node = json_object_get_member(obj, "attendances");
+	if (att_array_node) {
+		JsonArray *arr = json_node_get_array(att_array_node);
+		int i, len = json_array_get_length(arr);
+		for (i = 0; i < len; i++) {
+			JsonNode *att = json_array_get_element(arr, i);
+			const gchar *profile_id;
+			if (parse_string(att, "profile_id", &profile_id) &&
+			    !strcmp(profile_id, priv->profile_id)) {
+				parse_string(att, "passcode", &passcode);
+				break;
+			}
+		}
+	}
 
-	/* We have to make ChimeContact tolerate the absence of a presence channel first... */
-	ChimeContact *organiser = chime_connection_parse_contact(cxn, NULL, node, NULL);
+	JsonNode *org_node = json_object_get_member(obj, "organizer");
+	if (!org_node)
+		goto eparse;
+	ChimeContact *organiser = chime_connection_parse_contact(cxn, NULL,
+								 org_node, NULL);
 	if (!organiser)
 		goto eparse;
 

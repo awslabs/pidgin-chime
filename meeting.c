@@ -157,5 +157,4 @@ void on_chime_new_meeting(ChimeConnection *cxn, ChimeMeeting *mtg, PurpleConnect
 				text, NULL, NULL);
 	g_free(text);
 	g_free(secondary);
-	g_object_unref(mtg);
 }

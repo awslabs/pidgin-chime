@@ -11,7 +11,7 @@ libchime_la_SOURCES = chime.c buddy.c rooms.c chat.c messages.c conversations.c 
 	chime-juggernaut.c chime-object.h chime-object.c chime.h \
 	login.c login-amazon.c login-warpdrive.c login-private.h \
 	chime-websocket-connection.c chime-websocket-connection.h \
-	chime-meeting.c chime-meeting.h
+	chime-meeting.c chime-meeting.h meeting.c
 libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS)
 libchime_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS)
 libchime_la_LDFLAGS = -module -avoid-version -no-undefined

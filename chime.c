@@ -338,6 +338,14 @@ static GList *chime_purple_plugin_actions(PurplePlugin *plugin,
 				       chime_purple_user_search);
 	acts = g_list_append(acts, act);
 
+	act = purple_plugin_action_new(_("Schedule meeting (Personal PIN)..."),
+				       chime_purple_schedule_personal);
+	acts = g_list_append(acts, act);
+
+	act = purple_plugin_action_new(_("Schedule meeting (Onetime PIN)..."),
+				       chime_purple_schedule_onetime);
+	acts = g_list_append(acts, act);
+
 	return acts;
 }
 

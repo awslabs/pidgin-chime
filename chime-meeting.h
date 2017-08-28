@@ -71,6 +71,37 @@ GList *chime_meeting_get_participants(ChimeMeeting *self);
 gboolean chime_connection_open_meeting(ChimeConnection *cxn, ChimeMeeting *meeting);
 void chime_connection_close_meeting(ChimeConnection *cxn, ChimeMeeting *meeting);
 
+typedef struct {
+	const gchar *country;
+	const gchar *display_string;
+	const gchar *number;
+	const gchar *toll;
+	const gchar *toll_free;
+	const gchar *iso;
+	const gchar *city;
+	const gchar *city_code;
+} ChimeDialin;
+
+typedef struct {
+	const gchar *delegate_scheduling_email;
+	const gchar *display_vanity_url_prefix;
+	const gchar *vanity_url;
+	const gchar *vanity_name;
+	const gchar *toll_dialin;
+	const gchar *meeting_id_for_display;
+	const gchar *bridge_screenshare_url;
+	const gchar *display_vanity_url;
+	const gchar *bridge_passcode;
+	const gchar *international_dialin_info_url;
+	const gchar *scheduling_address;
+	const gchar *toll_free_dialin;
+	const gchar *meeting_join_url;
+	GSList *international_dialin_info;
+
+	JsonNode *_node;
+} ChimeScheduledMeeting;
+
+void chime_scheduled_meeting_free(ChimeScheduledMeeting *mtg);
 
 void chime_connection_meeting_schedule_info_async(ChimeConnection *cxn,
 						  gboolean onetime,
@@ -78,10 +109,9 @@ void chime_connection_meeting_schedule_info_async(ChimeConnection *cxn,
 						  GAsyncReadyCallback callback,
 						  gpointer user_data);
 
-/* XXXX: Parse it and return a ChimeScheduleInfo instead */
-JsonNode *chime_connection_meeting_schedule_info_finish(ChimeConnection *self,
-							GAsyncResult *result,
-							GError **error);
+ChimeScheduledMeeting *chime_connection_meeting_schedule_info_finish(ChimeConnection *self,
+								     GAsyncResult *result,
+								     GError **error);
 
 
 G_END_DECLS

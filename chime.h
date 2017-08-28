@@ -56,6 +56,10 @@ void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGr
 void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
 void chime_purple_user_search(PurplePluginAction *action);
 
+/* meeting.c */
+void chime_purple_schedule_onetime(PurplePluginAction *action);
+void chime_purple_schedule_personal(PurplePluginAction *action);
+
 /* rooms.c */
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);
 GList *chime_purple_chat_info(PurpleConnection *conn);

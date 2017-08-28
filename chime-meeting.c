@@ -551,18 +551,92 @@ void chime_connection_close_meeting(ChimeConnection *cxn, ChimeMeeting *meeting)
 }
 
 
+void chime_scheduled_meeting_free(ChimeScheduledMeeting *mtg)
+{
+	g_slist_free_full(mtg->international_dialin_info, g_free);
+	json_node_unref(mtg->_node);
+}
+
+static ChimeScheduledMeeting *parse_scheduled_meeting(JsonNode *node, GError **error)
+{
+	ChimeScheduledMeeting *mtg = g_new0(ChimeScheduledMeeting, 1);
+	mtg->_node = json_node_ref(node);
+
+	if (!parse_string(node, "bridge_screenshare_url", &mtg->bridge_screenshare_url) ||
+	    !parse_string(node, "meeting_id_for_display", &mtg->meeting_id_for_display) ||
+	    !parse_string(node, "vanity_url", &mtg->vanity_url) ||
+	    !parse_string(node, "vanity_name", &mtg->vanity_name) ||
+	    !parse_string(node, "meeting_join_url", &mtg->meeting_join_url) ||
+	    !parse_string(node, "international_dialin_info_url", &mtg->international_dialin_info_url) ||
+	    !parse_string(node, "delegate_scheduling_email", &mtg->delegate_scheduling_email) ||
+	    !parse_string(node, "display_vanity_url", &mtg->display_vanity_url) ||
+	    !parse_string(node, "bridge_passcode", &mtg->bridge_passcode) ||
+	    !parse_string(node, "scheduling_address", &mtg->scheduling_address) ||
+	    !parse_string(node, "display_vanity_url_prefix", &mtg->display_vanity_url_prefix)) {
+	eparse:
+		*error = g_error_new(CHIME_ERROR, CHIME_ERROR_BAD_RESPONSE,
+				     _("Failed to parse scheduled meeting response"));
+		chime_scheduled_meeting_free(mtg);
+		return NULL;
+	}
+	parse_string(node, "toll_dialin", &mtg->toll_dialin);
+	parse_string(node, "toll_free_dialin", &mtg->toll_free_dialin);
+
+	JsonObject *obj = json_node_get_object(node);
+	node = json_object_get_member(obj, "international_dialin_info");
+	JsonArray *arr = json_node_get_array(node);
+	if (!arr)
+		goto eparse;
+
+	int i, len = json_array_get_length(arr);
+	for (i = len - 1; i >= 0; i--) {
+		ChimeDialin *d = g_new0(ChimeDialin, 1);
+		node = json_array_get_element(arr, i);
+
+		mtg->international_dialin_info = g_slist_prepend(mtg->international_dialin_info, d);
+		if (!parse_string(node, "number", &d->number) ||
+		    !parse_string(node, "display_string", &d->display_string) ||
+		    !parse_string(node, "country", &d->country) ||
+		    !parse_string(node, "iso", &d->iso))
+			goto eparse;
+		parse_string(node, "toll", &d->toll);
+		parse_string(node, "toll_free", &d->toll_free);
+		parse_string(node, "city", &d->city);
+		parse_string(node, "city_code", &d->city_code);
+	}
+	return mtg;
+}
+
 static void schedule_meeting_cb(ChimeConnection *cxn, SoupMessage *msg,
 				JsonNode *node, gpointer user_data)
 {
 	GTask *task = G_TASK(user_data);
 
-	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node)
-		g_task_return_pointer(task, json_node_ref(node), (GDestroyNotify)json_node_unref);
-	else {
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
+		GError *error = NULL;
+		ChimeScheduledMeeting *mtg = parse_scheduled_meeting(node, &error);
+		if (mtg)
+			g_task_return_pointer(task, mtg, (GDestroyNotify)chime_scheduled_meeting_free);
+		else
+			g_task_return_error(task, error);
+	} else {
 		const gchar *reason = msg->reason_phrase;
 
-		if (node)
-			parse_string(node, "Message", &reason);
+		if (node && !parse_string(node, "Message", &reason)) {
+			JsonObject *obj = json_node_get_object(node);
+			node = json_object_get_member(obj, "errors");
+			if (node) {
+				obj = json_node_get_object(node);
+				node = json_object_get_member(obj, "attendees");
+			}
+			if (node) {
+				JsonArray *arr = json_node_get_array(node);
+				if (arr && json_array_get_length(arr) > 0) {
+					node = json_array_get_element(arr, 0);
+					parse_string(node, "message", &reason);
+				}
+			}
+		}
 
 		g_task_return_new_error(task, CHIME_ERROR,
 					CHIME_ERROR_NETWORK,
@@ -590,9 +664,9 @@ void chime_connection_meeting_schedule_info_async(ChimeConnection *cxn,
 	chime_connection_queue_http_request(cxn, NULL, uri, onetime ? "POST" : "GET", schedule_meeting_cb, task);
 }
 
-JsonNode *chime_connection_meeting_schedule_info_finish(ChimeConnection *self,
-							GAsyncResult *result,
-							GError **error)
+ChimeScheduledMeeting *chime_connection_meeting_schedule_info_finish(ChimeConnection *self,
+								     GAsyncResult *result,
+								     GError **error)
 {
 	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
 	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);

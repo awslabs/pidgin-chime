@@ -600,7 +600,7 @@ static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
 			priv->contacts_needed = g_slist_remove(priv->contacts_needed,
 							       contact);
 
-		if (contact->profile_channel)
+		if (contact->presence_channel)
 			chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence",
 					       contact_presence_jugg_cb, contact);
 		if (contact->profile_channel)

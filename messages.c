@@ -248,7 +248,8 @@ void chime_update_last_msg(ChimeConnection *cxn, ChimeObject *obj,
 	g_free(key);
 	g_free(val);
 
-	chime_connection_update_last_read_sync(cxn, obj, msg_id, NULL, NULL, NULL);
+	/* FIXME: we need to call last_read_finish to handle a possible error */
+	chime_connection_update_last_read_async(cxn, obj, msg_id, NULL, NULL, NULL);
 }
 
 /* WARE! msg_id is allocated, msg_time is const */

@@ -81,6 +81,7 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 char *chime_purple_cb_real_name(PurpleConnection *conn, int id, const char *who);
 void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);
 void chime_purple_chat_invite(PurpleConnection *conn, int id, const char *message, const char *who);
+struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeObject *obj, JsonNode *first_msg, ChimeMeeting *meeting);
 
 /* conversations.c */
 void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);

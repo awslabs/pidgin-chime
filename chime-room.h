@@ -97,6 +97,11 @@ gboolean chime_connection_remove_room_member_finish(ChimeConnection *self,
 						    GAsyncResult *result,
 						    GError **error);
 
+
+void chime_connection_fetch_room_async(ChimeConnection *cxn, const gchar *room_id,
+				       GCancellable *cancellable, GAsyncReadyCallback callback, gpointer user_data);
+ChimeRoom *chime_connection_fetch_room_finish(ChimeConnection *cxn, GAsyncResult *result, GError **error);
+
 G_END_DECLS
 
 #endif /* __CHIME_ROOM_H__ */

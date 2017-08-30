@@ -960,6 +960,11 @@ static void send_message_cb(ChimeConnection *self, SoupMessage *msg,
 
 	/* Nothing to do o nsuccess */
 	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		const gchar *reason = msg->reason_phrase;
+
+		if (node)
+			parse_string(node, "Message", &reason);
+
 		g_task_return_new_error(task, CHIME_ERROR,
 					CHIME_ERROR_NETWORK,
 					_("Failed to send message: %d %s"),

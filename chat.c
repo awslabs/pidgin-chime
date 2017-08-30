@@ -28,6 +28,7 @@
 #include "chime.h"
 #include "chime-connection-private.h"
 #include "chime-room.h"
+#include "chime-meeting.h"
 
 #include <libsoup/soup.h>
 
@@ -35,6 +36,7 @@ struct chime_chat {
 	/* msgs first as it's a "subclass". Really ought to do proper GTypes here... */
 	struct chime_msgs m;
 	PurpleConversation *conv;
+	ChimeMeeting *meeting;
 };
 
 /*
@@ -183,6 +185,10 @@ void chime_destroy_chat(struct chime_chat *chat)
 
 	serv_got_chat_left(conn, id);
 
+	if (chat->meeting) {
+		chime_connection_close_meeting(cxn, chat->meeting);
+		g_object_unref(chat->meeting);
+	}
 	g_hash_table_remove(pc->live_chats, GUINT_TO_POINTER(id));
 	g_hash_table_remove(pc->chats_by_room, chat->m.obj);
 	cleanup_msgs(&chat->m);
@@ -192,7 +198,7 @@ void chime_destroy_chat(struct chime_chat *chat)
 
 static void on_group_conv_msg(ChimeConversation *conv, JsonNode *node, PurpleConnection *conn);
 
-static struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeObject *obj, JsonNode *first_msg)
+struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeObject *obj, JsonNode *first_msg, ChimeMeeting *meeting)
 {
 	if (!obj)
 		return NULL;
@@ -203,6 +209,9 @@ static struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *
 		return chat;
 
 	chat = g_new0(struct chime_chat, 1);
+
+	if (meeting)
+		chat->meeting = g_object_ref(meeting);
 
 	int chat_id = ++pc->chat_id;
 	const gchar *name = chime_object_get_name(obj);
@@ -240,7 +249,7 @@ static void on_group_conv_msg(ChimeConversation *conv, JsonNode *node, PurpleCon
 	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, conv);
 
 	if (!chat)
-		chat = do_join_chat(conn, pc->cxn, CHIME_OBJECT(conv), node);
+		chat = do_join_chat(conn, pc->cxn, CHIME_OBJECT(conv), node, NULL);
 }
 
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
@@ -256,7 +265,7 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 	ChimeRoom *room = chime_connection_room_by_id(cxn, roomid);
 	if (!room)
 		return;
-	do_join_chat(conn, cxn, CHIME_OBJECT(room), NULL);
+	do_join_chat(conn, cxn, CHIME_OBJECT(room), NULL, NULL);
 }
 
 void chime_purple_chat_leave(PurpleConnection *conn, int id)
@@ -333,7 +342,7 @@ static void on_chime_room_mentioned(ChimeConnection *cxn, ChimeObject *obj, Json
 	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, obj);
 
 	if (!chat)
-		chat = do_join_chat(conn, cxn, obj, node);
+		chat = do_join_chat(conn, cxn, obj, node, NULL);
 }
 
 static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn)
@@ -358,7 +367,7 @@ static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConne
 	}
 
 	/* We have been mentioned since we last looked at this room. Open it now. */
-	do_join_chat(conn, cxn, CHIME_OBJECT(room), NULL);
+	do_join_chat(conn, cxn, CHIME_OBJECT(room), NULL, NULL);
 }
 
 void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn)
@@ -385,7 +394,7 @@ void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, Purp
 	}
 
 	/* There is a recent message in this conversation. Open it now. */
-	do_join_chat(conn, cxn, CHIME_OBJECT(conv), NULL);
+	do_join_chat(conn, cxn, CHIME_OBJECT(conv), NULL, NULL);
 }
 
 void purple_chime_init_chats_post(PurpleConnection *conn)

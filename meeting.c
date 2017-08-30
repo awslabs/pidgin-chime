@@ -115,11 +115,12 @@ void chime_purple_schedule_personal(PurplePluginAction *action)
 	do_schedule_meeting(action, FALSE);
 }
 
-static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _conn)
+static void join_mtg_done(GObject *source, GAsyncResult *result, gpointer _conn)
 {
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
 	PurpleConnection *conn = _conn;
 	GError *error = NULL;
-	ChimeMeeting *mtg = chime_connection_lookup_meeting_by_pin_finish(CHIME_CONNECTION(source), result, &error);
+	ChimeMeeting *mtg = chime_connection_join_meeting_finish(CHIME_CONNECTION(source), result, &error);
 
 	if (!mtg) {
 		purple_notify_error(conn, NULL,
@@ -127,7 +128,25 @@ static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _conn)
 				    error->message);
 		return;
 	}
-	/* Actually we'll handle it in the NEW_MEETING signal handler */
+	ChimeRoom *room = chime_meeting_get_chat_room(mtg);
+	if (room)
+		do_join_chat(conn, cxn, CHIME_OBJECT(room), NULL, mtg);
+}
+
+static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	GError *error = NULL;
+	ChimeMeeting *mtg = chime_connection_lookup_meeting_by_pin_finish(cxn, result, &error);
+
+	if (!mtg) {
+		purple_notify_error(conn, NULL,
+				    _("Unable to lookup meeting"),
+				    error->message);
+		return;
+	}
+	chime_connection_join_meeting_async(cxn, mtg, NULL, join_mtg_done, conn);
 }
 
 static void pin_join_begin(PurpleConnection *conn, const char *query)

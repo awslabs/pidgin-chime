@@ -693,47 +693,20 @@ static gboolean room_msg_jugg_cb(ChimeConnection *cxn, gpointer _room, JsonNode 
 	return TRUE;
 }
 
-struct deferred_room_jugg {
-	JuggernautCallback cb;
-	JsonNode *node;
-};
-static void fetch_new_room_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
-			      gpointer _defer)
+static gboolean demux_room_msg_jugg_cb(ChimeConnection *cxn, gpointer _room, JsonNode *data_node);
+static void demux_fetch_room_done(GObject *source, GAsyncResult *result, gpointer user_data)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	struct deferred_room_jugg *defer = _defer;
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	ChimeRoom *room = chime_connection_fetch_room_finish(cxn, result, NULL);
 
-	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
-		JsonObject *obj = json_node_get_object(node);
-		node = json_object_get_member(obj, "Room");
-		if (!node)
-			goto bad;
+	/* Sanity check that demux_room_msg_jugg_cb() *will* be able to look it up... */
+	if (room)
+		demux_room_msg_jugg_cb(cxn, room, user_data);
 
-		ChimeRoom *room = chime_connection_parse_room(cxn, node, NULL);
-		if (!room)
-			goto bad;
-
-		/* Sanity check; we don't want to just keep looping for ever if it goes wrong */
-		const gchar *room_id;
-		if (!parse_string(node, "RoomId", &room_id))
-			goto bad;
-
-		room = g_hash_table_lookup(priv->rooms.by_id, room_id);
-		if (!room)
-			goto bad;
-
-		/* OK, now we know about the new room we can play the msg node */
-		defer->cb(cxn, room, defer->node);
-		goto out;
-	}
- bad:
-	;
- out:
-	json_node_unref(defer->node);
-	g_free(defer);
+	json_node_unref(user_data);
 }
 
-static gboolean demux_room_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
+static gboolean demux_room_msg_jugg_cb(ChimeConnection *cxn, gpointer _room, JsonNode *data_node)
 {
 	JsonObject *obj = json_node_get_object(data_node);
 	JsonNode *record = json_object_get_member(obj, "record");
@@ -744,25 +717,17 @@ static gboolean demux_room_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, J
 	if (!parse_string(record, "RoomId", &room_id))
 		return FALSE;
 
-	ChimeRoom *room = chime_connection_room_by_id(cxn, room_id);
+	ChimeRoom *room = _room;
+	if (!room)
+		room = chime_connection_room_by_id(cxn, room_id);
 	if (!room) {
-		ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 		/* It seems they don't do the helpful thing and send the notification
 		 * of a new room before they send the first message. So let's go
 		 * looking for it... */
 		/* XXX: We *do* get VisibleRooms first though, and could avoid this
 		 * query if that one is already running... */
-		struct deferred_room_jugg *defer = g_new0(struct deferred_room_jugg, 1);
-		defer->node = json_node_ref(data_node);
-		defer->cb = demux_room_msg_jugg_cb;
-
-		SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s", room_id);
-		if (chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_new_room_cb, defer))
-			return TRUE;
-
-		json_node_unref(defer->node);
-		g_free(defer);
-		return FALSE;
+		chime_connection_fetch_room_async(cxn, room_id, NULL, demux_fetch_room_done, json_node_ref(data_node));
+		return TRUE;
 	}
 	if (room->opens)
 		return room_msg_jugg_cb(cxn, room, data_node);
@@ -1122,5 +1087,49 @@ gboolean chime_connection_remove_room_member_finish(ChimeConnection *self,
 	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
 
 	return g_task_propagate_boolean(G_TASK(result), error);
+}
+
+static void fetch_new_room_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
+			      gpointer _task)
+{
+	GTask *task = G_TASK(_task);
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		JsonObject *obj = json_node_get_object(node);
+		node = json_object_get_member(obj, "Room");
+		if (!node)
+			goto bad;
+
+		ChimeRoom *room = chime_connection_parse_room(cxn, node, NULL);
+		if (!room)
+			goto bad;
+
+		g_task_return_pointer(task, g_object_ref(room), g_object_unref);
+	} else {
+ bad:
+		g_task_return_new_error(task, CHIME_ERROR, CHIME_ERROR_NETWORK,
+					_("Failed to fetch room details"));
+	}
+	g_object_unref(task);
+}
+
+void chime_connection_fetch_room_async(ChimeConnection *cxn, const gchar *room_id,
+				       GCancellable *cancellable, GAsyncReadyCallback callback, gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s", room_id);
+	chime_connection_queue_http_request(cxn, NULL, uri, "GET", fetch_new_room_cb, task);
+}
+
+ChimeRoom *chime_connection_fetch_room_finish(ChimeConnection *cxn, GAsyncResult *result, GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
+	g_return_val_if_fail(g_task_is_valid(result, cxn), FALSE);
+
+	return g_task_propagate_pointer(G_TASK(result), error);
 }
 

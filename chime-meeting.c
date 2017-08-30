@@ -60,6 +60,7 @@ struct _ChimeMeeting {
 	gboolean ongoing;
 
 	gchar *chat_room_id;
+	ChimeRoom *chat_room;
 
 	gchar *international_dialin_info_url;
 	gchar *meeting_id_for_display;
@@ -116,6 +117,8 @@ chime_meeting_finalize(GObject *object)
 	g_free(self->roster_channel);
 	g_free(self->start_at);
 	g_object_unref(self->organiser);
+	if (self->chat_room)
+		g_object_unref(self->chat_room);
 
 	G_OBJECT_CLASS(chime_meeting_parent_class)->finalize(object);
 }
@@ -450,6 +453,13 @@ ChimeContact *chime_meeting_get_organiser(ChimeMeeting *self)
 	g_return_val_if_fail(CHIME_IS_MEETING(self), NULL);
 
 	return self->organiser;
+}
+
+ChimeRoom *chime_meeting_get_chat_room(ChimeMeeting *self)
+{
+	g_return_val_if_fail(CHIME_IS_MEETING(self), NULL);
+
+	return self->chat_room;
 }
 
 static gboolean parse_meeting_type(JsonNode *node, const gchar *member, ChimeMeetingType *type)
@@ -792,20 +802,6 @@ void chime_connection_foreach_meeting(ChimeConnection *cxn, ChimeMeetingCB cb,
 	chime_object_collection_foreach_object(cxn, &priv->meetings, (ChimeObjectCB)cb, cbdata);
 }
 
-gboolean chime_connection_open_meeting(ChimeConnection *cxn, ChimeMeeting *meeting)
-{
-	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), FALSE);
-	g_return_val_if_fail(CHIME_IS_MEETING(meeting), FALSE);
-
-	if (!meeting->opens++) {
-		meeting->cxn = cxn;
-		chime_jugg_subscribe(cxn, meeting->channel, NULL, NULL, NULL);
-		chime_jugg_subscribe(cxn, meeting->roster_channel, NULL, NULL, NULL);
-	}
-
-	return TRUE;
-}
-
 static void close_meeting(gpointer key, gpointer val, gpointer data)
 {
 	ChimeMeeting *meeting = CHIME_MEETING (val);
@@ -1020,3 +1016,101 @@ ChimeMeeting *chime_connection_lookup_meeting_by_pin_finish(ChimeConnection *sel
 
 	return g_task_propagate_pointer(G_TASK(result), error);
 }
+
+#if 0
+static void get_room_cb(ChimeConnection *cxn, SoupMessage *msg,
+			JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
+		GError *error = NULL;
+		JsonObject *obj = json_node_get_object(node);
+		node = json_object_get_member(obj, "meeting");
+		if (!node)
+			goto eparse;
+
+		ChimeMeeting *mtg = chime_connection_parse_meeting(cxn, node, &error);
+		if (mtg)
+			g_task_return_pointer(task, mtg, (GDestroyNotify)g_object_unref);
+		else
+			g_task_return_error(task, error);
+		return;
+	} else {
+		const gchar *reason;
+	eparse:
+		reason = msg->reason_phrase;
+
+		if (node)
+			parse_string(node, "Message", &reason);
+
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to obtain meeting details: %s"),
+					reason);
+	}
+
+	g_object_unref(task);
+}
+#endif
+static void chime_connection_open_meeting(ChimeConnection *cxn, ChimeMeeting *meeting, GTask *task)
+{
+	if (!meeting->opens++) {
+		meeting->cxn = cxn;
+		chime_jugg_subscribe(cxn, meeting->channel, NULL, NULL, NULL);
+		chime_jugg_subscribe(cxn, meeting->roster_channel, NULL, NULL, NULL);
+	}
+
+	g_task_return_pointer(task, g_object_ref(meeting), g_object_unref);
+	g_object_unref(task);
+}
+
+
+static void join_got_room(GObject *source, GAsyncResult *result, gpointer user_data)
+{
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	ChimeRoom *room = chime_connection_fetch_room_finish(cxn, result, NULL);
+	GTask *task = G_TASK(user_data);
+	ChimeMeeting *meeting = CHIME_MEETING(g_task_get_task_data(task));
+
+	meeting->chat_room = room;
+
+	chime_connection_open_meeting(cxn, meeting, task);
+}
+
+void chime_connection_join_meeting_async(ChimeConnection *cxn,
+					 ChimeMeeting *meeting,
+					 GCancellable *cancellable,
+					 GAsyncReadyCallback callback,
+					 gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+	g_task_set_task_data(task, g_object_ref(meeting), g_object_unref);
+
+	if (meeting->chat_room_id) {
+		ChimeRoom *room = chime_connection_room_by_id(cxn, meeting->chat_room_id);
+		if (room) {
+			meeting->chat_room = g_object_ref(room);
+		} else {
+			/* Not yet known; need to go fetch it explicitly */
+			chime_connection_fetch_room_async(cxn, meeting->chat_room_id,
+							  NULL, join_got_room, task);
+			return;
+		}
+	}
+
+	chime_connection_open_meeting(cxn, meeting, task);
+}
+
+ChimeMeeting *chime_connection_join_meeting_finish(ChimeConnection *self,
+						   GAsyncResult *result,
+						   GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_pointer(G_TASK(result), error);
+}
+

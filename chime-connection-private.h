@@ -213,6 +213,8 @@ void chime_purple_keepalive(PurpleConnection *conn);
 /* chime-rooms.c */
 void chime_init_rooms(ChimeConnection *cxn);
 void chime_destroy_rooms(ChimeConnection *cxn);
+gboolean chime_connection_fetch_room(ChimeConnection *cxn, const gchar *id,
+				     JuggernautCallback cb, gpointer cb_data);
 
 /* chime-meetings.c */
 void chime_init_meetings(ChimeConnection *cxn);

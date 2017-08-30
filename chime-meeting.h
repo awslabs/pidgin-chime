@@ -49,7 +49,7 @@ const gchar *chime_meeting_get_screen_share_url(ChimeMeeting *self);
 const gchar *chime_meeting_get_start_at(ChimeMeeting *self);
 const gchar *chime_meeting_get_channel(ChimeMeeting *self);
 const gchar *chime_meeting_get_roster_channel(ChimeMeeting *self);
-
+ChimeRoom *chime_meeting_get_chat_room(ChimeMeeting *self);
 ChimeMeeting *chime_connection_meeting_by_name(ChimeConnection *cxn,
 					 const gchar *name);
 ChimeMeeting *chime_connection_meeting_by_id(ChimeConnection *cxn,
@@ -69,7 +69,6 @@ typedef struct {
 
 GList *chime_meeting_get_participants(ChimeMeeting *self);
 
-gboolean chime_connection_open_meeting(ChimeConnection *cxn, ChimeMeeting *meeting);
 void chime_connection_close_meeting(ChimeConnection *cxn, ChimeMeeting *meeting);
 
 typedef struct {
@@ -124,6 +123,16 @@ void chime_connection_lookup_meeting_by_pin_async(ChimeConnection *cxn,
 ChimeMeeting *chime_connection_lookup_meeting_by_pin_finish(ChimeConnection *self,
 							    GAsyncResult *result,
 							    GError **error);
+
+void chime_connection_join_meeting_async(ChimeConnection *cxn,
+					 ChimeMeeting *meeting,
+					 GCancellable *cancellable,
+					 GAsyncReadyCallback callback,
+					 gpointer user_data);
+
+ChimeMeeting *chime_connection_join_meeting_finish(ChimeConnection *self,
+						   GAsyncResult *result,
+						   GError **error);
 
 
 G_END_DECLS

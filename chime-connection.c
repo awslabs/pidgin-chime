@@ -1184,12 +1184,12 @@ static void update_last_read_cb(ChimeConnection *self, SoupMessage *msg,
 }
 
 
-void chime_connection_update_last_read_sync (ChimeConnection    *self,
-					     ChimeObject        *obj,
-					     const gchar        *msg_id,
-					     GCancellable       *cancellable,
-					     GAsyncReadyCallback callback,
-					     gpointer            user_data)
+void chime_connection_update_last_read_async (ChimeConnection    *self,
+					      ChimeObject        *obj,
+					      const gchar        *msg_id,
+					      GCancellable       *cancellable,
+					      GAsyncReadyCallback callback,
+					      gpointer            user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);

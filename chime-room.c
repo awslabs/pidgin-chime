@@ -1053,6 +1053,8 @@ static void member_removed_cb(ChimeConnection *cxn, SoupMessage *msg,
 					CHIME_ERROR_NETWORK,
 					_("Failed to remove room member: %s"),
 					reason);
+	} else {
+		g_task_return_boolean(task, TRUE);
 	}
 
 	g_object_unref(task);
@@ -1076,7 +1078,6 @@ void chime_connection_remove_room_member_async(ChimeConnection *cxn,
 	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s/memberships/%s",
 					   chime_room_get_id(room), chime_contact_get_profile_id(contact));
 	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE", member_removed_cb, task);
-
 }
 
 gboolean chime_connection_remove_room_member_finish(ChimeConnection *self,

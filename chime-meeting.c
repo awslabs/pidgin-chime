@@ -547,7 +547,7 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 	JsonNode *org_node = json_object_get_member(obj, "organizer");
 	if (!org_node)
 		goto eparse;
-	ChimeContact *organiser = chime_connection_parse_contact(cxn, NULL,
+	ChimeContact *organiser = chime_connection_parse_contact(cxn, FALSE,
 								 org_node, NULL);
 	if (!organiser)
 		goto eparse;

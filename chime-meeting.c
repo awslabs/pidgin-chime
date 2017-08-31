@@ -97,6 +97,7 @@ chime_meeting_dispose(GObject *object)
 	chime_debug("Meeting disposed: %p\n", self);
 
 	close_meeting(NULL, self, NULL);
+	g_signal_emit(self, signals[ENDED], 0, NULL);
 
 	G_OBJECT_CLASS(chime_meeting_parent_class)->dispose(object);
 }
@@ -420,6 +421,13 @@ const gchar *chime_meeting_get_passcode(ChimeMeeting *self)
 	return self->passcode;
 }
 
+const gchar *chime_meeting_get_id_for_display(ChimeMeeting *self)
+{
+	g_return_val_if_fail(CHIME_IS_MEETING(self), FALSE);
+
+	return self->meeting_id_for_display;
+}
+
 const gchar *chime_meeting_get_screen_share_url(ChimeMeeting *self)
 {
 	g_return_val_if_fail(CHIME_IS_MEETING(self), FALSE);
@@ -624,7 +632,8 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 		meeting->screen_share_url = g_strdup(screen_share_url);
 		g_object_notify(G_OBJECT(meeting), "screen-share-url");
 	}
-	if (passcode && g_strcmp0(passcode, meeting->passcode)) {
+	if (passcode && g_strcmp0(passcode, meeting->passcode) &&
+	    (!meeting->passcode || !g_str_has_prefix(meeting->passcode, passcode))) {
 		g_free(meeting->passcode);
 		meeting->passcode = g_strdup(passcode);
 		g_object_notify(G_OBJECT(meeting), "passcode");
@@ -769,6 +778,12 @@ void chime_destroy_meetings(ChimeConnection *cxn)
 		g_hash_table_foreach(priv->meetings.by_id, close_meeting, NULL);
 
 	chime_object_collection_destroy(&priv->meetings);
+}
+
+gboolean chime_meeting_match_pin(ChimeMeeting *self, const gchar *pin)
+{
+	return !strcmp(pin, self->passcode) ||
+		!g_strcmp0(pin, self->meeting_id_for_display);
 }
 
 ChimeMeeting *chime_connection_meeting_by_name(ChimeConnection *cxn,

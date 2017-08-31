@@ -196,6 +196,7 @@ static void chime_purple_login(PurpleAccount *account)
 
 	struct purple_chime *pc = g_new0(struct purple_chime, 1);
 	purple_connection_set_protocol_data(conn, pc);
+	purple_chime_init_meetings(conn);
 	purple_chime_init_conversations(pc);
 	purple_chime_init_chats(pc);
 
@@ -232,6 +233,7 @@ static void chime_purple_close(PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 
+	purple_chime_destroy_meetings(conn);
 	purple_chime_destroy_conversations(pc);
 	purple_chime_destroy_chats(pc);
 
@@ -347,6 +349,10 @@ static GList *chime_purple_plugin_actions(PurplePlugin *plugin,
 
 	act = purple_plugin_action_new(_("Schedule meeting (Onetime PIN)..."),
 				       chime_purple_schedule_onetime);
+	acts = g_list_append(acts, act);
+
+	act = purple_plugin_action_new(_("Joinable meetings..."),
+				       chime_purple_show_joinable);
 	acts = g_list_append(acts, act);
 
 	act = purple_plugin_action_new(_("Join meeting by PIN..."),

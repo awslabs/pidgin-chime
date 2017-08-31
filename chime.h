@@ -38,6 +38,12 @@ struct purple_chime {
 	GHashTable *chats_by_room;
 	GHashTable *live_chats;
 	int chat_id;
+
+	void *joinable_handle;
+	guint joinable_refresh_id;
+
+	/* Allow pin_join to abort a 'joinable meetings' popup */
+	GSList *pin_joins;
 };
 
 #define PURPLE_CHIME_CXN(conn) (CHIME_CONNECTION(((struct purple_chime *)purple_connection_get_protocol_data(conn))->cxn))
@@ -61,7 +67,10 @@ void chime_purple_user_search(PurplePluginAction *action);
 void chime_purple_schedule_onetime(PurplePluginAction *action);
 void chime_purple_schedule_personal(PurplePluginAction *action);
 void chime_purple_pin_join(PurplePluginAction *action);
+void chime_purple_show_joinable(PurplePluginAction *action);
 void on_chime_new_meeting(ChimeConnection *cxn, ChimeMeeting *mtg, PurpleConnection *conn);
+void purple_chime_init_meetings(PurpleConnection *conn);
+void purple_chime_destroy_meetings(PurpleConnection *conn);
 
 /* rooms.c */
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);

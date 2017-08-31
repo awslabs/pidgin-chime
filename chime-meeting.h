@@ -45,11 +45,15 @@ const gchar *chime_meeting_get_id(ChimeMeeting *self);
 const gchar *chime_meeting_get_name(ChimeMeeting *self);
 ChimeContact *chime_meeting_get_organiser(ChimeMeeting *self);
 const gchar *chime_meeting_get_passcode(ChimeMeeting *self);
+const gchar *chime_meeting_get_id_for_display(ChimeMeeting *self);
 const gchar *chime_meeting_get_screen_share_url(ChimeMeeting *self);
 const gchar *chime_meeting_get_start_at(ChimeMeeting *self);
 const gchar *chime_meeting_get_channel(ChimeMeeting *self);
 const gchar *chime_meeting_get_roster_channel(ChimeMeeting *self);
 ChimeRoom *chime_meeting_get_chat_room(ChimeMeeting *self);
+
+gboolean chime_meeting_match_pin(ChimeMeeting *self, const gchar *pin);
+
 ChimeMeeting *chime_connection_meeting_by_name(ChimeConnection *cxn,
 					 const gchar *name);
 ChimeMeeting *chime_connection_meeting_by_id(ChimeConnection *cxn,
@@ -133,7 +137,6 @@ void chime_connection_join_meeting_async(ChimeConnection *cxn,
 ChimeMeeting *chime_connection_join_meeting_finish(ChimeConnection *self,
 						   GAsyncResult *result,
 						   GError **error);
-
 
 G_END_DECLS
 

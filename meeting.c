@@ -20,6 +20,7 @@
 
 #include <prpl.h>
 #include <request.h>
+#include <debug.h>
 
 #include "chime.h"
 #include "chime-meeting.h"
@@ -133,28 +134,44 @@ static void join_mtg_done(GObject *source, GAsyncResult *result, gpointer _conn)
 		do_join_chat(conn, cxn, CHIME_OBJECT(room), NULL, mtg);
 }
 
-static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _conn)
+struct pin_join_data {
+	gchar *query;
+	PurpleConnection *conn;
+};
+
+static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _pjd)
 {
-	PurpleConnection *conn = _conn;
+	struct pin_join_data *pjd = _pjd;
+	struct purple_chime *pc = purple_connection_get_protocol_data(pjd->conn);
 	ChimeConnection *cxn = CHIME_CONNECTION(source);
 	GError *error = NULL;
 	ChimeMeeting *mtg = chime_connection_lookup_meeting_by_pin_finish(cxn, result, &error);
 
 	if (!mtg) {
-		purple_notify_error(conn, NULL,
+		purple_notify_error(pjd->conn, NULL,
 				    _("Unable to lookup meeting"),
 				    error->message);
-		return;
+	} else {
+		chime_connection_join_meeting_async(cxn, mtg, NULL, join_mtg_done, pjd->conn);
 	}
-	chime_connection_join_meeting_async(cxn, mtg, NULL, join_mtg_done, conn);
+
+	pc->pin_joins = g_slist_remove(pc->pin_joins, pjd->query);
+	free(pjd->query);
+	free(pjd);
 }
 
 static void pin_join_begin(PurpleConnection *conn, const char *query)
 {
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
+	struct pin_join_data *pjd = g_new0(struct pin_join_data, 1);
+
+	pjd->conn = conn;
+	pjd->query = g_strdup(query);
+	pc->pin_joins = g_slist_prepend(pc->pin_joins, pjd->query);
 
 	chime_connection_lookup_meeting_by_pin_async(cxn, query, NULL,
-						     pin_join_done, conn);
+						     pin_join_done, pjd);
 }
 
 void chime_purple_pin_join(PurplePluginAction *action)
@@ -169,26 +186,160 @@ void chime_purple_pin_join(PurplePluginAction *action)
 			     NULL, NULL, NULL, conn);
 }
 
+static void join_joinable(PurpleConnection *conn, GList *row, gpointer _unused)
+{
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
+	if (!row)
+		return;
+
+	/* XXX Do it by PIN */
+	gchar *name = g_list_nth_data(row, 1);
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Join meeting %s\n", name);
+	ChimeMeeting *mtg = chime_connection_meeting_by_name(cxn, name);
+	if (mtg)
+		chime_connection_join_meeting_async(cxn, mtg, NULL, join_mtg_done, conn);
+}
+
+static void append_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _results)
+{
+	PurpleNotifySearchResults *results = _results;
+	ChimeContact *organiser = chime_meeting_get_organiser(mtg);
+
+	GList *row = NULL;
+	row = g_list_append(row, format_pin(chime_meeting_get_passcode(mtg)));
+	row = g_list_append(row, g_strdup(chime_meeting_get_name(mtg)));
+	row = g_list_append(row, g_strdup_printf("%s <%s>", chime_contact_get_display_name(organiser),
+						 chime_contact_get_email(organiser)));
+
+	purple_notify_searchresults_row_add(results, row);
+}
+
+
+static PurpleNotifySearchResults *generate_joinable_results(PurpleConnection *conn)
+{
+	PurpleNotifySearchResults *results = purple_notify_searchresults_new();
+	PurpleNotifySearchColumn *column;
+
+	column = purple_notify_searchresults_column_new(_("Passcode"));
+	purple_notify_searchresults_column_add(results, column);
+	column = purple_notify_searchresults_column_new(_("Summary"));
+	purple_notify_searchresults_column_add(results, column);
+	column = purple_notify_searchresults_column_new(_("Organiser"));
+	purple_notify_searchresults_column_add(results, column);
+
+	purple_notify_searchresults_button_add(results, PURPLE_NOTIFY_BUTTON_JOIN, join_joinable);
+
+	chime_connection_foreach_meeting(PURPLE_CHIME_CXN(conn), append_mtg, results);
+	return results;
+}
+
+static gboolean update_joinable(gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	PurpleNotifySearchResults *results = generate_joinable_results(conn);
+	purple_notify_searchresults_new_rows(conn, results, pc->joinable_handle);
+
+	pc->joinable_refresh_id = 0;
+	return FALSE;
+}
+
+
+static void on_joinable_changed(ChimeMeeting *mtg, GParamSpec *ignored, PurpleConnection *conn)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	if (!pc->joinable_refresh_id)
+		pc->joinable_refresh_id = g_idle_add(update_joinable, conn);
+}
+
+static void unsub_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _conn)
+{
+	g_signal_handlers_disconnect_matched(mtg, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, on_joinable_changed, _conn);
+}
+
+static void joinable_closed_cb(gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	if (!pc)
+		return;
+
+	if (pc->joinable_refresh_id) {
+		g_source_remove(pc->joinable_refresh_id);
+		pc->joinable_refresh_id = 0;
+	}
+	pc->joinable_handle = NULL;
+
+	chime_connection_foreach_meeting(PURPLE_CHIME_CXN(conn), unsub_mtg, conn);
+}
+
+static void sub_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+
+	g_signal_connect(mtg, "notify::passcode",
+			 G_CALLBACK(on_joinable_changed), conn);
+	g_signal_connect(mtg, "notify::name",
+			 G_CALLBACK(on_joinable_changed), conn);
+	g_signal_connect(mtg, "ended",
+			 G_CALLBACK(on_joinable_changed), conn);
+}
+
 void on_chime_new_meeting(ChimeConnection *cxn, ChimeMeeting *mtg, PurpleConnection *conn)
 {
-	ChimeContact *org = chime_meeting_get_organiser(mtg);
-	gchar *pin = format_pin(chime_meeting_get_passcode(mtg));
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 
-	gchar *secondary = g_strdup_printf(_("%s <%s> has invited %s:"),
-					   chime_contact_get_display_name(org),
-					   chime_contact_get_email(org),
-					   conn->account->username);
+	if (pc->joinable_handle) {
+		if (mtg)
+			sub_mtg(cxn, mtg, conn);
 
-	GString *text_str = g_string_new("");
-	g_string_append_printf(text_str, _("Meeting PIN: %s<br>"), pin);
-	g_string_append_printf(text_str, _("Web join URL: %s"),
-			       chime_meeting_get_screen_share_url(mtg));
+		if (!pc->joinable_refresh_id)
+			pc->joinable_refresh_id = g_idle_add(update_joinable, conn);
+		return;
+	}
 
-	purple_notify_formatted(conn, _("Amazon Chime Meeting"),
-				chime_meeting_get_name(mtg),
-				secondary,
-				text_str->str, NULL, NULL);
-	g_string_free(text_str, TRUE);
-	g_free(pin);
-	g_free(secondary);
+	/* Don't pop up the 'Joinable Meetings' dialog if this is was triggered by a PIN join.
+	   We're about to join it directly anyway. */
+	if (mtg) {
+		GSList *l;
+		for (l = pc->pin_joins; l; l = l->next) {
+			if (chime_meeting_match_pin(mtg, l->data))
+				return;
+		}
+	}
+
+	PurpleNotifySearchResults *results = generate_joinable_results(conn);
+	pc->joinable_handle = purple_notify_searchresults(conn, _("Joinable Chime Meetings"), _("Joinable Meetings:"),
+							  conn->account->username, results, joinable_closed_cb, conn);
+	if (!pc->joinable_handle) {
+		purple_notify_error(conn, NULL,
+				    _("Unable to display joinable meetings."),
+				    NULL);
+		joinable_closed_cb(conn);
+	}
+
+	chime_connection_foreach_meeting(PURPLE_CHIME_CXN(conn), sub_mtg, conn);
+}
+
+void chime_purple_show_joinable(PurplePluginAction *action)
+{
+	PurpleConnection *conn = (PurpleConnection *) action->context;
+
+	on_chime_new_meeting(PURPLE_CHIME_CXN(conn), NULL, conn);
+}
+
+void purple_chime_init_meetings(PurpleConnection *conn)
+{
+}
+
+void purple_chime_destroy_meetings(PurpleConnection *conn)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	if (pc->joinable_handle)
+		joinable_closed_cb(conn);
 }

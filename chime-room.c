@@ -367,7 +367,7 @@ const gchar *chime_room_get_id(ChimeRoom *self)
 {
 	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
 
-	return chime_object_get_id(CHIME_OBJECT(self));;
+	return chime_object_get_id(CHIME_OBJECT(self));
 }
 
 const gchar *chime_room_get_name(ChimeRoom *self)

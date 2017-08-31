@@ -404,7 +404,7 @@ const gchar *chime_meeting_get_id(ChimeMeeting *self)
 {
 	g_return_val_if_fail(CHIME_IS_MEETING(self), NULL);
 
-	return chime_object_get_id(CHIME_OBJECT(self));;
+	return chime_object_get_id(CHIME_OBJECT(self));
 }
 
 const gchar *chime_meeting_get_name(ChimeMeeting *self)

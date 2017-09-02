@@ -49,8 +49,6 @@ struct purple_chime {
 #define PURPLE_CHIME_CXN(conn) (CHIME_CONNECTION(((struct purple_chime *)purple_connection_get_protocol_data(conn))->cxn))
 
 /* chime.c */
-void chime_update_last_msg(ChimeConnection *cxn, ChimeObject *obj,
-			   const gchar *msg_time, const gchar *msg_id);
 /* BEWARE: msg_id is allocated, msg_time is const. I am going to hate myself
    for that one day, but it's convenient for now... */
 gboolean chime_read_last_msg(PurpleConnection *conn, ChimeObject *obj,
@@ -107,6 +105,7 @@ typedef void (*chime_msg_cb)(ChimeConnection *cxn, struct chime_msgs *msgs,
 struct chime_msgs {
 	PurpleConnection *conn;
 	ChimeObject *obj;
+	gchar *last_seen;
 	GQueue *seen_msgs;
 	GHashTable *msg_gather;
 	chime_msg_cb cb;

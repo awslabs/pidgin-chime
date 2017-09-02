@@ -27,6 +27,9 @@
 
 #include "chime.h"
 
+static void chime_update_last_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
+				  const gchar *msg_time, const gchar *msg_id);
+
 static void mark_msg_seen(GQueue *q, const gchar *id)
 {
 	if (q->length == 10)
@@ -99,7 +102,7 @@ void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 		if (!l && !msgs->msgs_failed) {
 			const gchar *tm;
 			if (parse_string(node, "CreatedOn", &tm))
-				chime_update_last_msg(cxn, msgs->obj, tm, id);
+				chime_update_last_msg(cxn, msgs, tm, id);
 		}
 		json_node_unref(node);
 	}
@@ -150,7 +153,7 @@ static void on_message_received(ChimeObject *obj, JsonNode *node, struct chime_m
 		return;
 
 	if (!msgs->msgs_failed)
-		chime_update_last_msg(cxn, msgs->obj, created, id);
+		chime_update_last_msg(cxn, msgs, created, id);
 
 	if (is_msg_unseen(msgs->seen_msgs, id))
 		msgs->cb(cxn, msgs, node, tv.tv_sec);
@@ -184,6 +187,23 @@ static void on_room_members_done(ChimeRoom *room, struct chime_msgs *msgs)
 		chime_complete_messages(cxn, msgs);
 }
 
+static void on_last_sent_updated(ChimeObject *obj, GParamSpec *ignored, struct chime_msgs *msgs)
+{
+	gchar *last_sent;
+	g_object_get(obj, "last-sent", &last_sent, NULL);
+
+	if (g_strcmp0(last_sent, msgs->last_seen)) {
+		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch messages for %s; LastSent updated to %s\n",
+			     chime_object_get_id(msgs->obj), last_sent);
+
+		chime_connection_fetch_messages_async(PURPLE_CHIME_CXN(msgs->conn), obj, NULL, msgs->last_seen, NULL, fetch_msgs_cb, msgs);
+		msgs->msgs_done = FALSE;
+		msgs->msg_gather = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)json_node_unref);
+	}
+
+	g_free(last_sent);
+}
+
 void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj, chime_msg_cb cb, const gchar *name, JsonNode *first_msg)
 {
 	msgs->conn = conn;
@@ -191,9 +211,7 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
 	msgs->cb = cb;
 	msgs->seen_msgs = g_queue_new();
 
-	/* XXX: We also need to handle notify::last-sent here, because if a message happens
-	 * while the juggernaut is reconnecting, that's all we'll get. We need to notice
-	 * if it's newer than our idea, and refetch messages. */
+	g_signal_connect(obj, "notify::last-sent", G_CALLBACK(on_last_sent_updated), msgs);
 	g_signal_connect(obj, "message", G_CALLBACK(on_message_received), msgs);
 	if (CHIME_IS_ROOM(obj))
 		g_signal_connect(obj, "members-done", G_CALLBACK(on_room_members_done), msgs);
@@ -207,6 +225,7 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
 	const gchar *last_seen;
 	if (!chime_read_last_msg(conn, obj, &last_seen, &last_id))
 		last_seen = "1970-01-01T00:00:00.000Z";
+	msgs->last_seen = g_strdup(last_seen);
 
 	if (last_sent && strcmp(last_seen, last_sent)) {
 		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch messages for %s\n", name);
@@ -233,23 +252,28 @@ void cleanup_msgs(struct chime_msgs *msgs)
 	g_queue_free_full(msgs->seen_msgs, g_free);
 	if (msgs->msg_gather)
 		g_hash_table_destroy(msgs->msg_gather);
+	/* Caller disconnects all signals with 'msgs' as user_data */
+	g_clear_pointer(&msgs->last_seen, g_free);
 	g_clear_object(&msgs->obj);
 }
 
-void chime_update_last_msg(ChimeConnection *cxn, ChimeObject *obj,
-			   const gchar *msg_time, const gchar *msg_id)
+static void chime_update_last_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
+				  const gchar *msg_time, const gchar *msg_id)
 {
 	gchar *key = g_strdup_printf("last-%s-%s",
-				     CHIME_IS_ROOM(obj) ? "room" : "conversation",
-				     chime_object_get_id(obj));
+				     CHIME_IS_ROOM(msgs->obj) ? "room" : "conversation",
+				     chime_object_get_id(msgs->obj));
 	gchar *val = g_strdup_printf("%s|%s", msg_id, msg_time);
 
 	purple_account_set_string(cxn->prpl_conn->account, key, val);
 	g_free(key);
 	g_free(val);
 
+	g_free(msgs->last_seen);
+	msgs->last_seen = g_strdup(msg_time);
+
 	/* FIXME: we need to call last_read_finish to handle a possible error */
-	chime_connection_update_last_read_async(cxn, obj, msg_id, NULL, NULL, NULL);
+	chime_connection_update_last_read_async(cxn, msgs->obj, msg_id, NULL, NULL, NULL);
 }
 
 /* WARE! msg_id is allocated, msg_time is const */

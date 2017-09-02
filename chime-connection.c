@@ -968,7 +968,7 @@ static void send_message_cb(ChimeConnection *self, SoupMessage *msg,
 		g_task_return_new_error(task, CHIME_ERROR,
 					CHIME_ERROR_NETWORK,
 					_("Failed to send message: %d %s"),
-					msg->status_code, msg->reason_phrase);
+					msg->status_code, reason);
 	} else {
 		JsonObject *obj = json_node_get_object(node);
 		JsonNode *node = json_object_get_member(obj, "Message");

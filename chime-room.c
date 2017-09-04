@@ -22,19 +22,29 @@
 
 #include <glib/gi18n.h>
 
+#define BOOL_PROPS(x)				\
+	x(is_open, OPEN, "Open", "open", "open", TRUE)
+
+#define STRING_PROPS(x)				\
+	x(channel, CHANNEL, "Channel", "channel", "channel", TRUE) \
+	x(created_on, CREATED_ON, "CreatedOn", "created-on", "created on", TRUE) \
+	x(updated_on, UPDATED_ON, "UpdatedOn", "updated-on", "updated on", TRUE) \
+	x(last_sent, LAST_SENT, "LastSent", "last-sent", "last sent", FALSE) \
+	x(last_read, LAST_READ, "LastRead", "last-read", "last read", FALSE) \
+	x(last_mentioned, LAST_MENTIONED, "LastMentioned", "last-mentioned", "last mentioned", FALSE)
+#define CHIME_PROP_OBJ_VAR room
+#include "chime-props.h"
+
+
 enum
 {
 	PROP_0,
 	PROP_PRIVACY,
 	PROP_TYPE,
 	PROP_VISIBILITY,
-	PROP_CHANNEL,
-	PROP_OPEN,
-	PROP_LAST_SENT,
-	PROP_LAST_READ,
-	PROP_LAST_MENTIONED,
-	PROP_CREATED_ON,
-	PROP_UPDATED_ON,
+
+	CHIME_PROPS_ENUM
+
 	PROP_MOBILE_NOTIFICATION_PREFS,
 	PROP_DESKTOP_NOTIFICATION_PREFS,
 	LAST_PROP,
@@ -57,13 +67,9 @@ struct _ChimeRoom {
 	gboolean privacy;
 	ChimeRoomType type;
 	gboolean visibility;
-	gchar *channel;
-	gboolean open;
-	gchar *last_sent;
-	gchar *last_read;
-	gchar *last_mentioned;
-	gchar *created_on;
-	gchar *updated_on;
+
+	CHIME_PROPS_VARS
+
 	ChimeNotifyPref mobile_notification;
 	ChimeNotifyPref desktop_notification;
 
@@ -106,12 +112,7 @@ chime_room_finalize(GObject *object)
 {
 	ChimeRoom *self = CHIME_ROOM(object);
 
-	g_free(self->channel);
-	g_free(self->last_sent);
-	g_free(self->last_read);
-	g_free(self->last_mentioned);
-	g_free(self->created_on);
-	g_free(self->updated_on);
+	CHIME_PROPS_FREE
 
 	if (self->members)
 		g_hash_table_destroy(self->members);
@@ -134,27 +135,9 @@ static void chime_room_get_property(GObject *object, guint prop_id,
 	case PROP_VISIBILITY:
 		g_value_set_boolean(value, self->visibility);
 		break;
-	case PROP_CHANNEL:
-		g_value_set_string(value, self->channel);
-		break;
-	case PROP_OPEN:
-		g_value_set_boolean(value, self->open);
-		break;
-	case PROP_LAST_SENT:
-		g_value_set_string(value, self->last_sent);
-		break;
-	case PROP_LAST_READ:
-		g_value_set_string(value, self->last_read);
-		break;
-	case PROP_LAST_MENTIONED:
-		g_value_set_string(value, self->last_mentioned);
-		break;
-	case PROP_CREATED_ON:
-		g_value_set_string(value, self->created_on);
-		break;
-	case PROP_UPDATED_ON:
-		g_value_set_string(value, self->updated_on);
-		break;
+
+	CHIME_PROPS_GET
+
 	case PROP_MOBILE_NOTIFICATION_PREFS:
 		g_value_set_enum(value, self->mobile_notification);
 		break;
@@ -182,33 +165,9 @@ static void chime_room_set_property(GObject *object, guint prop_id,
 	case PROP_VISIBILITY:
 		self->visibility = g_value_get_boolean(value);
 		break;
-	case PROP_CHANNEL:
-		g_free(self->channel);
-		self->channel = g_value_dup_string(value);
-		break;
-	case PROP_OPEN:
-		self->open = g_value_get_boolean(value);
-		break;
-	case PROP_LAST_SENT:
-		g_free(self->last_sent);
-		self->last_sent = g_value_dup_string(value);
-		break;
-	case PROP_LAST_READ:
-		g_free(self->last_read);
-		self->last_read = g_value_dup_string(value);
-		break;
-	case PROP_LAST_MENTIONED:
-		g_free(self->last_mentioned);
-		self->last_mentioned = g_value_dup_string(value);
-		break;
-	case PROP_CREATED_ON:
-		g_free(self->created_on);
-		self->created_on = g_value_dup_string(value);
-		break;
-	case PROP_UPDATED_ON:
-		g_free(self->updated_on);
-		self->updated_on = g_value_dup_string(value);
-		break;
+
+	CHIME_PROPS_SET
+
 	case PROP_MOBILE_NOTIFICATION_PREFS:
 		self->mobile_notification = g_value_get_enum(value);
 		break;
@@ -258,67 +217,8 @@ static void chime_room_class_init(ChimeRoomClass *klass)
 				     G_PARAM_CONSTRUCT |
 				     G_PARAM_STATIC_STRINGS);
 
-	props[PROP_CHANNEL] =
-		g_param_spec_string("channel",
-				    "channel",
-				    "channel",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
 
-	props[PROP_OPEN] =
-		g_param_spec_boolean("open",
-				     "open",
-				     "open",
-				     TRUE,
-				     G_PARAM_READWRITE |
-				     G_PARAM_CONSTRUCT |
-				     G_PARAM_STATIC_STRINGS);
-
-	props[PROP_LAST_SENT] =
-		g_param_spec_string("last-sent",
-				    "last sent",
-				    "last sent",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT |
-				    G_PARAM_STATIC_STRINGS);
-
-	props[PROP_LAST_READ] =
-		g_param_spec_string("last-read",
-				    "last read",
-				    "last read",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT |
-				    G_PARAM_STATIC_STRINGS);
-
-	props[PROP_LAST_MENTIONED] =
-		g_param_spec_string("last-mentioned",
-				    "last mentioned",
-				    "last mentioned",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT |
-				    G_PARAM_STATIC_STRINGS);
-
-	props[PROP_CREATED_ON] =
-		g_param_spec_string("created-on",
-				    "created on",
-				    "created on",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT |
-				    G_PARAM_STATIC_STRINGS);
-	props[PROP_UPDATED_ON] =
-		g_param_spec_string("updated-on",
-				    "updated on",
-				    "updated on",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT |
-				    G_PARAM_STATIC_STRINGS);
+	CHIME_PROPS_REG
 
 	props[PROP_MOBILE_NOTIFICATION_PREFS] =
 		g_param_spec_enum("mobile-notification-prefs",
@@ -443,30 +343,24 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 					      GError **error)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
-	const gchar *id, *name, *channel, *created_on, *updated_on,
-		*last_sent = NULL, *last_read = NULL, *last_mentioned = NULL;
-	gboolean privacy, visibility, is_open;
+	const gchar *id, *name;
+	gboolean privacy, visibility;
 	ChimeRoomType type;
 	ChimeNotifyPref desktop, mobile;
+	CHIME_PROPS_PARSE_VARS
 
 	if (!parse_string(node, "RoomId", &id) ||
 	    !parse_string(node, "Name", &name) ||
 	    !parse_privacy(node, "Privacy", &privacy) ||
 	    !parse_room_type(node, "Type", &type) ||
-	    !parse_visibility(node, "Visibility", &visibility) ||
-	    !parse_string(node, "Channel", &channel) ||
-	    !parse_boolean(node, "Open", &is_open) ||
-	    !parse_string(node, "CreatedOn", &created_on) ||
-	    !parse_string(node, "UpdatedOn", &updated_on)) {
+	    CHIME_PROPS_PARSE ||
+	    !parse_visibility(node, "Visibility", &visibility)) {
 	eparse:
 		g_set_error(error, CHIME_ERROR,
 			    CHIME_ERROR_BAD_RESPONSE,
 			    _("Failed to parse Room node"));
 		return NULL;
 	}
-	parse_string(node, "LastSent", &last_sent);
-	parse_string(node, "LastRead", &last_read);
-	parse_string(node, "LastMentioned", &last_mentioned);
 
 	JsonObject *obj = json_node_get_object(node);
 	node = json_object_get_member(obj, "Preferences");
@@ -488,13 +382,7 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 				    "privacy", privacy,
 				    "type", type,
 				    "visibility", visibility,
-				    "channel", channel,
-				    "open", is_open,
-				    "last-sent", last_sent,
-				    "last-read", last_read,
-				    "last-mentioned", last_mentioned,
-				    "created-on", created_on,
-				    "updated-on", updated_on,
+				    CHIME_PROPS_NEWOBJ
 				    "desktop-notification-prefs", desktop,
 				    "mobile-notification-prefs", mobile,
 				    NULL);
@@ -523,40 +411,9 @@ static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *no
 		room->visibility = visibility;
 		g_object_notify(G_OBJECT(room), "visibility");
 	}
-	if (channel && g_strcmp0(channel, room->channel)) {
-		g_free(room->channel);
-		room->channel = g_strdup(channel);
-		g_object_notify(G_OBJECT(room), "channel");
-	}
-	if (is_open != room->open) {
-		room->open = is_open;
-		g_object_notify(G_OBJECT(room), "open");
-	}
-	if (last_sent && g_strcmp0(last_sent, room->last_sent)) {
-		g_free(room->last_sent);
-		room->last_sent = g_strdup(last_sent);
-		g_object_notify(G_OBJECT(room), "last-sent");
-	}
-	if (last_read && g_strcmp0(last_read, room->last_read)) {
-		g_free(room->last_read);
-		room->last_read = g_strdup(last_read);
-		g_object_notify(G_OBJECT(room), "last-read");
-	}
-	if (last_mentioned && g_strcmp0(last_mentioned, room->last_mentioned)) {
-		g_free(room->last_mentioned);
-		room->last_mentioned = g_strdup(last_mentioned);
-		g_object_notify(G_OBJECT(room), "last-mentioned");
-	}
-	if (created_on && g_strcmp0(created_on, room->created_on)) {
-		g_free(room->created_on);
-		room->created_on = g_strdup(created_on);
-		g_object_notify(G_OBJECT(room), "created-on");
-	}
-	if (updated_on && g_strcmp0(updated_on, room->updated_on)) {
-		g_free(room->updated_on);
-		room->updated_on = g_strdup(updated_on);
-		g_object_notify(G_OBJECT(room), "updated-on");
-	}
+
+	CHIME_PROPS_UPDATE
+
 	if (desktop != room->desktop_notification) {
 		room->desktop_notification = desktop;
 		g_object_notify(G_OBJECT(room), "desktop-notification-prefs");

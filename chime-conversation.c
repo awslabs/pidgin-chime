@@ -24,15 +24,25 @@
 
 #include <glib/gi18n.h>
 
+#define BOOL_PROPS(x)							\
+	x(favourite, FAVOURITE, "Favorite", "favourite", "favourite", TRUE)
+
+#define STRING_PROPS(x)							\
+	x(channel, CHANNEL, "Channel", "channel", "channel", TRUE) \
+	x(created_on, CREATED_ON, "CreatedOn", "created-on", "created on", TRUE) \
+	x(updated_on, UPDATED_ON, "UpdatedOn", "updated-on", "updated on", TRUE) \
+	x(last_sent, LAST_SENT, "LastSent", "last-sent", "last sent", FALSE)
+
+#define CHIME_PROP_OBJ_VAR conversation
+#include "chime-props.h"
+
 enum
 {
 	PROP_0,
-	PROP_CHANNEL,
-	PROP_FAVOURITE,
 	PROP_VISIBILITY,
-	PROP_LAST_SENT,
-	PROP_CREATED_ON,
-	PROP_UPDATED_ON,
+
+	CHIME_PROPS_ENUM
+
 	PROP_MOBILE_NOTIFICATION_PREFS,
 	PROP_DESKTOP_NOTIFICATION_PREFS,
 	LAST_PROP,
@@ -55,12 +65,10 @@ struct _ChimeConversation {
 
 	GHashTable *members; /* Not including ourself */
 
-	gchar *channel;
-	gboolean favourite;
 	gboolean visibility;
-	gchar *last_sent;
-	gchar *created_on;
-	gchar *updated_on;
+
+	CHIME_PROPS_VARS;
+
 	ChimeNotifyPref mobile_notification;
 	ChimeNotifyPref desktop_notification;
 };
@@ -89,10 +97,7 @@ chime_conversation_finalize(GObject *object)
 {
 	ChimeConversation *self = CHIME_CONVERSATION(object);
 
-	g_free(self->channel);
-	g_free(self->last_sent);
-	g_free(self->created_on);
-	g_free(self->updated_on);
+	CHIME_PROPS_FREE
 
 	G_OBJECT_CLASS(chime_conversation_parent_class)->finalize(object);
 }
@@ -103,24 +108,12 @@ static void chime_conversation_get_property(GObject *object, guint prop_id,
 	ChimeConversation *self = CHIME_CONVERSATION(object);
 
 	switch (prop_id) {
-	case PROP_CHANNEL:
-		g_value_set_string(value, self->channel);
-		break;
-	case PROP_FAVOURITE:
-		g_value_set_boolean(value, self->favourite);
-		break;
 	case PROP_VISIBILITY:
 		g_value_set_boolean(value, self->visibility);
 		break;
-	case PROP_LAST_SENT:
-		g_value_set_string(value, self->last_sent);
-		break;
-	case PROP_CREATED_ON:
-		g_value_set_string(value, self->created_on);
-		break;
-	case PROP_UPDATED_ON:
-		g_value_set_string(value, self->updated_on);
-		break;
+
+	CHIME_PROPS_GET
+
 	case PROP_MOBILE_NOTIFICATION_PREFS:
 		g_value_set_enum(value, self->mobile_notification);
 		break;
@@ -139,28 +132,12 @@ static void chime_conversation_set_property(GObject *object, guint prop_id,
 	ChimeConversation *self = CHIME_CONVERSATION(object);
 
 	switch (prop_id) {
-	case PROP_CHANNEL:
-		g_free(self->channel);
-		self->channel = g_value_dup_string(value);
-		break;
-	case PROP_FAVOURITE:
-		self->favourite = g_value_get_boolean(value);
-		break;
 	case PROP_VISIBILITY:
 		self->visibility = g_value_get_boolean(value);
 		break;
-	case PROP_LAST_SENT:
-		g_free(self->last_sent);
-		self->last_sent = g_value_dup_string(value);
-		break;
-	case PROP_CREATED_ON:
-		g_free(self->created_on);
-		self->created_on = g_value_dup_string(value);
-		break;
-	case PROP_UPDATED_ON:
-		g_free(self->updated_on);
-		self->updated_on = g_value_dup_string(value);
-		break;
+
+	CHIME_PROPS_SET
+
 	case PROP_MOBILE_NOTIFICATION_PREFS:
 		self->mobile_notification = g_value_get_enum(value);
 		break;
@@ -182,23 +159,7 @@ static void chime_conversation_class_init(ChimeConversationClass *klass)
 	object_class->get_property = chime_conversation_get_property;
 	object_class->set_property = chime_conversation_set_property;
 
-	props[PROP_CHANNEL] =
-		g_param_spec_string("channel",
-				    "channel",
-				    "channel",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
-
-	props[PROP_FAVOURITE] =
-		g_param_spec_boolean("favourite",
-				     "favourite",
-				     "favourite",
-				     FALSE,
-				     G_PARAM_READWRITE |
-				     G_PARAM_CONSTRUCT |
-				     G_PARAM_STATIC_STRINGS);
+	CHIME_PROPS_REG
 
 	props[PROP_VISIBILITY] =
 		g_param_spec_boolean("visibility",
@@ -208,33 +169,6 @@ static void chime_conversation_class_init(ChimeConversationClass *klass)
 				     G_PARAM_READWRITE |
 				     G_PARAM_CONSTRUCT |
 				     G_PARAM_STATIC_STRINGS);
-
-	props[PROP_LAST_SENT] =
-		g_param_spec_string("last-sent",
-				    "last sent",
-				    "last sent",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT |
-				    G_PARAM_STATIC_STRINGS);
-
-	props[PROP_CREATED_ON] =
-		g_param_spec_string("created-on",
-				    "created on",
-				    "created on",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT |
-				    G_PARAM_STATIC_STRINGS);
-
-	props[PROP_UPDATED_ON] =
-		g_param_spec_string("updated-on",
-				    "updated on",
-				    "updated on",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT |
-				    G_PARAM_STATIC_STRINGS);
 
 	props[PROP_MOBILE_NOTIFICATION_PREFS] =
 		g_param_spec_enum("mobile-notification-prefs",
@@ -431,26 +365,22 @@ static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *c
 						       GError **error)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
-	const gchar *id, *name, *channel, *created_on, *updated_on,
-		*last_sent = NULL;
-	gboolean favourite, visibility;
+	const gchar *id, *name;
+	gboolean visibility;
 	ChimeNotifyPref desktop, mobile;
 	JsonNode *members_node;
+	CHIME_PROPS_PARSE_VARS
 
 	if (!parse_string(node, "ConversationId", &id) ||
 	    !parse_string(node, "Name", &name) ||
-	    !parse_string(node, "Channel", &channel) ||
-	    !parse_boolean(node, "Favorite", &favourite) ||
+	    CHIME_PROPS_PARSE ||
 	    !parse_visibility(node, "Visibility", &visibility) ||
-	    !parse_string(node, "CreatedOn", &created_on) ||
-	    !parse_string(node, "UpdatedOn", &updated_on) ||
 	    !(members_node = json_object_get_member(json_node_get_object(node), "Members"))) {
 	eparse:
 		g_set_error(error, CHIME_ERROR, CHIME_ERROR_BAD_RESPONSE,
 			    _("Failed to parse Conversation node"));
 		return NULL;
 	}
-	parse_string(node, "LastSent", &last_sent);
 
 	JsonObject *obj = json_node_get_object(node);
 	node = json_object_get_member(obj, "Preferences");
@@ -469,12 +399,8 @@ static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *c
 		conversation = g_object_new(CHIME_TYPE_CONVERSATION,
 				    "id", id,
 				    "name", name,
-				    "channel", channel,
-				    "favourite", favourite,
 				    "visibility", visibility,
-				    "last-sent", last_sent,
-				    "created-on", created_on,
-				    "updated-on", updated_on,
+				    CHIME_PROPS_NEWOBJ
 				    "desktop-notification-prefs", desktop,
 				    "mobile-notification-prefs", mobile,
 				    NULL);
@@ -497,34 +423,13 @@ static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *c
 		chime_object_rename(CHIME_OBJECT(conversation), name);
 		g_object_notify(G_OBJECT(conversation), "name");
 	}
-	if (channel && g_strcmp0(channel, conversation->channel)) {
-		g_free(conversation->channel);
-		conversation->channel = g_strdup(channel);
-		g_object_notify(G_OBJECT(conversation), "channel");
-	}
-	if (favourite != conversation->favourite) {
-		conversation->favourite = favourite;
-		g_object_notify(G_OBJECT(conversation), "favourite");
-	}
 	if (visibility != conversation->visibility) {
 		conversation->visibility = visibility;
 		g_object_notify(G_OBJECT(conversation), "visibility");
 	}
-	if (last_sent && g_strcmp0(last_sent, conversation->last_sent)) {
-		g_free(conversation->last_sent);
-		conversation->last_sent = g_strdup(last_sent);
-		g_object_notify(G_OBJECT(conversation), "last-sent");
-	}
-	if (created_on && g_strcmp0(created_on, conversation->created_on)) {
-		g_free(conversation->created_on);
-		conversation->created_on = g_strdup(created_on);
-		g_object_notify(G_OBJECT(conversation), "created-on");
-	}
-	if (updated_on && g_strcmp0(updated_on, conversation->updated_on)) {
-		g_free(conversation->updated_on);
-		conversation->updated_on = g_strdup(updated_on);
-		g_object_notify(G_OBJECT(conversation), "updated-on");
-	}
+
+	CHIME_PROPS_UPDATE
+
 	if (desktop != conversation->desktop_notification) {
 		conversation->desktop_notification = desktop;
 		g_object_notify(G_OBJECT(conversation), "desktop-notification-prefs");

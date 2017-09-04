@@ -21,21 +21,32 @@
 
 #include <glib/gi18n.h>
 
+#define BOOL_PROPS(x)							\
+	x(joinable, JOINABLE, "joinable?", "joinable", "joinable", TRUE) \
+	x(noisy, NOISY, "noisy?", "noisy", "noisy", TRUE)		\
+	x(ongoing, ONGOING, "ongoing?", "ongoing", "ongoing", TRUE)
+
+#define STRING_PROPS(x)							\
+	x(passcode, PASSCODE, "passcode", "passcode", "passcode", TRUE) \
+	x(start_at, START_AT, "start_at", "start-at", "start at", TRUE) \
+	x(meeting_join_url, MEETING_JOIN_URL, "meeting_join_url", "meeting-join-url", "meeting join url", FALSE) \
+	x(meeting_join_display_name_url, MEETING_JOIN_DISPLAY_NAME_URL, "meeting_join_display_name_url", "meeting-join-display-name-url", "meeting join display name url", FALSE) \
+	x(international_dialin_info_url, INTERNATIONAL_DIALIN_INFO_URL, "international_dialin_info_url", "international-dialin-info-url", "international dialin info url", FALSE) \
+	x(meeting_id_for_display, MEETING_ID_FOR_DISPLAY, "meeting_id_for_display", "meeting-id-for-display", "meeting id for display", FALSE) \
+	x(screen_share_url, SCREEN_SHARE_URL, "screen_share_url", "screen-share-url", "screen share url", FALSE)
+
+#define CHIME_PROP_OBJ_VAR meeting
+
+#include "chime-props.h"
+
 enum
 {
 	PROP_0,
 	PROP_TYPE,
-	PROP_JOINABLE,
-	PROP_NOISY,
-	PROP_ONGOING,
 	PROP_CHAT_ROOM_ID,
-	PROP_INTERNATIONAL_DIALIN_INFO_URL,
-	PROP_MEETING_ID_FOR_DISPLAY,
-	PROP_MEETING_JOIN_DISPLAY_NAME_URL,
-	PROP_MEETING_JOIN_URL,
-	PROP_SCREEN_SHARE_URL,
-	PROP_PASSCODE,
-	PROP_START_AT,
+
+	CHIME_PROPS_ENUM
+
 	PROP_CHANNEL,
 	PROP_ROSTER_CHANNEL,
 	PROP_ORGANISER,
@@ -55,23 +66,14 @@ struct _ChimeMeeting {
 	ChimeObject parent_instance;
 
 	ChimeMeetingType type;
-	gboolean joinable;
-	gboolean noisy;
-	gboolean ongoing;
 
 	gchar *chat_room_id;
 	ChimeRoom *chat_room;
 
-	gchar *international_dialin_info_url;
-	gchar *meeting_id_for_display;
-	gchar *meeting_join_display_name_url;
-	gchar *meeting_join_url;
-	gchar *screen_share_url;
+	CHIME_PROPS_VARS
 
-	gchar *passcode;
 	gchar *channel;
 	gchar *roster_channel;
-	gchar *start_at;
 	ChimeContact *organiser;
 
 	/* For open meetings */
@@ -108,15 +110,11 @@ chime_meeting_finalize(GObject *object)
 	ChimeMeeting *self = CHIME_MEETING(object);
 
 	g_free(self->chat_room_id);
-	g_free(self->international_dialin_info_url);
-	g_free(self->meeting_id_for_display);
-	g_free(self->meeting_join_display_name_url);
-	g_free(self->meeting_join_url);
-	g_free(self->screen_share_url);
-	g_free(self->passcode);
+
+	CHIME_PROPS_FREE
+
 	g_free(self->channel);
 	g_free(self->roster_channel);
-	g_free(self->start_at);
 	g_object_unref(self->organiser);
 	if (self->chat_room)
 		g_object_unref(self->chat_room);
@@ -133,39 +131,12 @@ static void chime_meeting_get_property(GObject *object, guint prop_id,
 	case PROP_TYPE:
 		g_value_set_enum(value, self->type);
 		break;
-	case PROP_JOINABLE:
-		g_value_set_boolean(value, self->joinable);
-		break;
-	case PROP_NOISY:
-		g_value_set_boolean(value, self->noisy);
-		break;
-	case PROP_ONGOING:
-		g_value_set_boolean(value, self->ongoing);
-		break;
 	case PROP_CHAT_ROOM_ID:
 		g_value_set_string(value, self->chat_room_id);
 		break;
-	case PROP_INTERNATIONAL_DIALIN_INFO_URL:
-		g_value_set_string(value, self->international_dialin_info_url);
-		break;
-	case PROP_MEETING_ID_FOR_DISPLAY:
-		g_value_set_string(value, self->meeting_id_for_display);
-		break;
-	case PROP_MEETING_JOIN_DISPLAY_NAME_URL:
-		g_value_set_string(value, self->meeting_join_display_name_url);
-		break;
-	case PROP_MEETING_JOIN_URL:
-		g_value_set_string(value, self->meeting_join_url);
-		break;
-	case PROP_SCREEN_SHARE_URL:
-		g_value_set_string(value, self->screen_share_url);
-		break;
-	case PROP_PASSCODE:
-		g_value_set_string(value, self->passcode);
-		break;
-	case PROP_START_AT:
-		g_value_set_string(value, self->start_at);
-		break;
+
+	CHIME_PROPS_GET
+
 	case PROP_CHANNEL:
 		g_value_set_string(value, self->channel);
 		break;
@@ -190,47 +161,13 @@ static void chime_meeting_set_property(GObject *object, guint prop_id,
 	case PROP_TYPE:
 		self->type = g_value_get_enum(value);
 		break;
-	case PROP_JOINABLE:
-		self->joinable = g_value_get_boolean(value);
-		break;
-	case PROP_NOISY:
-		self->noisy = g_value_get_boolean(value);
-		break;
-	case PROP_ONGOING:
-		self->ongoing = g_value_get_boolean(value);
-		break;
 	case PROP_CHAT_ROOM_ID:
 		g_free(self->chat_room_id);
 		self->chat_room_id = g_value_dup_string(value);
 		break;
-	case PROP_INTERNATIONAL_DIALIN_INFO_URL:
-		g_free(self->international_dialin_info_url);
-		self->international_dialin_info_url = g_value_dup_string(value);
-		break;
-	case PROP_MEETING_ID_FOR_DISPLAY:
-		g_free(self->meeting_id_for_display);
-		self->meeting_id_for_display = g_value_dup_string(value);
-		break;
-	case PROP_MEETING_JOIN_DISPLAY_NAME_URL:
-		g_free(self->meeting_join_display_name_url);
-		self->meeting_join_display_name_url = g_value_dup_string(value);
-		break;
-	case PROP_MEETING_JOIN_URL:
-		g_free(self->meeting_join_url);
-		self->meeting_join_url = g_value_dup_string(value);
-		break;
-	case PROP_SCREEN_SHARE_URL:
-		g_free(self->screen_share_url);
-		self->screen_share_url = g_value_dup_string(value);
-		break;
-	case PROP_PASSCODE:
-		g_free(self->passcode);
-		self->passcode = g_value_dup_string(value);
-		break;
-	case PROP_START_AT:
-		g_free(self->start_at);
-		self->start_at = g_value_dup_string(value);
-		break;
+
+	CHIME_PROPS_SET
+
 	case PROP_CHANNEL:
 		g_free(self->channel);
 		self->channel = g_value_dup_string(value);
@@ -268,33 +205,6 @@ static void chime_meeting_class_init(ChimeMeetingClass *klass)
 				  G_PARAM_CONSTRUCT |
 				  G_PARAM_STATIC_STRINGS);
 
-	props[PROP_JOINABLE] =
-		g_param_spec_boolean("joinable",
-				     "joinable",
-				     "joinable",
-				     FALSE,
-				     G_PARAM_READWRITE |
-				     G_PARAM_CONSTRUCT |
-				     G_PARAM_STATIC_STRINGS);
-
-	props[PROP_NOISY] =
-		g_param_spec_boolean("noisy",
-				     "noisy",
-				     "noisy",
-				     FALSE,
-				     G_PARAM_READWRITE |
-				     G_PARAM_CONSTRUCT |
-				     G_PARAM_STATIC_STRINGS);
-
-	props[PROP_ONGOING] =
-		g_param_spec_boolean("ongoing",
-				     "ongoing",
-				     "ongoing",
-				     FALSE,
-				     G_PARAM_READWRITE |
-				     G_PARAM_CONSTRUCT |
-				     G_PARAM_STATIC_STRINGS);
-
 	props[PROP_CHAT_ROOM_ID] =
 		g_param_spec_string("chat-room-id",
 				    "chat room id",
@@ -303,63 +213,8 @@ static void chime_meeting_class_init(ChimeMeetingClass *klass)
 				    G_PARAM_READWRITE |
 				    G_PARAM_CONSTRUCT_ONLY |
 				    G_PARAM_STATIC_STRINGS);
-	props[PROP_INTERNATIONAL_DIALIN_INFO_URL] =
-		g_param_spec_string("international-dialin-info-url",
-				    "international dialin info url",
-				    "international dialin info url",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
-	props[PROP_MEETING_ID_FOR_DISPLAY] =
-		g_param_spec_string("meeting-id-for-display",
-				    "meeting id for display",
-				    "meeting id for display",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
-	props[PROP_MEETING_JOIN_DISPLAY_NAME_URL] =
-		g_param_spec_string("meeting-join-display-name-url",
-				    "meeting join display name url",
-				    "meeting join display name url",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
-	props[PROP_MEETING_JOIN_URL] =
-		g_param_spec_string("meeting-join-url",
-				    "meeting join url",
-				    "meeting join url",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
-	props[PROP_SCREEN_SHARE_URL] =
-		g_param_spec_string("screen-share-url",
-				    "screen share url",
-				    "screen share url",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
-	props[PROP_PASSCODE] =
-		g_param_spec_string("passcode",
-				    "passcode",
-				    "passcode",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
 
-	props[PROP_START_AT] =
-		g_param_spec_string("start-at",
-				    "start at",
-				    "start at",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
+	CHIME_PROPS_REG
 
 	props[PROP_CHANNEL] =
 		g_param_spec_string("channel",
@@ -491,29 +346,21 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 						    GError **error)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
-	const gchar *id, *name, *passcode, *channel, *roster_channel, *start_at,
-		*chat_room_id, *international_dialin_info_url = NULL,
-		*meeting_id_for_display = NULL,
-		*meeting_join_display_name_url = NULL, *meeting_join_url = NULL,
-		*screen_share_url = NULL;
-	gboolean joinable, noisy, ongoing;
+	const gchar *id, *name, *channel, *roster_channel, *chat_room_id;
 	ChimeMeetingType type;
 	JsonObject *obj = json_node_get_object(node);
 	JsonNode *call_node = json_object_get_member(obj, "call");
 	JsonNode *chat_node = json_object_get_member(obj, "meeting_chat_room");
+	CHIME_PROPS_PARSE_VARS
 
 	if (!call_node || !chat_node)
 		goto eparse;
 	if (!parse_string(node, "id", &id) ||
 	    !parse_string(node, "summary", &name) ||
-	    !parse_boolean(node, "joinable?", &joinable) ||
-	    !parse_boolean(node, "noisy?", &noisy) ||
-	    !parse_boolean(node, "ongoing?", &ongoing) ||
 	    !parse_string(chat_node, "id", &chat_room_id) ||
-	    !parse_string(node, "passcode", &passcode) ||
 	    !parse_string(call_node, "channel", &channel) ||
 	    !parse_string(call_node, "roster_channel", &roster_channel) ||
-	    !parse_string(node, "start_at", &start_at) ||
+	    CHIME_PROPS_PARSE ||
 	    !parse_meeting_type(node, "klass", &type)) {
 	eparse:
 		g_set_error(error, CHIME_ERROR,
@@ -521,12 +368,6 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 			    _("Failed to parse Meeting node"));
 		return NULL;
 	}
-
-	parse_string(node, "international_dialin_info_url", &international_dialin_info_url);
-	parse_string(node, "meeting_id_for_display", &meeting_id_for_display);
-	parse_string(node, "meeting_join_display_name_url", &meeting_join_display_name_url);
-	parse_string(node, "meeting_join_url", &meeting_join_url);
-	parse_string(node, "screen_share_url", &screen_share_url);
 
 	/* Get the personal passcode if we can */
 	JsonNode *att_array_node = json_object_get_member(obj, "attendances");
@@ -558,17 +399,8 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 				       "id", id,
 				       "name", name,
 				       "type", type,
-				       "joinable", joinable,
-				       "noisy", noisy,
-				       "ongoing", ongoing,
 				       "chat-room-id", chat_room_id,
-				       "international-dialin-info-url", international_dialin_info_url,
-				       "meeting-id-for-display", meeting_id_for_display,
-				       "meeting-join-display-name-url", meeting_join_display_name_url,
-				       "meeting-join-url", meeting_join_url,
-				       "screen-share-url", screen_share_url,
-				       "start-at", start_at,
-				       "passcode", passcode,
+				       CHIME_PROPS_NEWOBJ
 				       "channel", channel,
 				       "organiser", organiser,
 				       "roster_channel", roster_channel,
@@ -590,59 +422,19 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 		meeting->type = type;
 		g_object_notify(G_OBJECT(meeting), "type");
 	}
-	if (joinable != meeting->joinable) {
-		meeting->joinable = joinable;
-		g_object_notify(G_OBJECT(meeting), "joinable");
-	}
-	if (noisy != meeting->noisy) {
-		meeting->noisy = noisy;
-		g_object_notify(G_OBJECT(meeting), "noisy");
-	}
-	if (ongoing != meeting->ongoing) {
-		meeting->ongoing = ongoing;
-		g_object_notify(G_OBJECT(meeting), "ongoing");
-	}
 	if (chat_room_id && g_strcmp0(chat_room_id, meeting->chat_room_id)) {
 		g_free(meeting->chat_room_id);
 		meeting->chat_room_id = g_strdup(chat_room_id);
 		g_object_notify(G_OBJECT(meeting), "chat-room-id");
 	}
-	if (international_dialin_info_url && g_strcmp0(international_dialin_info_url, meeting->international_dialin_info_url)) {
-		g_free(meeting->international_dialin_info_url);
-		meeting->international_dialin_info_url = g_strdup(international_dialin_info_url);
-		g_object_notify(G_OBJECT(meeting), "international-dialin-info-url");
-	}
-	if (meeting_id_for_display && g_strcmp0(meeting_id_for_display, meeting->meeting_id_for_display)) {
-		g_free(meeting->meeting_id_for_display);
-		meeting->meeting_id_for_display = g_strdup(meeting_id_for_display);
-		g_object_notify(G_OBJECT(meeting), "meeting-id-for-display");
-	}
-	if (meeting_join_display_name_url && g_strcmp0(meeting_join_display_name_url, meeting->meeting_join_display_name_url)) {
-		g_free(meeting->meeting_join_display_name_url);
-		meeting->meeting_join_display_name_url = g_strdup(meeting_join_display_name_url);
-		g_object_notify(G_OBJECT(meeting), "meeting-join-display-name-url");
-	}
-	if (meeting_join_url && g_strcmp0(meeting_join_url, meeting->meeting_join_url)) {
-		g_free(meeting->meeting_join_url);
-		meeting->meeting_join_url = g_strdup(meeting_join_url);
-		g_object_notify(G_OBJECT(meeting), "meeting-join-url");
-	}
-	if (screen_share_url && g_strcmp0(screen_share_url, meeting->screen_share_url)) {
-		g_free(meeting->screen_share_url);
-		meeting->screen_share_url = g_strdup(screen_share_url);
-		g_object_notify(G_OBJECT(meeting), "screen-share-url");
-	}
-	if (passcode && g_strcmp0(passcode, meeting->passcode) &&
-	    (!meeting->passcode || !g_str_has_prefix(meeting->passcode, passcode))) {
-		g_free(meeting->passcode);
-		meeting->passcode = g_strdup(passcode);
-		g_object_notify(G_OBJECT(meeting), "passcode");
-	}
-	if (start_at && g_strcmp0(start_at, meeting->start_at)) {
-		g_free(meeting->start_at);
-		meeting->start_at = g_strdup(start_at);
-		g_object_notify(G_OBJECT(meeting), "start-at");
-	}
+	/* Don't overwrite passcode with a shorter but matching one (which
+	   would be replacing the 13-digit personal passcode with a 10-digit
+	   generic one. */
+	if (passcode && meeting->passcode && g_str_has_prefix(meeting->passcode, passcode))
+		passcode = NULL;
+
+	CHIME_PROPS_UPDATE
+
 	if (channel && g_strcmp0(channel, meeting->channel)) {
 		g_free(meeting->channel);
 		meeting->channel = g_strdup(channel);

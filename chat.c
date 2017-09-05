@@ -377,7 +377,8 @@ void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, Purp
 
 	/* If no LastMentioned or we can't parse it, nothing to do */
 	last_sent = chime_conversation_get_last_sent(conv);
-	if (!last_sent || !g_time_val_from_iso8601(last_sent, &sent_tv))
+	if (!last_sent || !g_time_val_from_iso8601(last_sent, &sent_tv) ||
+	    (!sent_tv.tv_sec && !sent_tv.tv_usec))
 		return;
 
 	const gchar *seen_time;

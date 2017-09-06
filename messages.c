@@ -211,33 +211,41 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
 	msgs->cb = cb;
 	msgs->seen_msgs = g_queue_new();
 
-	g_signal_connect(obj, "notify::last-sent", G_CALLBACK(on_last_sent_updated), msgs);
-	g_signal_connect(obj, "message", G_CALLBACK(on_message_received), msgs);
-	if (CHIME_IS_ROOM(obj))
-		g_signal_connect(obj, "members-done", G_CALLBACK(on_room_members_done), msgs);
-	else
-		msgs->members_done = TRUE;
-
-	/* Do we need to fetch new messages? */
-	gchar *last_sent, *last_id = NULL;
-	g_object_get(obj, "last-sent", &last_sent, NULL);
-
 	const gchar *last_seen;
+	gchar *last_id = NULL;
 	if (!chime_read_last_msg(conn, obj, &last_seen, &last_id))
 		last_seen = "1970-01-01T00:00:00.000Z";
 	msgs->last_seen = g_strdup(last_seen);
 
-	if (last_sent && strcmp(last_seen, last_sent)) {
-		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch messages for %s\n", name);
-
-		chime_connection_fetch_messages_async(PURPLE_CHIME_CXN(conn), obj, NULL, last_seen, NULL, fetch_msgs_cb, msgs);
-	} else
-		msgs->msgs_done = TRUE;
-	g_free(last_sent);
-
 	if (last_id) {
 		mark_msg_seen(msgs->seen_msgs, last_id);
 		g_free(last_id);
+	}
+
+	g_signal_connect(obj, "notify::last-sent", G_CALLBACK(on_last_sent_updated), msgs);
+	g_signal_connect(obj, "message", G_CALLBACK(on_message_received), msgs);
+
+	if (CHIME_IS_ROOM(obj)) {
+		g_signal_connect(obj, "members-done", G_CALLBACK(on_room_members_done), msgs);
+		/* Always fetch messages for rooms since we won't have been told of any
+		 * updates to LastSent anyway. */
+	} else {
+		msgs->members_done = TRUE;
+
+		/* Do we need to fetch new messages? */
+		gchar *last_sent;
+		g_object_get(obj, "last-sent", &last_sent, NULL);
+
+		if (!last_sent || ! strcmp(last_seen, last_sent)) {
+			printf("No fetch; %s %s\n", last_sent, last_seen);
+			msgs->msgs_done = TRUE;
+		}
+		g_free(last_sent);
+	}
+
+	if (!msgs->msgs_done) {
+		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch messages for %s\n", name);
+		chime_connection_fetch_messages_async(PURPLE_CHIME_CXN(conn), obj, NULL, last_seen, NULL, fetch_msgs_cb, msgs);
 	}
 
 	if (!msgs->msgs_done || !msgs->members_done)

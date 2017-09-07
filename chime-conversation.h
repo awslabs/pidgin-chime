@@ -41,6 +41,7 @@ gboolean chime_conversation_get_favourite(ChimeConversation *self);
 gboolean chime_conversation_get_visibility(ChimeConversation *self);
 
 GList *chime_conversation_get_members(ChimeConversation *self);
+gboolean chime_conversation_has_member(ChimeConversation *conv, const gchar *member_id);
 
 const gchar *chime_conversation_get_last_sent(ChimeConversation *self);
 

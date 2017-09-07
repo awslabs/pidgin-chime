@@ -294,10 +294,26 @@ static void on_set_status_ready(GObject *source, GAsyncResult *result, gpointer 
 static void chime_purple_set_status(PurpleAccount *account, PurpleStatus *status)
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(account->gc);
-	const gchar *status_str  = purple_status_is_available(status) ? "Automatic" : "Busy";
+	PurpleStatusType *type = purple_status_get_type(status);
+	PurpleStatusPrimitive primitive = purple_status_type_get_primitive(type);
+
+	const gchar *status_str = (primitive == PURPLE_STATUS_UNAVAILABLE) ? "Busy" : "Automatic";
 
 	chime_connection_set_presence_async(cxn, status_str, NULL, NULL,
 					    on_set_status_ready, NULL);
+}
+
+
+static GList *chime_purple_blist_node_menu(PurpleBlistNode *node)
+{
+	switch (purple_blist_node_get_type(node)) {
+	case PURPLE_BLIST_BUDDY_NODE:
+		return chime_purple_buddy_menu((PurpleBuddy *)node);
+	case PURPLE_BLIST_CHAT_NODE:
+		return chime_purple_chat_menu((PurpleChat *)node);
+	default:
+		return NULL;
+	}
 }
 
 static PurplePluginProtocolInfo chime_prpl_info = {
@@ -320,6 +336,7 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.remove_buddy = chime_purple_remove_buddy,
 	.send_typing = chime_send_typing,
 	.set_idle = chime_purple_set_idle,
+	.blist_node_menu = chime_purple_blist_node_menu,
 };
 
 static void chime_purple_show_about_plugin(PurplePluginAction *action)

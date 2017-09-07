@@ -482,3 +482,8 @@ void chime_purple_chat_invite(PurpleConnection *conn, int id, const char *messag
 	mad->who = g_strdup(who);
 	chime_connection_autocomplete_contact_async(pc->cxn, who, NULL, autocomplete_mad_cb, mad);
 }
+
+GList *chime_purple_chat_menu(PurpleChat *chat)
+{
+	return NULL;
+}

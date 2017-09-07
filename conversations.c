@@ -273,4 +273,3 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 	chime_connection_autocomplete_contact_async(pc->cxn, who, NULL, autocomplete_im_cb, imd);
 	return 0;
 }
-

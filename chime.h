@@ -60,6 +60,7 @@ void chime_purple_buddy_free(PurpleBuddy *buddy);
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
 void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group);
 void chime_purple_user_search(PurplePluginAction *action);
+GList *chime_purple_buddy_menu(PurpleBuddy *buddy);
 
 /* meeting.c */
 void chime_purple_schedule_onetime(PurplePluginAction *action);
@@ -89,6 +90,7 @@ char *chime_purple_cb_real_name(PurpleConnection *conn, int id, const char *who)
 void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);
 void chime_purple_chat_invite(PurpleConnection *conn, int id, const char *message, const char *who);
 struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeObject *obj, JsonNode *first_msg, ChimeMeeting *meeting);
+GList *chime_purple_chat_menu(PurpleChat *chat);
 
 /* conversations.c */
 void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);

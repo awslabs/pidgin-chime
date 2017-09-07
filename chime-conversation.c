@@ -724,6 +724,12 @@ void chime_conversation_send_typing(ChimeConnection *cxn, ChimeConversation *con
 
 }
 
+gboolean chime_conversation_has_member(ChimeConversation *conv, const gchar *member_id)
+{
+	g_return_val_if_fail(CHIME_IS_CONVERSATION(conv), FALSE);
+	return !!g_hash_table_lookup(conv->members, member_id);
+}
+
 static void conv_created_cb(ChimeConnection *cxn, SoupMessage *msg,
 			    JsonNode *node, gpointer user_data)
 {

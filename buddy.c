@@ -335,3 +335,74 @@ void chime_purple_user_search(PurplePluginAction *action)
 			     _("Cancel"), NULL,
 			     NULL, NULL, NULL, conn);
 }
+
+struct conv_match_data {
+	gpointer _conv;
+	gboolean found;
+};
+
+static void match_conv_cb(ChimeConnection *cxn, ChimeConversation *conv, gpointer _d)
+{
+	struct conv_match_data *d = _d;
+
+	if (d->_conv == conv)
+		d->found = TRUE;
+}
+
+static void open_group_conv (PurpleBuddy *buddy, gpointer _conv)
+{
+	/* XXX: See https://developer.pidgin.im/ticket/12597 — we cannot
+	 * ref the object or allocate anything, because there's no sane
+	 * way to free/unref them (and I don't want to play the nasty
+	 * tricks that SIPE does. Instead, we just search the existing
+	 * conversations and see if this is in them. */
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(buddy->account->gc);
+	struct conv_match_data d = {
+		._conv = _conv,
+		.found = FALSE,
+	};
+	chime_connection_foreach_conversation(cxn, match_conv_cb, &d);
+
+	if (d.found)
+		do_join_chat(buddy->account->gc, cxn, _conv, NULL, NULL);
+}
+
+struct conv_find_data {
+	GList *menu;
+	gpointer im_conv;
+	const gchar *id;
+};
+
+static void group_conv_cb(ChimeConnection *cxn, ChimeConversation *conv, gpointer _d)
+{
+	struct conv_find_data *d = _d;
+
+	if (conv == d->im_conv || !chime_conversation_has_member(conv, d->id))
+		return;
+
+	d->menu = g_list_append(d->menu, purple_menu_action_new(chime_conversation_get_name(conv),
+								PURPLE_CALLBACK(open_group_conv), conv, NULL));
+}
+
+GList *chime_purple_buddy_menu(PurpleBuddy *buddy)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(buddy->account->gc);
+	ChimeConnection *cxn = CHIME_CONNECTION(pc->cxn);
+
+	ChimeContact *contact = chime_connection_contact_by_email(cxn, buddy->name);
+	if (!contact)
+		return NULL;
+
+	struct conv_find_data d = {
+		.menu = NULL,
+		.im_conv = NULL,
+		.id = chime_contact_get_profile_id(contact),
+	};
+	struct chime_msgs *msgs = g_hash_table_lookup(pc->ims_by_email, buddy->name);
+	if (msgs)
+		d.im_conv = msgs->obj;
+
+	chime_connection_foreach_conversation(cxn, group_conv_cb, &d);
+
+	return g_list_append(NULL,  purple_menu_action_new(_("Group chats"), NULL, NULL, d.menu));
+}

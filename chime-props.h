@@ -28,7 +28,7 @@
 #define _chime_prop_parse_var_str(low, up, json, name, nick, req) \
 	const gchar *low = NULL;
 #define _chime_prop_parse_var_bool(low, up, json, name, nick, req) \
-	gboolean low = NULL;
+	gboolean low = FALSE;
 #define CHIME_PROPS_PARSE_VARS STRING_PROPS(_chime_prop_parse_var_str) BOOL_PROPS(_chime_prop_parse_var_bool)
 
 #define _chime_prop_free_str(low, up, json, name, nick, req) \

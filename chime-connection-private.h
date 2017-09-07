@@ -24,6 +24,7 @@
 #include "chime-room.h"
 #include "chime-conversation.h"
 #include "chime-meeting.h"
+#include "chime-call.h"
 
 #include <libsoup/soup.h>
 
@@ -150,6 +151,7 @@ typedef struct {
 
 	/* Meetings */
 	ChimeObjectCollection meetings;
+	ChimeObjectCollection calls;
 } ChimeConnectionPrivate;
 
 #define CHIME_CONNECTION_GET_PRIVATE(o) \
@@ -216,9 +218,15 @@ void chime_destroy_rooms(ChimeConnection *cxn);
 gboolean chime_connection_fetch_room(ChimeConnection *cxn, const gchar *id,
 				     JuggernautCallback cb, gpointer cb_data);
 
-/* chime-meetings.c */
+/* chime-meeting.c */
 void chime_init_meetings(ChimeConnection *cxn);
 void chime_destroy_meetings(ChimeConnection *cxn);
+
+/* chime-call.c */
+void chime_init_calls(ChimeConnection *cxn);
+void chime_destroy_calls(ChimeConnection *cxn);
+ChimeCall *chime_connection_parse_call(ChimeConnection *cxn, JsonNode *node,
+				       GError **error);
 
 /* login.c */
 void chime_initial_login(ChimeConnection *cxn);

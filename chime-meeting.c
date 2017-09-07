@@ -47,8 +47,6 @@ enum
 
 	CHIME_PROPS_ENUM
 
-	PROP_CHANNEL,
-	PROP_ROSTER_CHANNEL,
 	PROP_ORGANISER,
 	LAST_PROP,
 };
@@ -65,6 +63,8 @@ static guint signals[LAST_SIGNAL];
 struct _ChimeMeeting {
 	ChimeObject parent_instance;
 
+	ChimeCall *call;
+
 	ChimeMeetingType type;
 
 	gchar *chat_room_id;
@@ -72,8 +72,6 @@ struct _ChimeMeeting {
 
 	CHIME_PROPS_VARS
 
-	gchar *channel;
-	gchar *roster_channel;
 	ChimeContact *organiser;
 
 	/* For open meetings */
@@ -101,6 +99,8 @@ chime_meeting_dispose(GObject *object)
 	close_meeting(NULL, self, NULL);
 	g_signal_emit(self, signals[ENDED], 0, NULL);
 
+	g_clear_object(&self->call);
+
 	G_OBJECT_CLASS(chime_meeting_parent_class)->dispose(object);
 }
 
@@ -113,8 +113,6 @@ chime_meeting_finalize(GObject *object)
 
 	CHIME_PROPS_FREE
 
-	g_free(self->channel);
-	g_free(self->roster_channel);
 	g_object_unref(self->organiser);
 	if (self->chat_room)
 		g_object_unref(self->chat_room);
@@ -137,12 +135,6 @@ static void chime_meeting_get_property(GObject *object, guint prop_id,
 
 	CHIME_PROPS_GET
 
-	case PROP_CHANNEL:
-		g_value_set_string(value, self->channel);
-		break;
-	case PROP_ROSTER_CHANNEL:
-		g_value_set_string(value, self->roster_channel);
-		break;
 	case PROP_ORGANISER:
 		g_value_set_object(value, self->organiser);
 		break;
@@ -168,14 +160,6 @@ static void chime_meeting_set_property(GObject *object, guint prop_id,
 
 	CHIME_PROPS_SET
 
-	case PROP_CHANNEL:
-		g_free(self->channel);
-		self->channel = g_value_dup_string(value);
-		break;
-	case PROP_ROSTER_CHANNEL:
-		g_free(self->roster_channel);
-		self->roster_channel = g_value_dup_string(value);
-		break;
 	case PROP_ORGANISER:
 		g_return_if_fail (self->organiser == NULL);
 		self->organiser = g_value_dup_object(value);
@@ -215,24 +199,6 @@ static void chime_meeting_class_init(ChimeMeetingClass *klass)
 				    G_PARAM_STATIC_STRINGS);
 
 	CHIME_PROPS_REG
-
-	props[PROP_CHANNEL] =
-		g_param_spec_string("channel",
-				    "channel",
-				    "channel",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
-
-	props[PROP_ROSTER_CHANNEL] =
-		g_param_spec_string("roster-channel",
-				    "roster channel",
-				    "roster channel",
-				    NULL,
-				    G_PARAM_READWRITE |
-				    G_PARAM_CONSTRUCT_ONLY |
-				    G_PARAM_STATIC_STRINGS);
 
 	props[PROP_ORGANISER] =
 		g_param_spec_object("organiser",
@@ -297,20 +263,6 @@ const gchar *chime_meeting_get_start_at(ChimeMeeting *self)
 	return self->start_at;
 }
 
-const gchar *chime_meeting_get_channel(ChimeMeeting *self)
-{
-	g_return_val_if_fail(CHIME_IS_MEETING(self), NULL);
-
-	return self->channel;
-}
-
-const gchar *chime_meeting_get_roster_channel(ChimeMeeting *self)
-{
-	g_return_val_if_fail(CHIME_IS_MEETING(self), NULL);
-
-	return self->roster_channel;
-}
-
 ChimeContact *chime_meeting_get_organiser(ChimeMeeting *self)
 {
 	g_return_val_if_fail(CHIME_IS_MEETING(self), NULL);
@@ -346,7 +298,7 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 						    GError **error)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
-	const gchar *id, *name, *channel, *roster_channel, *chat_room_id;
+	const gchar *id, *name, *chat_room_id;
 	ChimeMeetingType type;
 	JsonObject *obj = json_node_get_object(node);
 	JsonNode *call_node = json_object_get_member(obj, "call");
@@ -358,8 +310,6 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 	if (!parse_string(node, "id", &id) ||
 	    !parse_string(node, "summary", &name) ||
 	    !parse_string(chat_node, "id", &chat_room_id) ||
-	    !parse_string(call_node, "channel", &channel) ||
-	    !parse_string(call_node, "roster_channel", &roster_channel) ||
 	    CHIME_PROPS_PARSE ||
 	    !parse_meeting_type(node, "klass", &type)) {
 	eparse:
@@ -393,6 +343,10 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 	if (!organiser)
 		goto eparse;
 
+	ChimeCall *call = chime_connection_parse_call(cxn, call_node, error);
+	if (!call)
+		return NULL;
+
 	ChimeMeeting *meeting = g_hash_table_lookup(priv->meetings.by_id, id);
 	if (!meeting) {
 		meeting = g_object_new(CHIME_TYPE_MEETING,
@@ -401,11 +355,10 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 				       "type", type,
 				       "chat-room-id", chat_room_id,
 				       CHIME_PROPS_NEWOBJ
-				       "channel", channel,
 				       "organiser", organiser,
-				       "roster_channel", roster_channel,
 				       NULL);
 
+		meeting->call = call;
 		chime_object_collection_hash_object(&priv->meetings, CHIME_OBJECT(meeting), TRUE);
 
 		/* Emit signal on ChimeConnection to admit existence of new meeting */
@@ -435,21 +388,14 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 
 	CHIME_PROPS_UPDATE
 
-	if (channel && g_strcmp0(channel, meeting->channel)) {
-		g_free(meeting->channel);
-		meeting->channel = g_strdup(channel);
-		g_object_notify(G_OBJECT(meeting), "channel");
-	}
-	if (roster_channel && g_strcmp0(roster_channel, meeting->roster_channel)) {
-		g_free(meeting->roster_channel);
-		meeting->roster_channel = g_strdup(roster_channel);
-		g_object_notify(G_OBJECT(meeting), "roster-channel");
-	}
 	if (organiser && organiser != meeting->organiser) {
 		g_object_unref(meeting->organiser);
 		meeting->organiser = organiser;
 		g_object_notify(G_OBJECT(meeting), "organiser");
 	}
+
+	/* ASSERT(call == meeting->call) */
+	g_object_unref(call);
 
 	chime_object_collection_hash_object(&priv->meetings, CHIME_OBJECT(meeting), TRUE);
 
@@ -614,8 +560,8 @@ static void close_meeting(gpointer key, gpointer val, gpointer data)
 	ChimeMeeting *meeting = CHIME_MEETING (val);
 
 	if (meeting->cxn) {
-		chime_jugg_unsubscribe(meeting->cxn, meeting->channel, NULL, NULL, NULL);
-		chime_jugg_unsubscribe(meeting->cxn, meeting->roster_channel, NULL, NULL, NULL);
+//		chime_jugg_unsubscribe(meeting->cxn, meeting->channel, NULL, NULL, NULL);
+//		chime_jugg_unsubscribe(meeting->cxn, meeting->roster_channel, NULL, NULL, NULL);
 		meeting->cxn = NULL;
 	}
 }
@@ -864,8 +810,8 @@ static void chime_connection_open_meeting(ChimeConnection *cxn, ChimeMeeting *me
 {
 	if (!meeting->opens++) {
 		meeting->cxn = cxn;
-		chime_jugg_subscribe(cxn, meeting->channel, NULL, NULL, NULL);
-		chime_jugg_subscribe(cxn, meeting->roster_channel, NULL, NULL, NULL);
+//		chime_jugg_subscribe(cxn, meeting->channel, NULL, NULL, NULL);
+//		chime_jugg_subscribe(cxn, meeting->roster_channel, NULL, NULL, NULL);
 	}
 
 	g_task_return_pointer(task, g_object_ref(meeting), g_object_unref);

@@ -198,6 +198,14 @@ void chime_destroy_chat(struct chime_chat *chat)
 
 static void on_group_conv_msg(ChimeConversation *conv, JsonNode *node, PurpleConnection *conn);
 
+static void on_chat_name(ChimeObject *obj, GParamSpec *ignored, struct chime_chat *chat)
+{
+	const gchar *name = chime_object_get_name(obj);
+
+	if (name && chat->conv)
+		purple_conversation_set_name(chat->conv, name);
+}
+
 struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeObject *obj, JsonNode *first_msg, ChimeMeeting *meeting)
 {
 	if (!obj)
@@ -223,6 +231,8 @@ struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, Ch
 	g_hash_table_insert(pc->live_chats, GUINT_TO_POINTER(chat_id), chat);
 	g_hash_table_insert(pc->chats_by_room, obj, chat);
 	init_msgs(conn, &chat->m, obj, do_chat_deliver_msg, name, first_msg);
+
+	g_signal_connect(obj, "notify::name", G_CALLBACK(on_chat_name), chat);
 
 	if (CHIME_IS_ROOM(obj)) {
 		g_signal_connect(obj, "membership", G_CALLBACK(on_room_membership), chat);

@@ -517,23 +517,6 @@ static gboolean visible_rooms_jugg_cb(ChimeConnection *cxn, gpointer _unused, Js
 	return TRUE;
 }
 
-static gboolean room_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
-{
-	const gchar *type;
-	if (!parse_string(data_node, "type", &type))
-		return FALSE;
-
-	if (strcmp(type, "update"))
-		return FALSE;
-
-	JsonObject *obj = json_node_get_object(data_node);
-	JsonNode *record_node = json_object_get_member(obj, "record");
-	if (!record_node)
-		return FALSE;
-
-	return !!chime_connection_parse_room(cxn, record_node, NULL);
-}
-
 static gboolean room_msg_jugg_cb(ChimeConnection *cxn, gpointer _room, JsonNode *data_node)
 {
 	ChimeRoom *room = CHIME_ROOM(_room);
@@ -556,11 +539,13 @@ static void demux_fetch_room_done(GObject *source, GAsyncResult *result, gpointe
 	ChimeConnection *cxn = CHIME_CONNECTION(source);
 	ChimeRoom *room = chime_connection_fetch_room_finish(cxn, result, NULL);
 
-	/* Sanity check that demux_room_msg_jugg_cb() *will* be able to look it up... */
-	if (room)
-		demux_room_msg_jugg_cb(cxn, room, user_data);
+	if (user_data) {
+		/* Sanity check that demux_room_msg_jugg_cb() *will* be able to look it up... */
+		if (room)
+			demux_room_msg_jugg_cb(cxn, room, user_data);
 
-	json_node_unref(user_data);
+		json_node_unref(user_data);
+	}
 }
 
 static gboolean demux_room_msg_jugg_cb(ChimeConnection *cxn, gpointer _room, JsonNode *data_node)
@@ -590,6 +575,31 @@ static gboolean demux_room_msg_jugg_cb(ChimeConnection *cxn, gpointer _room, Jso
 		return room_msg_jugg_cb(cxn, room, data_node);
 
 	g_signal_emit_by_name(cxn, "room-mention", room, record);
+	return TRUE;
+}
+
+static gboolean room_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
+{
+	const gchar *type;
+	if (!parse_string(data_node, "type", &type))
+		return FALSE;
+
+	if (strcmp(type, "update"))
+		return FALSE;
+
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record_node = json_object_get_member(obj, "record");
+	if (!record_node)
+		return FALSE;
+
+	if (chime_connection_parse_room(cxn, record_node, NULL))
+		return TRUE;
+
+	const gchar *room_id;
+	if (!parse_string(record_node, "RoomId", &room_id))
+		return FALSE;
+
+	chime_connection_fetch_room_async(cxn, room_id, NULL, demux_fetch_room_done, NULL);
 	return TRUE;
 }
 
@@ -731,6 +741,7 @@ gboolean chime_connection_open_room(ChimeConnection *cxn, ChimeRoom *room)
 	if (!room->opens++) {
 		room->members = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, free_member);
 		room->cxn = cxn;
+		chime_jugg_subscribe(cxn, room->channel, "Room", room_jugg_cb, NULL);
 		chime_jugg_subscribe(cxn, room->channel, "RoomMessage", room_msg_jugg_cb, room);
 		chime_jugg_subscribe(cxn, room->channel, "RoomMembership", room_membership_jugg_cb, room);
 		fetch_room_memberships(cxn, room, TRUE, NULL);
@@ -744,6 +755,7 @@ static void close_room(gpointer key, gpointer val, gpointer data)
 {
 	ChimeRoom *room = CHIME_ROOM (val);
 	if (room->cxn) {
+		chime_jugg_unsubscribe(room->cxn, room->channel, "Room", room_jugg_cb, NULL);
 		chime_jugg_unsubscribe(room->cxn, room->channel, "RoomMessage", room_msg_jugg_cb, room);
 		chime_jugg_unsubscribe(room->cxn, room->channel, "RoomMembership", room_membership_jugg_cb, room);
 		room->cxn = NULL;

@@ -590,15 +590,11 @@ static ChimeScheduledMeeting *parse_scheduled_meeting(JsonNode *node, GError **e
 
 	if (!parse_string(node, "bridge_screenshare_url", &mtg->bridge_screenshare_url) ||
 	    !parse_string(node, "meeting_id_for_display", &mtg->meeting_id_for_display) ||
-	    !parse_string(node, "vanity_url", &mtg->vanity_url) ||
-	    !parse_string(node, "vanity_name", &mtg->vanity_name) ||
 	    !parse_string(node, "meeting_join_url", &mtg->meeting_join_url) ||
 	    !parse_string(node, "international_dialin_info_url", &mtg->international_dialin_info_url) ||
 	    !parse_string(node, "delegate_scheduling_email", &mtg->delegate_scheduling_email) ||
-	    !parse_string(node, "display_vanity_url", &mtg->display_vanity_url) ||
 	    !parse_string(node, "bridge_passcode", &mtg->bridge_passcode) ||
-	    !parse_string(node, "scheduling_address", &mtg->scheduling_address) ||
-	    !parse_string(node, "display_vanity_url_prefix", &mtg->display_vanity_url_prefix)) {
+	    !parse_string(node, "scheduling_address", &mtg->scheduling_address)) {
 	eparse:
 		*error = g_error_new(CHIME_ERROR, CHIME_ERROR_BAD_RESPONSE,
 				     _("Failed to parse scheduled meeting response"));
@@ -607,6 +603,10 @@ static ChimeScheduledMeeting *parse_scheduled_meeting(JsonNode *node, GError **e
 	}
 	parse_string(node, "toll_dialin", &mtg->toll_dialin);
 	parse_string(node, "toll_free_dialin", &mtg->toll_free_dialin);
+	parse_string(node, "vanity_url", &mtg->vanity_url);
+	parse_string(node, "vanity_name", &mtg->vanity_name);
+	parse_string(node, "display_vanity_url", &mtg->display_vanity_url);
+	parse_string(node, "display_vanity_url_prefix", &mtg->display_vanity_url_prefix);
 
 	JsonObject *obj = json_node_get_object(node);
 	node = json_object_get_member(obj, "international_dialin_info");

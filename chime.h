@@ -75,6 +75,8 @@ void purple_chime_destroy_meetings(PurpleConnection *conn);
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);
 GList *chime_purple_chat_info(PurpleConnection *conn);
 GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name);
+char *chime_purple_get_chat_name(GHashTable *components);
+gchar *chime_purple_roomlist_room_serialize(PurpleRoomlistRoom *room);
 
 /* chat.c */
 struct chime_chat;

@@ -266,15 +266,23 @@ void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data)
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	const gchar *roomid = g_hash_table_lookup(data, "RoomId");
+	const gchar *name = g_hash_table_lookup(data, "Name");
 
-	purple_debug(PURPLE_DEBUG_INFO, "chime", "join_chat %p %s %s\n", data, roomid, (gchar *)g_hash_table_lookup(data, "Name"));
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "join_chat %p %s %s\n", data, roomid, name);
 
-	if (!roomid)
-		return;
-
-	ChimeRoom *room = chime_connection_room_by_id(cxn, roomid);
+	ChimeRoom *room = NULL;
+	if (roomid)
+		room = chime_connection_room_by_id(cxn, roomid);
+	if (!room && name)
+		room = chime_connection_room_by_name(cxn, name);
 	if (!room)
 		return;
+
+	/* Ensure all fields are populated and up to date even if we got here from a partial blist node */
+	g_hash_table_insert(data, g_strdup("Name"), g_strdup(chime_room_get_name(room)));
+	if (!roomid)
+		g_hash_table_insert(data, g_strdup("RoomId"), g_strdup(chime_room_get_id(room)));
+
 	do_join_chat(conn, cxn, CHIME_OBJECT(room), NULL, NULL);
 }
 

@@ -23,6 +23,7 @@
 #include <prpl.h>
 #include <blist.h>
 #include <roomlist.h>
+#include <debug.h>
 
 #include "chime.h"
 #include "chime-room.h"
@@ -59,6 +60,11 @@ PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
 	return roomlist;
 }
 
+gchar *chime_purple_roomlist_room_serialize(PurpleRoomlistRoom *room)
+{
+	/* We use the RoomId as it *uniquely* identifies the room */
+	return g_strdup((char *)room->fields->data);
+}
 
 GList *chime_purple_chat_info(PurpleConnection *conn)
 {
@@ -74,9 +80,9 @@ GList *chime_purple_chat_info(PurpleConnection *conn)
 	   because they aren't unique, and there's no way to preserve it otherwise
 	   when the chat is added to the buddy list. */
 	pce = g_new0(struct proto_chat_entry, 1);
-	pce->label = _("RoomId");
+	pce->label = _("Room ID:");
 	pce->identifier = "RoomId";
-	pce->required = TRUE;
+	pce->required = FALSE;
 
 	return g_list_append(l, pce);
 }
@@ -84,19 +90,27 @@ GList *chime_purple_chat_info(PurpleConnection *conn)
 GHashTable *chime_purple_chat_info_defaults(PurpleConnection *conn, const char *name)
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
-	ChimeRoom *room;
-	GHashTable *hash;
+	GHashTable *hash = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
 
-	if (!name)
-		return NULL;
+	purple_debug_info("chime", "Chat info defaults for '%s'\n", name);
+	if (name) {
+		ChimeRoom *room = chime_connection_room_by_id(cxn, name);
+		if (!room)
+			room = chime_connection_room_by_name(cxn, name);
 
-	hash = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
-
-	g_hash_table_insert(hash, (char *)"Name", g_strdup(name));
-
-	room = chime_connection_room_by_name(cxn, name);
-	if (room)
-		g_hash_table_insert(hash, (char *)"RoomId", g_strdup(chime_room_get_id(room)));
-
+		if (room) {
+			g_hash_table_insert(hash, (char *)"Name", g_strdup(chime_room_get_name(room)));
+			g_hash_table_insert(hash, (char *)"RoomId", g_strdup(chime_room_get_id(room)));
+		}
+	}
 	return hash;
+}
+
+char *chime_purple_get_chat_name(GHashTable *components)
+{
+	const gchar *name = g_hash_table_lookup(components, (char *)"Name");
+
+	purple_debug_info("chime", "Chat name: %s\n", name);
+
+	return g_strdup(name);
 }

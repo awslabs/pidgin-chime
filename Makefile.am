@@ -1,6 +1,10 @@
 
 SUBDIRS = po pixmaps
 
+if BUILD_EVOPLUGIN
+SUBDIRS += evolution-plugin
+endif
+
 AM_CPPFLAGS = @WFLAGS@
 
 plugin_LTLIBRARIES = libchime.la

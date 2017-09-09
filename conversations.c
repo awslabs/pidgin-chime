@@ -245,7 +245,7 @@ static void find_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 
 	ChimeContact *contact = chime_connection_contact_by_email(cxn, imd->who);
 	GSList *l = g_slist_append(NULL, contact);
-	chime_connection_find_conversation_async(cxn, l, NULL, create_im_cb, imd);
+	chime_connection_create_conversation_async(cxn, l, NULL, create_im_cb, imd);
 	g_slist_free_1(l);
 }
 

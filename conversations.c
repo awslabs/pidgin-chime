@@ -221,6 +221,34 @@ static void create_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 	g_free(imd);
 }
 
+static void find_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
+{
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	struct im_send_data *imd = _imd;
+	ChimeConversation *conv = chime_connection_find_conversation_finish(cxn, result, NULL);
+	struct purple_chime *pc = purple_connection_get_protocol_data(imd->conn);
+
+	if (conv) {
+		g_object_unref(conv);
+
+		imd->im = g_hash_table_lookup(pc->ims_by_email, imd->who);
+		if (!imd->im) {
+			purple_debug(PURPLE_DEBUG_INFO, "chime", "No im for %s\n", imd->who);
+			g_free(imd->who);
+			g_free(imd->message);
+			g_free(imd);
+		} else {
+			chime_connection_send_message_async(cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd);
+		}
+		return;
+	}
+
+	ChimeContact *contact = chime_connection_contact_by_email(cxn, imd->who);
+	GSList *l = g_slist_append(NULL, contact);
+	chime_connection_find_conversation_async(cxn, l, NULL, create_im_cb, imd);
+	g_slist_free_1(l);
+}
+
 static void autocomplete_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 {
 	ChimeConnection *cxn = CHIME_CONNECTION(source);
@@ -231,7 +259,7 @@ static void autocomplete_im_cb(GObject *source, GAsyncResult *result, gpointer _
 		ChimeContact *contact = contacts->data;
 		if (!strcmp(imd->who, chime_contact_get_email(contact))) {
 			GSList *l = g_slist_append(NULL, contact);
-			chime_connection_create_conversation_async(cxn, l, NULL, create_im_cb, imd);
+			chime_connection_find_conversation_async(cxn, l, NULL, find_im_cb, imd);
 			g_slist_free_1(l);
 			g_slist_free_full(contacts, g_object_unref);
 			return;
@@ -265,7 +293,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 	ChimeContact *contact = chime_connection_contact_by_email(pc->cxn, who);
 	if (contact) {
 		GSList *l = g_slist_append(NULL, contact);
-		chime_connection_create_conversation_async(pc->cxn, l, NULL, create_im_cb, imd);
+		chime_connection_find_conversation_async(pc->cxn, l, NULL, find_im_cb, imd);
 		g_slist_free_1(l);
 		return 0;
 	}

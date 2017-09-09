@@ -807,3 +807,76 @@ ChimeConversation *chime_connection_create_conversation_finish(ChimeConnection *
 	return g_task_propagate_pointer(G_TASK(result), error);
 }
 
+static void conv_found_cb(ChimeConnection *cxn, SoupMessage *msg,
+			  JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
+		JsonObject *obj = json_node_get_object(node);
+		ChimeConversation *conv = NULL;
+
+		node = json_object_get_member(obj, "Conversations");
+		if (node) {
+			JsonArray *arr = json_node_get_array(node);
+			if (json_array_get_length(arr) == 1)
+				conv = chime_connection_parse_conversation(cxn, json_array_get_element(arr, 0), NULL);
+		}
+
+		if (conv)
+			g_task_return_pointer(task, g_object_ref(conv), g_object_unref);
+		else
+			g_task_return_new_error(task, CHIME_ERROR, CHIME_ERROR_NETWORK,
+						_("Failed to create conversation"));
+	} else {
+		const gchar *reason = msg->reason_phrase;
+
+		if (node)
+			parse_string(node, "error", &reason);
+
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to create conversation: %s"),
+					reason);
+	}
+
+	g_object_unref(task);
+}
+
+void chime_connection_find_conversation_async(ChimeConnection *cxn,
+					      GSList *contacts,
+					      GCancellable *cancellable,
+					      GAsyncReadyCallback callback,
+					      gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	int i, len = g_slist_length(contacts);
+	const gchar **contact_ids = g_new0(const gchar *, len + 1);
+
+	for (i = 0; i < len; i++) {
+		contact_ids[i] = chime_contact_get_profile_id(contacts->data);
+		contacts = contacts->next;
+	}
+	gchar *query_str = g_strjoinv(",", (gchar **)contact_ids);
+	g_free(contact_ids);
+
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+
+	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/conversations");
+	soup_uri_set_query_from_fields(uri, "profile-ids", query_str, NULL);
+	g_free(query_str);
+
+	chime_connection_queue_http_request(cxn, NULL, uri, "GET", conv_found_cb, task);
+}
+
+ChimeConversation *chime_connection_find_conversation_finish(ChimeConnection *self,
+							     GAsyncResult *result,
+							     GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_pointer(G_TASK(result), error);
+}
+

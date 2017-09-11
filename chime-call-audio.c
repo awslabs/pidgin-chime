@@ -30,6 +30,10 @@
 struct _ChimeCallAudio {
 	ChimeCall *call;
 	SoupWebsocketConnection *ws;
+
+	guint data_ack_source;
+	guint32 data_next_seq;
+	guint64 data_ack_mask;
 };
 
 struct xrp_header {
@@ -87,7 +91,7 @@ static void audio_send_auth_packet(ChimeCallAudio *audio)
 	msg.codec = 6; /* Opus Low. Later... */
 	msg.has_codec = TRUE;
 
-	msg.flags = FLAGS__FLAG_MUTE;
+	msg.flags = FLAGS__FLAG_MUTE | FLAGS__FLAG_HAS_PROFILE_TABLE;
 	msg.has_flags = TRUE;
 
 	audio_send_packet(audio, XRP_AUTH_MESSAGE, &msg.base);
@@ -102,14 +106,75 @@ static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt,
 	if (!msg)
 		return FALSE;
 
-
 	printf("Got AuthMessage authorised %d %d\n", msg->has_authorized, msg->authorized);
 	auth_message__free_unpacked(msg, NULL);
 	return TRUE;
 }
 
+static void do_send_ack(ChimeCallAudio *audio)
+{
+	DataMessage msg;
+	data_message__init(&msg);
+
+	msg.ack = audio->data_next_seq - 1;
+	msg.has_ack = TRUE;
+
+	if (audio->data_ack_mask) {
+		msg.has_ack_mask = TRUE;
+		msg.ack_mask = audio->data_ack_mask;
+		audio->data_ack_mask = 0;
+	}
+
+	printf("send data ack %d %llx\n", msg.ack, (unsigned long long)msg.ack_mask);
+	audio_send_packet(audio, XRP_DATA_MESSAGE, &msg.base);
+
+}
+static gboolean idle_send_ack(gpointer _audio)
+{
+	ChimeCallAudio *audio = _audio;
+	do_send_ack(audio);
+	audio->data_ack_source = 0;
+	return FALSE;
+}
+
 static gboolean audio_receive_data_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
+	DataMessage *msg = data_message__unpack(NULL, len, pkt);
+	if (!msg)
+		return FALSE;
+
+	printf("Got DataMessage seq %d %d\n", msg->has_seq, msg->seq);
+	if (!msg->has_seq)
+		return FALSE;
+
+	/* If 'pending' then packat 'data_next_seq' does need to be acked. */
+	gboolean pending = !!audio->data_ack_source;
+
+	if (pending || audio->data_ack_mask) {
+		while (msg->seq > audio->data_next_seq) {
+			if (audio->data_ack_mask & 0x8000000000000000ULL) {
+				do_send_ack(audio);
+				pending = FALSE;
+				break;
+			}
+			audio->data_next_seq++;
+			audio->data_ack_mask <<= 1;
+
+			/* Iff there was already an ack pending, set that bit in the mask */
+			if (pending) {
+				audio->data_ack_mask |= 1;
+				pending = FALSE;
+			}
+		}
+	}
+	audio->data_next_seq = msg->seq + 1;
+	audio->data_ack_mask <<= 1;
+	if (pending)
+		audio->data_ack_mask |= 1;
+	if (!audio->data_ack_source)
+		audio->data_ack_source = g_idle_add(idle_send_ack, audio);
+	return TRUE;
+
 	return FALSE;
 }
 static gboolean audio_receive_packet(ChimeCallAudio *audio, gconstpointer pkt, gsize len)

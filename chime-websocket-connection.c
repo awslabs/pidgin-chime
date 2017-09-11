@@ -1857,4 +1857,5 @@ chime_websocket_connection_set_keepalive_interval (ChimeWebsocketConnection *sel
 		}
 	}
 }
+
 #endif

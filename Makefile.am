@@ -10,7 +10,7 @@ libchime_la_SOURCES = chime.c buddy.c rooms.c chat.c messages.c conversations.c 
 	chime-room.h chime-room.c chime-conversation.h chime-conversation.c \
 	chime-juggernaut.c chime-object.h chime-object.c chime.h \
 	login.c login-amazon.c login-warpdrive.c login-private.h \
-	chime-websocket-connection.c chime-websocket-connection.h \
+	chime-websocket-connection.c chime-websocket-connection.h chime-websocket.c \
 	chime-meeting.c chime-meeting.h meeting.c chime-props.h \
 	chime-call.c chime-call.h
 libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS)

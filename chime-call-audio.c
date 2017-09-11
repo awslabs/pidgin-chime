@@ -21,6 +21,10 @@
 
 #include <libsoup/soup.h>
 
+#include "protobuf/auth_message.pb-c.h"
+#include "protobuf/rt_message.pb-c.h"
+#include "protobuf/data_message.pb-c.h"
+
 #include <arpa/inet.h>
 
 struct _ChimeCallAudio {
@@ -39,14 +43,71 @@ enum xrp_pkt_type {
 	XRP_DATA_MESSAGE = 4,
 };
 
+static void audio_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type type, const ProtobufCMessage *message)
+{
+	size_t len = protobuf_c_message_get_packed_size(message);
+
+	len += sizeof(struct xrp_header);
+	struct xrp_header *hdr = g_malloc0(len);
+	hdr->type = htons(type);
+	hdr->len = htons(len);
+	protobuf_c_message_pack(message, (void *)(hdr + 1));
+	soup_websocket_connection_send_binary(audio->ws, hdr, len);
+	g_free(hdr);
+}
+
+static void audio_send_auth_packet(ChimeCallAudio *audio)
+{
+	ChimeConnection *cxn = chime_call_get_connection(audio->call);
+	if (!cxn)
+		return;
+
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	AuthMessage msg;
+	auth_message__init(&msg);
+	msg.message_type = AUTH_MESSAGE_TYPE__REQUEST;
+	msg.has_message_type = TRUE;
+
+	msg.call_id = 0;
+	msg.has_call_id = TRUE;
+
+	msg.call_uuid = (char *)chime_call_get_uuid(audio->call);
+
+	msg.service_type = SERVICE_TYPE__FULL_DUPLEX;
+	msg.has_service_type = TRUE;
+
+	msg.profile_id = 0;
+	msg.has_profile_id = TRUE;
+
+	msg.profile_uuid = (char *)chime_connection_get_profile_id(cxn);
+
+	/* XX: What if it *just* expired? We'll need to renew it and try again? */
+	msg.session_token = priv->session_token;
+
+	msg.codec = 6; /* Opus Low. Later... */
+	msg.has_codec = TRUE;
+
+	msg.flags = FLAGS__FLAG_MUTE;
+	msg.has_flags = TRUE;
+
+	audio_send_packet(audio, XRP_AUTH_MESSAGE, &msg.base);
+}
 static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
 	return FALSE;
 }
 static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
-	return FALSE;
+	AuthMessage *msg = auth_message__unpack(NULL, len, pkt);
+	if (!msg)
+		return FALSE;
+
+
+	printf("Got AuthMessage authorised %d %d\n", msg->has_authorized, msg->authorized);
+	auth_message__free_unpacked(msg, NULL);
+	return TRUE;
 }
+
 static gboolean audio_receive_data_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
 	return FALSE;
@@ -74,10 +135,10 @@ static gboolean audio_receive_packet(ChimeCallAudio *audio, gconstpointer pkt, g
 	}
 	return FALSE;
 }
+
 static void on_audiows_closed(SoupWebsocketConnection *ws, gpointer _audio)
 {
 	/* XXX: Reconnect it */
-
 }
 
 static void on_audiows_message(SoupWebsocketConnection *ws, gint type,
@@ -119,6 +180,7 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _task)
 	g_signal_connect(G_OBJECT(ws), "closed", G_CALLBACK(on_audiows_closed), audio);
 	g_signal_connect(G_OBJECT(ws), "message", G_CALLBACK(on_audiows_message), audio);
 
+	audio_send_auth_packet(audio);
 	g_task_return_pointer(task, audio, free_audio);
 	g_object_unref(task);
 }

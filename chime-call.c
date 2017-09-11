@@ -159,6 +159,13 @@ static void chime_call_init(ChimeCall *self)
 }
 
 
+/* Internal only */
+ChimeConnection *chime_call_get_connection(ChimeCall *self)
+{
+	g_return_val_if_fail(CHIME_IS_CALL(self), NULL);
+
+	return self->cxn;
+}
 
 gboolean chime_call_get_ongoing(ChimeCall *self)
 {

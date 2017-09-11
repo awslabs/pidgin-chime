@@ -38,6 +38,7 @@
 #define soup_websocket_connection_get_close_data chime_websocket_connection_get_close_data
 #define soup_websocket_connection_get_state chime_websocket_connection_get_state
 #define soup_websocket_connection_send_text chime_websocket_connection_send_text
+#define soup_websocket_connection_send_binary chime_websocket_connection_send_binary
 #define soup_websocket_connection_close chime_websocket_connection_close
 #define soup_session_websocket_connect_async chime_session_websocket_connect_async
 #define soup_session_websocket_connect_finish chime_session_websocket_connect_finish
@@ -229,6 +230,7 @@ void chime_init_calls(ChimeConnection *cxn);
 void chime_destroy_calls(ChimeConnection *cxn);
 ChimeCall *chime_connection_parse_call(ChimeConnection *cxn, JsonNode *node,
 				       GError **error);
+ChimeConnection *chime_call_get_connection(ChimeCall *self);
 
 /* login.c */
 void chime_initial_login(ChimeConnection *cxn);

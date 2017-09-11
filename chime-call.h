@@ -71,15 +71,18 @@ GList *chime_call_get_participants(ChimeCall *self);
 void chime_connection_close_call(ChimeConnection *cxn, ChimeCall *call);
 
 
-void chime_connection_join_call_async(ChimeConnection *cxn,
-				      ChimeCall *call,
-				      GCancellable *cancellable,
-				      GAsyncReadyCallback callback,
-				      gpointer user_data);
+struct _ChimeCallAudio;
+typedef struct _ChimeCallAudio ChimeCallAudio;
 
-ChimeCall *chime_connection_join_call_finish(ChimeConnection *self,
-					     GAsyncResult *result,
-					     GError **error);
+void chime_connection_join_call_audio_async(ChimeConnection *cxn,
+					    ChimeCall *call,
+					    GCancellable *cancellable,
+					    GAsyncReadyCallback callback,
+					    gpointer user_data);
+
+ChimeCallAudio *chime_connection_join_call_audio_finish(ChimeConnection *self,
+							GAsyncResult *result,
+							GError **error);
 
 G_END_DECLS
 

@@ -5,7 +5,7 @@ AC_LANG_C
 AC_CANONICAL_HOST
 AC_DISABLE_STATIC
 AM_MAINTAINER_MODE([enable])
-AM_INIT_AUTOMAKE([foreign tar-ustar])
+AM_INIT_AUTOMAKE([foreign tar-ustar subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 LT_INIT
 
@@ -47,6 +47,7 @@ if test "$purple_datadir" = "" ; then
 fi
 AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
 
+PKG_CHECK_MODULES(PROTOBUF, [protobuf])
 PKG_CHECK_MODULES(JSON, [json-glib-1.0])
 PKG_CHECK_MODULES(LIBXML, [libxml-2.0])
 PKG_CHECK_MODULES(SOUP, [libsoup-2.4 >= 2.50])

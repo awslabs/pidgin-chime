@@ -12,10 +12,13 @@ libchime_la_SOURCES = chime.c buddy.c rooms.c chat.c messages.c conversations.c 
 	login.c login-amazon.c login-warpdrive.c login-private.h \
 	chime-websocket-connection.c chime-websocket-connection.h chime-websocket.c \
 	chime-meeting.c chime-meeting.h meeting.c chime-props.h \
-	chime-call.c chime-call.h chime-call-audio.c
+	chime-call.c chime-call.h chime-call-audio.c \
+	protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
+	protobuf/data_message.pb-c.c protobuf/data_message.pb-c.h \
+	protobuf/rt_message.pb-c.c protobuf/rt_message.pb-c.h
 
-libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS)
-libchime_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS)
+libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS)
+libchime_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS)
 libchime_la_LDFLAGS = -module -avoid-version -no-undefined
 
 POTFILES = $(libchime_la_SOURCES)
@@ -28,5 +31,7 @@ po/$(PACKAGE).pot: $(POTFILES)
 	  --msgid-bugs-address=dwmw2@infradead.org \
 	  -o $@ $(POTFILES)
 
+./protobuf/%.pb-c.c ./protobuf/%.pb-c.h: protobuf/%.proto
+	protoc-c $< --c_out .
 
 EXTRA_DIST = COPYING.LGPL README

@@ -1,0 +1,178 @@
+//  AUTH PROTOCOL 
+//
+//  The client drives the auth sequence until the RT packet flow is started.
+//  The server responds to client messages based on the sequence of messages
+//  received and the state of the authorization.  To be resilient to an
+//  unreliable transport, the client resends each message until a response is
+//  received or too many tries have been made.
+//
+//  FULL DUPLEX AUTH SEQUENCE
+//
+//     Client                  Server
+//
+//  1. REQUEST  ------>  
+//
+//              <------  2. RESPONSE
+//                            authorized=true
+//
+//  3. mic      <=====>  3. spk
+//     packets              packets
+//
+//  The client repeatedly sends a Request message until a Response is received.
+//  When it receives a Response message with authorized=true, it leaves auth
+//  mode and begins sending and receiving RT packets.
+//
+//  The server responds to each Request with a Response.  If authorization
+//  fails, it closes the connection immediately after sending the response.  If
+//  authorization succeeds, it continues to respond to authorization requests
+//  so long as the details of the request do not change; this accomodates lost
+//  response packets.  If too many requests are received, the server hangs up.
+//  If an RT packet is received after successful authorization for a duplex
+//  stream, the server leaves auth mode and begins sending and receiving RT
+//  packets.
+//
+//
+//  DEPRECATED MIC AND SPK STREAM AUTH SEQUENCES
+//
+//  In these deprecated sequences, the flow of RT packets is unidirectional and
+//  opposite for microphone and speaker streams, and so we use slightly
+//  different sequences.
+//
+//  MIC SEQUENCE (DEPRECATED)
+//
+//     Client                  Server
+//
+//  1. REQUEST  ------>  
+//
+//              <------  2. RESPONSE
+//                            authorized=true
+//  3. mic      ======>
+//     packets
+//
+//  The client repeatedly sends a Request message until a Response is received.
+//  When it receives a Response message with authorized=true, it leaves auth
+//  mode and begins sending mic packets.
+//
+//  The server responds to each Request with a Response.  If authorization
+//  fails, it closes the connection immediately after sending the response.  If
+//  authorization succeeds, it continues to respond to authorization requests
+//  so long as the details of the request do not change; this accomodates lost
+//  response packets.  If too many requests are received, the server hangs up.
+//  If an audio packet is received after successful authorization for a mic
+//  stream, the server leaves auth mode and services the mic stream.
+//
+//
+//  SPEAKER SEQUENCE (DEPRECATED)
+//
+//     Client                  Server
+//
+//  1. REQUEST  ------>  
+//
+//              <------  2. RESPONSE
+//                            authorized=true
+//  3. FINISH   ------>
+//
+//              <======  4. speaker packets
+//
+//  The client repeatedly sends a Request message until a Response is received.
+//  When it receives a Response message with authorized=true, it repeatedly
+//  sends a Finish message until a speaker packet is received.
+//  
+//  The server responds to each Request with a Response.  If authorization
+//  fails, it closes the connection immediately after sending the response.  If
+//  authorization succeeds, it continues to respond to authorization requests
+//  so long as the details of the request do not change; this accomodates lost
+//  response packets.  If too many requests are received, the server hangs up.
+//  If a Finish packet is received after successful authorization for a speaker
+//  stream, the server leaves auth mode and begins sending speaker packets.
+//
+//
+//  HANGUP SEQUENCE
+//
+//  The client may initiate the hangup sequence at any time after successful
+//  authorization.  The client sends a HANGUP message and waits for a FINISH
+//  message from the server.  It resends the HANGUP message on a timeout
+//  repeatedly until the FINISH is received or too many tries have been made.
+//
+//  The server checks for a HANGUP message when reading, and when received,
+//  sends a FINISH message and closes the connection.  Note that the server
+//  only responds to a single HANGUP message, and thus if the FINISH message is
+//  lost over unreliable transport, the client will fruitlessly retransmit
+//  HANGUP until it gives up.
+//
+//
+//  SERVER HANGUP SEQUENCE
+//
+//  If a client reports on its initial authorization packet that it supports
+//  being hung up on by the server by enabling the FLAG_HAS_SERVER_HANGUP flag,
+//  then the server server may initiate the hangup sequence at any time after
+//  successful authorization.  The server sends a HANGUP message to the client.
+//  The client should respond with a FINISH message, thus allowing both ends to
+//  terminate the connection.
+//
+
+message AuthMessage {
+    optional AuthMessageType message_type  = 1;
+    optional          uint32 call_id       = 2;  // relay only
+    optional     ServiceType service_type  = 3;
+    optional          string session_token = 4;
+    optional            bool authorized    = 5;
+    optional          string call_uuid     = 6;  // CCP only
+    optional          string profile_uuid  = 7;  // for display only, CCP clients
+    optional          uint32 profile_id    = 16; // for display only, relay clients
+    
+    // at one point we had the idea that codec would be dynamically
+    // settable in each rt packet. however, tincan internals currently
+    // require this to be specified. setting this once in the auth message
+    // avoid wasting space on sending the codec id in each subsequent media
+    // packet
+    optional          uint32 codec         = 17;
+
+    optional          uint32 flags         = 18;
+    optional     PolyContext poly_context  = 19;
+    optional          uint32 status        = 21;
+    optional          uint32 origin        = 22 [default=1];
+    optional          uint32 server_flags  = 23;
+}
+
+message PolyContext {
+    optional string call_token      = 1;
+    repeated string local_addresses = 2;
+}
+
+enum AuthMessageType {
+    REQUEST  = 1;
+    RESPONSE = 2;
+    FINISH   = 3;
+    HANGUP   = 4;
+}
+
+enum ServiceType { // note: match xtl_connection_type_t
+     SPEAKER     = 1;
+     MICROPHONE  = 2;
+     FULL_DUPLEX = 3;
+}
+
+// client status/capabilities
+enum Flags {
+    FLAG_MUTE                 = 1;
+    FLAG_HAS_MIC_GAP_FIX      = 2;
+    FLAG_HAS_SERVER_HANGUP    = 4;
+    FLAG_HAS_POLY_BRAIN       = 8;
+    FLAG_HAS_POLY_CLIENT      = 16;
+    FLAG_HAS_PROFILE_TABLE    = 32;
+    FLAG_HAS_DISCONNECT_AUDIO = 64;
+    FLAG_HAS_CLIENT_STATUS    = 128;
+    FLAG_HAS_RX_MUTE_DTX      = 256;
+}
+
+// sent by server to client
+enum ServerFlags {
+    SERVER_FLAG_HAS_RX_MUTE_DTX = 1;
+}
+
+enum Origin {
+    ORIGIN_NATIVE   = 1;
+    ORIGIN_H323     = 2;
+}
+

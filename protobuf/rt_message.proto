@@ -1,0 +1,95 @@
+
+// xxx call_id will be removed
+
+message RTMessage {
+  optional uint32               call_id         = 1; // deprecated
+  optional uint32               locale_id       = 2; // for future use
+  optional AudioMessage         audio           = 3;
+  repeated ProfileMessage       profiles        = 4;
+  repeated ClientStatsMessage   client_stats    = 16;
+  repeated QualityMessage       qualities       = 17; // deprecated
+  optional PolyMessage          poly_info       = 18;
+  optional ClientStatusMessage  client_status   = 19;
+}
+
+message AudioMessage {
+  optional uint32  seq               = 1; // randomized uint16 carried in a uint32.
+  optional fixed32 sample_time       = 2; // randomized uint32.
+  optional uint32  codec             = 3; // deprecated
+  optional bytes   audio             = 4;
+  optional uint32  total_frames_lost = 5; // frames lost in the *opposite* direction
+  optional uint32  flags             = 6;
+  optional fixed64 server_time       = 16;
+  optional fixed64 echo_time         = 17;
+  optional uint32  pong              = 18; // sequence number
+  optional fixed64 client_time       = 19; // client system time
+  optional fixed64 playout_delay     = 20;
+  optional uint32  pong_time_offset  = 21; // time offset of pong in microseconds
+  optional fixed64 ntp_time          = 22; // ntp_time capture time  
+}
+
+message ProfileMessage {
+  // Previously stream_id was called profile_id.
+  // When we migrated to strings for profile ids we did
+  // not want to send strings in these messages because they
+  // are sent frequently and can consume a lot of bandwidth.
+  // For legacy clients using a uint32 for profile id,
+  // stream_id == profile id. For new clients, there will
+  // be a mapping from stream_id to string profile id.
+  optional uint32  stream_id       = 1;
+  optional uint32  volume          = 2;  // either volume or muted should be set, not both
+  optional bool    muted           = 3;
+  optional uint32  signal_strength = 4;
+  optional fixed64 ntp_timestamp   = 5;
+}
+
+message ClientStatsMessage {
+  optional uint64  time        = 1; // only send once in a single message list
+  optional string  key         = 2; // deprecated
+  optional float   value       = 3;
+  optional uint32  tag         = 4;
+}
+
+// deprecated
+message QualityMessage {
+  optional uint32 profile_id = 1;
+  // signal strength one of three states 0=none, 1=weak, 2=good
+  optional uint32 signal_strength = 2;
+}
+
+enum RTFlags {
+    FLAG_PING          = 1;
+    FLAG_NON_PRESENTER = 2;
+}
+
+message PolyMessage {
+    repeated PolyEndpoint candidates = 1;
+}
+
+message PolyEndpoint {
+    optional string address = 1;
+    optional string token   = 2;
+    optional uint32 port    = 3;
+}
+
+//
+// The remote_mute and remote_mute_ack flags are used as follows:
+//
+//   1. relay tells tincan to remote mute a caller
+//   2. tincan will start sending ClientStatusMessages to the given
+//      client with remote_muted=true
+//   3. the client, seeing remote_muted=true, will mute itself and then
+//      send ClientStatusMessages back to tincan with remote_mute_ack=true
+//   4. when tincan sees remote_mute_ack=true, it will clear the
+//      remote_muted field back to false
+//   5. when the client then sees remote_muted=false, it will clear its
+//      remote_mute_ack field back to false
+//
+// This "fire" and then "ack" style allows us to treat remote muting as the
+// event that it is, rather than a "state" of the call in tincan.
+//
+message ClientStatusMessage {
+    optional bool   remote_muted    = 1;
+    optional bool   is_recording    = 2;
+    optional bool   remote_mute_ack = 3;
+}

@@ -1,0 +1,45 @@
+// XRPDataMessage
+// is used to implement a simple reliable message protocol.
+// Messages can be broken into segments which are conveyed
+// by DataMessage packets.
+//
+// seq is monotonically increasing (mod 2^32) for each packet
+// msg_id is monotonically increasing (mod 2^32) for each logical message
+// Messages are delivered in order according to msg_id.
+//
+// A single logical message can be split across multiple
+// DataMessage packets, each having the same msg_id and different
+// seq.
+//
+// msg_len is the total length of the logical message
+// and must be sent in every segment.
+//
+// offset indicates the offset in bytes of this segment within
+// the logical message.
+//
+// data carries the bytes to be reassembled into the larger message.
+//
+// ack is carries the sequence number to be acknowledged. It
+// can be piggybacked with other data, or sent alone. To ack
+// multiple packets or to selectively acknowledge, use the optional
+// ack_mask bitfield. Acks are not cumulative, so every packet
+// must be acked.
+//
+message DataMessage {
+  optional uint32  seq      = 1;
+  optional uint32  msg_id   = 2;
+  optional uint32  msg_len  = 3;
+  optional uint32  offset   = 4;
+  optional bytes   data     = 5;
+  optional uint32  ack      = 6;
+  optional uint64  ack_mask = 7;
+}
+
+message StreamIdInfo {
+  optional uint32  stream_id  = 1;
+  optional string  profile_id = 2;
+}
+
+message StreamMessage {
+  repeated StreamIdInfo streams = 1;
+}

@@ -352,7 +352,7 @@ static void generate_conv_name(ChimeConnection *cxn, ChimeConversation *conv)
 		m = g_list_remove(m, contact);
 	}
 	g_ptr_array_add(names, NULL);
-	gchar *name = g_strjoinv(",", (gchar **)names->pdata);
+	gchar *name = g_strjoinv("; ", (gchar **)names->pdata);
 	g_ptr_array_unref(names);
 
 	chime_object_rename(CHIME_OBJECT(conv), name);

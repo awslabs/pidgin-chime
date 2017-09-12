@@ -56,6 +56,7 @@ static void audio_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type type, con
 	hdr->type = htons(type);
 	hdr->len = htons(len);
 	protobuf_c_message_pack(message, (void *)(hdr + 1));
+	printf("sending protobuf of len %d\n", len);
 	soup_websocket_connection_send_binary(audio->ws, hdr, len);
 	g_free(hdr);
 }
@@ -235,9 +236,11 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _task)
 	GError *error = NULL;
 	SoupWebsocketConnection *ws = chime_connection_websocket_connect_finish(CHIME_CONNECTION(obj), res, &error);
 	if (!ws) {
+		printf("audio ws error %s\n", error->message);
 		g_task_return_error(task, error);
 		return;
 	}
+	printf("audio ws connected!\n");
 	ChimeCallAudio *audio = g_new0(ChimeCallAudio, 1);
 	audio->ws = ws;
 	audio->call = g_object_ref(call);
@@ -262,16 +265,19 @@ void chime_connection_join_call_audio_async(ChimeConnection *cxn,
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	g_task_set_task_data(task, g_object_ref(call), g_object_unref);
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-
 	/* Grrr, GDtlsClientConnection doesn't actually exist yet. Let's stick
 	   with the WebSocket for now... */
-	SoupURI *uri = soup_uri_new(chime_call_get_audio_ws_url(call));
+	SoupURI *uri = soup_uri_new_printf(chime_call_get_audio_ws_url(call), "/audio");
+	soup_uri_set_scheme(uri, "https");
 	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
+
+	char *protocols[] = { (char *)"opus-low", NULL };
+	gchar *origin = g_strdup_printf("http://%s", soup_uri_get_host(uri));
 	soup_uri_free(uri);
 
-	chime_connection_websocket_connect_async(cxn, msg, NULL, NULL, NULL,
+	chime_connection_websocket_connect_async(cxn, msg, origin, protocols, NULL,
 						 audio_ws_connect_cb, task);
+	g_free(origin);
 }
 
 ChimeCallAudio *chime_connection_join_call_audio_finish(ChimeConnection *self,

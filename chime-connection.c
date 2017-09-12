@@ -325,6 +325,9 @@ chime_connection_init(ChimeConnection *self)
 		g_object_set(priv->soup_sess, "ssl-strict", FALSE, NULL);
 	}
 
+	const gchar *https_aliases[2] = { "wss", NULL };
+	g_object_set(priv->soup_sess, "https-aliases", https_aliases, NULL);
+
 	priv->msgs_pending_auth = g_queue_new();
 	priv->msgs_queued = g_queue_new();
 	priv->state = CHIME_STATE_DISCONNECTED;

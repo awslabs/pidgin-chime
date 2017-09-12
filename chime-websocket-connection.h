@@ -105,21 +105,6 @@ void                chime_websocket_connection_set_keepalive_interval (ChimeWebs
                                                                       guint                    interval);
 
 
-/* These are from soup-session.c, modified in chime-websocket.c */
-void
-chime_session_websocket_connect_async (SoupSession          *session,
-				       SoupMessage          *msg,
-				       const char           *origin,
-				       char                **protocols,
-				       GCancellable         *cancellable,
-				       GAsyncReadyCallback   callback,
-				       gpointer              user_data);
-
-ChimeWebsocketConnection *
-chime_session_websocket_connect_finish (SoupSession      *session,
-					GAsyncResult     *result,
-					GError          **error);
-
 G_END_DECLS
 
 #endif /* __CHIME_WEBSOCKET_CONNECTION_H__ */

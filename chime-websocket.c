@@ -1,5 +1,3 @@
-#ifndef USE_LIBSOUP_WEBSOCKETS
-
 /* Lifted from soup-session.c */
 
 #include <libsoup/soup.h>
@@ -28,9 +26,8 @@ static void
 websocket_connect_async_stop (SoupMessage *msg, gpointer user_data)
 {
 	GTask *task = G_TASK(user_data);
-	SoupSession *sess = SOUP_SESSION(g_task_get_task_data (task));
-	GIOStream *stream;
-	ChimeWebsocketConnection *client;
+	ChimeConnection *cxn = CHIME_CONNECTION(g_task_get_task_data (task));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	GError *error = NULL;
 
 	/* Disconnect websocket_connect_async_stop() handler. */
@@ -39,12 +36,12 @@ websocket_connect_async_stop (SoupMessage *msg, gpointer user_data)
 
 	g_object_ref(msg);
 	if (soup_websocket_client_verify_handshake (msg, &error)) {
-		stream = soup_session_steal_connection (sess, msg);
-		client = chime_websocket_connection_new (stream,
-							 soup_message_get_uri (msg),
-							 SOUP_WEBSOCKET_CONNECTION_CLIENT,
-							 soup_message_headers_get_one (msg->request_headers, "Origin"),
-							 soup_message_headers_get_one (msg->response_headers, "Sec-WebSocket-Protocol"));
+		GIOStream *stream = soup_session_steal_connection (priv->soup_sess, msg);
+		ChimeWebsocketConnection *client = chime_websocket_connection_new (stream,
+				 soup_message_get_uri (msg),
+				 SOUP_WEBSOCKET_CONNECTION_CLIENT,
+				 soup_message_headers_get_one (msg->request_headers, "Origin"),
+				 soup_message_headers_get_one (msg->response_headers, "Sec-WebSocket-Protocol"));
 		g_object_unref (stream);
 
 		g_task_return_pointer (task, client, g_object_unref);
@@ -88,28 +85,28 @@ websocket_connect_async_stop (SoupMessage *msg, gpointer user_data)
  * Since: 2.50
  */
 void
-chime_session_websocket_connect_async (SoupSession          *session,
-				       SoupMessage          *msg,
-				       const char           *origin,
-				       char                **protocols,
-				       GCancellable         *cancellable,
-				       GAsyncReadyCallback   callback,
-				       gpointer              user_data)
+chime_connection_websocket_connect_async (ChimeConnection      *cxn,
+					  SoupMessage          *msg,
+					  const char           *origin,
+					  char                **protocols,
+					  GCancellable         *cancellable,
+					  GAsyncReadyCallback   callback,
+					  gpointer              user_data)
 {
-	GTask *task;
-
-	g_return_if_fail (SOUP_IS_SESSION (session));
+	g_return_if_fail (CHIME_IS_CONNECTION (cxn));
 	g_return_if_fail (SOUP_IS_MESSAGE (msg));
+
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
 	soup_websocket_client_prepare_handshake (msg, origin, protocols);
 
-	task = g_task_new (session, cancellable, callback, user_data);
-	g_task_set_task_data (task, g_object_ref(session), g_object_unref);
+	GTask *task = g_task_new (cxn, cancellable, callback, user_data);
+	g_task_set_task_data (task, g_object_ref(cxn), g_object_unref);
 
 	soup_message_add_status_code_handler (msg, "got-informational",
 					      SOUP_STATUS_SWITCHING_PROTOCOLS,
 					      G_CALLBACK (websocket_connect_async_stop), task);
-	soup_session_queue_message(session, msg, websocket_connect_async_complete, task);
+	soup_session_queue_message(priv->soup_sess, msg, websocket_connect_async_complete, task);
 }
 
 /**
@@ -129,14 +126,13 @@ chime_session_websocket_connect_async (SoupSession          *session,
  * Since: 2.50
  */
 ChimeWebsocketConnection *
-chime_session_websocket_connect_finish (SoupSession      *session,
-				       GAsyncResult     *result,
-				       GError          **error)
+chime_connection_websocket_connect_finish (ChimeConnection  *cxn,
+					   GAsyncResult     *result,
+					   GError          **error)
 {
-	g_return_val_if_fail (SOUP_IS_SESSION (session), NULL);
-	g_return_val_if_fail (g_task_is_valid (result, session), NULL);
+	g_return_val_if_fail (CHIME_IS_CONNECTION (cxn), NULL);
+	g_return_val_if_fail (g_task_is_valid (result, cxn), NULL);
 
 	return g_task_propagate_pointer (G_TASK (result), error);
 }
 
-#endif

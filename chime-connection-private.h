@@ -40,8 +40,6 @@
 #define soup_websocket_connection_send_text chime_websocket_connection_send_text
 #define soup_websocket_connection_send_binary chime_websocket_connection_send_binary
 #define soup_websocket_connection_close chime_websocket_connection_close
-#define soup_session_websocket_connect_async chime_session_websocket_connect_async
-#define soup_session_websocket_connect_finish chime_session_websocket_connect_finish
 #define SoupWebsocketConnection ChimeWebsocketConnection
 #endif
 
@@ -162,6 +160,22 @@ typedef struct {
 				      ChimeConnectionPrivate))
 
 #define chime_debug(...) do { if (getenv("CHIME_DEBUG")) printf(__VA_ARGS__); } while (0)
+
+/* chime-websocket.c */
+/* Like the soup_session_ variants, but with the auth retry */
+void
+chime_connection_websocket_connect_async (ChimeConnection      *cxn,
+					  SoupMessage          *msg,
+					  const char           *origin,
+					  char                **protocols,
+					  GCancellable         *cancellable,
+					  GAsyncReadyCallback   callback,
+					  gpointer              user_data);
+
+SoupWebsocketConnection *
+chime_connection_websocket_connect_finish (ChimeConnection  *cxn,
+					   GAsyncResult     *result,
+					   GError          **error);
 
 /* chime-connection.c */
 void chime_connection_fail(ChimeConnection *cxn, gint code,

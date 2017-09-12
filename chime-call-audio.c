@@ -233,7 +233,7 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _task)
 	ChimeCall *call = CHIME_CALL(g_task_get_task_data(task));
 
 	GError *error = NULL;
-	SoupWebsocketConnection *ws = soup_session_websocket_connect_finish(SOUP_SESSION(obj), res, &error);
+	SoupWebsocketConnection *ws = chime_connection_websocket_connect_finish(CHIME_CONNECTION(obj), res, &error);
 	if (!ws) {
 		g_task_return_error(task, error);
 		return;
@@ -270,8 +270,8 @@ void chime_connection_join_call_audio_async(ChimeConnection *cxn,
 	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
 	soup_uri_free(uri);
 
-	soup_session_websocket_connect_async(priv->soup_sess, msg, NULL, NULL, NULL,
-					     audio_ws_connect_cb, task);
+	chime_connection_websocket_connect_async(cxn, msg, NULL, NULL, NULL,
+						 audio_ws_connect_cb, task);
 }
 
 ChimeCallAudio *chime_connection_join_call_audio_finish(ChimeConnection *self,

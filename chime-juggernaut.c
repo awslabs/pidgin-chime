@@ -230,11 +230,11 @@ static void send_resubscribe_message(ChimeConnection *cxn)
 
 static void jugg_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 {
-	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
+	ChimeConnection *cxn = CHIME_CONNECTION(obj);
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 	GError *error = NULL;
 
-	priv->ws_conn = soup_session_websocket_connect_finish(SOUP_SESSION(obj), res, &error);
+	priv->ws_conn = chime_connection_websocket_connect_finish(cxn, res, &error);
 	if (!priv->ws_conn) {
 		chime_connection_fail(cxn, CHIME_ERROR_NETWORK,
 				      _("Failed to establish WebSocket connection: %s\n"),
@@ -257,8 +257,6 @@ static void jugg_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 
 	if (priv->subscriptions)
 		send_resubscribe_message(cxn);
-
-	g_object_unref(cxn);
 }
 
 static void ws_key_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
@@ -295,8 +293,8 @@ static void ws_key_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gp
 	msg = soup_message_new_from_uri("GET", uri);
 	soup_uri_free(uri);
 
-	soup_session_websocket_connect_async(priv->soup_sess, msg, NULL, NULL, NULL,
-					     jugg_ws_connect_cb, cxn);
+	chime_connection_websocket_connect_async(cxn, msg, NULL, NULL, NULL,
+						 jugg_ws_connect_cb, cxn);
 }
 
 

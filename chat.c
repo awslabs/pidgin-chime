@@ -24,6 +24,8 @@
 #include <blist.h>
 #include <roomlist.h>
 #include <debug.h>
+#include <media.h>
+#include <mediamanager.h>
 
 #include "chime.h"
 #include "chime-connection-private.h"
@@ -37,6 +39,8 @@ struct chime_chat {
 	struct chime_msgs m;
 	PurpleConversation *conv;
 	ChimeMeeting *meeting;
+	ChimeCall *call;
+	ChimeCallAudio *audio;
 };
 
 /*
@@ -186,6 +190,10 @@ void chime_destroy_chat(struct chime_chat *chat)
 	serv_got_chat_left(conn, id);
 
 	if (chat->meeting) {
+		if (chat->audio) {
+			chime_connection_call_audio_close(chat->audio);
+			chat->audio = NULL;
+		}
 		chime_connection_close_meeting(cxn, chat->meeting);
 		g_object_unref(chat->meeting);
 	}
@@ -206,6 +214,29 @@ static void on_chat_name(ChimeObject *obj, GParamSpec *ignored, struct chime_cha
 		purple_conversation_set_name(chat->conv, name);
 }
 
+static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
+{
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	struct chime_chat *chat = _chat;
+
+	chat->audio = chime_connection_join_call_audio_finish(cxn, result, NULL);
+
+#if 0 /* FIXME make this work... */
+	const gchar *uuid = chime_call_get_uuid(chat->call);
+	PurpleMedia *media = purple_media_manager_create_media(purple_media_manager_get(),
+							       chat->conv->account,
+							       "fsrawconference",
+							       uuid,
+							       FALSE);
+	printf("media for %s %p\n", uuid, media);
+	if (media) {
+		gboolean r = purple_media_add_stream(media, "chime", uuid,
+						     PURPLE_MEDIA_AUDIO, FALSE,  "nice", 0, NULL);
+		printf("Add stream %s\n", r ? "succeeded" : "failed");
+	}
+#endif
+}
+
 struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeObject *obj, JsonNode *first_msg, ChimeMeeting *meeting)
 {
 	if (!obj)
@@ -218,8 +249,15 @@ struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, Ch
 
 	chat = g_new0(struct chime_chat, 1);
 
-	if (meeting)
+	if (meeting) {
 		chat->meeting = g_object_ref(meeting);
+		/* Don't try this at home, kids! (yet) */
+		if (getenv("CHIME_AUDIO")) {
+			chat->call = chime_meeting_get_call(meeting);
+			if (chat->call)
+				chime_connection_join_call_audio_async(cxn, chat->call, NULL, audio_joined, chat);
+		}
+	}
 
 	int chat_id = ++pc->chat_id;
 	const gchar *name = chime_object_get_name(obj);

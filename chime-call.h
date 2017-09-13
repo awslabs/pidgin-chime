@@ -83,6 +83,8 @@ void chime_connection_join_call_audio_async(ChimeConnection *cxn,
 ChimeCallAudio *chime_connection_join_call_audio_finish(ChimeConnection *self,
 							GAsyncResult *result,
 							GError **error);
+void chime_connection_call_audio_close(ChimeCallAudio *audio);
+
 
 G_END_DECLS
 

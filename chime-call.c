@@ -53,6 +53,8 @@ static GParamSpec *props[LAST_PROP];
 
 enum {
 	ENDED,
+	CALL_CONNECTED,
+	CALL_DISCONNECTED,
 	LAST_SIGNAL,
 };
 
@@ -150,6 +152,16 @@ static void chime_call_class_init(ChimeCallClass *klass)
 
 	signals[ENDED] =
 		g_signal_new ("ended",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
+
+	signals[CALL_CONNECTED] =
+		g_signal_new ("call-connected",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
+
+	signals[CALL_DISCONNECTED] =
+		g_signal_new ("call-disconnected",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 }

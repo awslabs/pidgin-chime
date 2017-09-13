@@ -277,6 +277,13 @@ ChimeRoom *chime_meeting_get_chat_room(ChimeMeeting *self)
 	return self->chat_room;
 }
 
+ChimeCall *chime_meeting_get_call(ChimeMeeting *self)
+{
+	g_return_val_if_fail(CHIME_IS_MEETING(self), NULL);
+
+	return self->call;
+}
+
 static gboolean parse_meeting_type(JsonNode *node, const gchar *member, ChimeMeetingType *type)
 {
 	const gchar *str;
@@ -806,6 +813,7 @@ static void get_room_cb(ChimeConnection *cxn, SoupMessage *msg,
 	g_object_unref(task);
 }
 #endif
+
 static void chime_connection_open_meeting(ChimeConnection *cxn, ChimeMeeting *meeting, GTask *task)
 {
 	if (!meeting->opens++) {

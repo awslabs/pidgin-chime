@@ -31,6 +31,10 @@ po/$(PACKAGE).pot: $(POTFILES)
 	  --msgid-bugs-address=dwmw2@infradead.org \
 	  -o $@ $(POTFILES)
 
+chime-call-audio.c: protobuf/auth_message.pb-c.h
+chime-call-audio.c: protobuf/rt_message.pb-c.h
+chime-call-audio.c: protobuf/data_message.pb-c.h
+
 %.pb-c.c %.pb-c.h: %.proto
 	$(PROTOC) $< --c_out .
 

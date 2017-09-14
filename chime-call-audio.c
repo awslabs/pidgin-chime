@@ -29,6 +29,13 @@
 #include <string.h>
 #include <ctype.h>
 
+#ifdef AUDIO_HACKS
+#include <opus.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#endif
+
 struct _ChimeCallAudio {
 	ChimeCall *call;
 	SoupWebsocketConnection *ws;
@@ -36,6 +43,10 @@ struct _ChimeCallAudio {
 	guint data_ack_source;
 	guint32 data_next_seq;
 	guint64 data_ack_mask;
+#ifdef AUDIO_HACKS
+	OpusDecoder *opus_dec;
+	int audio_fd;
+#endif
 };
 
 struct xrp_header {
@@ -128,18 +139,81 @@ static void audio_send_auth_packet(ChimeCallAudio *audio)
 	/* XX: What if it *just* expired? We'll need to renew it and try again? */
 	msg.session_token = priv->session_token;
 
-	msg.codec = 6; /* Opus Low. Later... */
+	msg.codec = 7; /* Opus Med. Later... */
 	msg.has_codec = TRUE;
 
-	msg.flags = /*FLAGS__FLAG_MUTE |*/ FLAGS__FLAG_HAS_PROFILE_TABLE;
+	msg.flags = FLAGS__FLAG_HAS_PROFILE_TABLE;
+#ifndef AUDIO_HACKS
+	msg.flags |= FLAGS__FLAG_MUTE;
+#endif
 	msg.has_flags = TRUE;
 
 	audio_send_packet(audio, XRP_AUTH_MESSAGE, &msg.base);
 }
 static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
-	return FALSE;
+	RTMessage *msg = rtmessage__unpack(NULL, len, pkt);
+	if (!msg)
+		return FALSE;
+
+	printf("Got RTMessage client_stats %zd qualities %zd client_status %p\n",
+	       msg->n_client_stats, msg->n_qualities, msg->client_status);
+
+	if (msg->audio) {
+		printf("Audio:");
+		if (msg->audio->has_seq)
+			printf(" seq %d", msg->audio->seq);
+		if (msg->audio->has_sample_time)
+			printf(" sample_time %d", msg->audio->sample_time);
+		if (msg->audio->has_codec)
+			printf(" codec %d", msg->audio->codec);
+		if (msg->audio->has_total_frames_lost)
+			printf(" total_frames_lost %d", msg->audio->total_frames_lost);
+		if (msg->audio->flags)
+			printf(" flags %x", msg->audio->flags);
+		if (msg->audio->has_audio) {
+			printf(" %zd bytes data", msg->audio->audio.len);
+#ifdef AUDIO_HACKS
+			if (audio->audio_fd != -1 && audio->opus_dec) {
+				char buf[65536];
+				int ret = opus_decode(audio->opus_dec, msg->audio->audio.data, msg->audio->audio.len, (opus_int16 *)buf, 16000/50, 0);
+				if (ret < 0) {
+					printf(" decode failed %d (%s)",
+					       ret, opus_strerror(ret));
+				} else {
+					printf(" decoded to %d samples", ret);
+					write(audio->audio_fd, buf, ret * 2);
+				}
+			}
+#endif
+		}
+		printf("\n");
+	}
+	int i;
+	for (i=0; i < msg->n_profiles; i++) {
+		static int prof0_vol = 0;
+		printf("Profile %d:", i);
+		if (msg->profiles[i]->has_stream_id)
+			printf(" id %d", msg->profiles[i]->stream_id);
+		if (msg->profiles[i]->has_volume) {
+			printf(" volume %d", msg->profiles[i]->volume);
+			if (!i) {
+				printf(" delta %d", msg->profiles[i]->volume - prof0_vol);
+				prof0_vol = msg->profiles[i]->volume;
+			}
+		}
+		if (msg->profiles[i]->has_muted)
+			printf(" muted %d", msg->profiles[i]->muted);
+		if (msg->profiles[i]->has_signal_strength)
+			printf(" signal_strength %d", msg->profiles[i]->signal_strength);
+		if (msg->profiles[i]->has_ntp_timestamp)
+			printf(" ntp_timestamp %ld", msg->profiles[i]->ntp_timestamp);
+		printf("\n");
+	}
+	rtmessage__free_unpacked(msg, NULL);
+	return TRUE;
 }
+
 static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
 	AuthMessage *msg = auth_message__unpack(NULL, len, pkt);
@@ -270,6 +344,10 @@ static void free_audio(gpointer _audio)
 	g_signal_handlers_disconnect_matched(G_OBJECT(audio->call), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, audio);
 
 	printf("close audio\n");
+#ifdef AUDIO_HACKS
+	close(audio->audio_fd);
+	opus_decoder_destroy(audio->opus_dec);
+#endif
 	soup_websocket_connection_close(audio->ws, 0, NULL);
 	g_object_unref(audio->ws);
 	g_signal_emit_by_name(audio->call, "call-disconnected");
@@ -293,7 +371,13 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _task)
 	ChimeCallAudio *audio = g_new0(ChimeCallAudio, 1);
 	audio->ws = ws;
 	audio->call = g_object_ref(call);
-
+#ifdef AUDIO_HACKS
+	int opuserr;
+	audio->opus_dec = opus_decoder_create(16000, 1, &opuserr);
+	gchar *fname = g_strdup_printf("chime-call-%s-audio.s16", chime_call_get_uuid(call));
+	audio->audio_fd = open(fname, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+	g_free(fname);
+#endif
 	g_signal_connect(G_OBJECT(ws), "closed", G_CALLBACK(on_audiows_closed), audio);
 	g_signal_connect(G_OBJECT(ws), "message", G_CALLBACK(on_audiows_message), audio);
 
@@ -324,7 +408,7 @@ void chime_connection_join_call_audio_async(ChimeConnection *cxn,
 	SoupURI *uri = soup_uri_new_printf(chime_call_get_audio_ws_url(call), "/audio");
 	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
 
-	char *protocols[] = { (char *)"opus-low", NULL };
+	char *protocols[] = { (char *)"opus-med", NULL };
 	gchar *origin = g_strdup_printf("http://%s", soup_uri_get_host(uri));
 	soup_uri_free(uri);
 

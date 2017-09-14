@@ -60,6 +60,11 @@ if test "$MSGFMT" = ""; then
    AC_MSG_ERROR([msgfmt could not be found. Try configuring with --disable-nls])
 fi
 
+AC_PATH_PROG(PROTOC, protoc-c)
+if test "$PROTOC" = ""; then
+   AC_MSG_ERROR([protoc-c could not be found. Try installing protobuf-c-compiler])
+fi
+
 AC_SUBST([CONFIG_STATUS_DEPENDENCIES],
 	['$(top_srcdir)/po/LINGUAS'])
 

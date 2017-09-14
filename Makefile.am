@@ -31,7 +31,7 @@ po/$(PACKAGE).pot: $(POTFILES)
 	  --msgid-bugs-address=dwmw2@infradead.org \
 	  -o $@ $(POTFILES)
 
-./protobuf/%.pb-c.c ./protobuf/%.pb-c.h: protobuf/%.proto
-	protoc-c $< --c_out .
+%.pb-c.c %.pb-c.h: %.proto
+	$(PROTOC) $< --c_out .
 
 EXTRA_DIST = COPYING.LGPL README

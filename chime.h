@@ -33,6 +33,7 @@ struct purple_chime {
 	ChimeConnection *cxn;
 
 	GHashTable *ims_by_email;
+	GHashTable *ims_by_profile_id;
 
 	GRegex *mention_regex;
 	GHashTable *chats_by_room;

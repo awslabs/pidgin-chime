@@ -100,6 +100,7 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 	g_object_ref(im->peer);
 
 	g_hash_table_insert(pc->ims_by_email, (void *)chime_contact_get_email(im->peer), im);
+	g_hash_table_insert(pc->ims_by_profile_id, (void *)chime_contact_get_profile_id(im->peer), im);
 
 	g_signal_connect(conv, "typing", G_CALLBACK(on_conv_typing), im);
 
@@ -122,12 +123,14 @@ static void im_destroy(gpointer _im)
 
 void purple_chime_init_conversations(struct purple_chime *pc)
 {
-	pc->ims_by_email = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, im_destroy);
+	pc->ims_by_email = g_hash_table_new(g_str_hash, g_str_equal);
+	pc->ims_by_profile_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, im_destroy);
 }
 
 void purple_chime_destroy_conversations(struct purple_chime *pc)
 {
 	g_clear_pointer(&pc->ims_by_email, g_hash_table_destroy);
+	g_clear_pointer(&pc->ims_by_profile_id, g_hash_table_destroy);
 }
 
 struct im_send_data {

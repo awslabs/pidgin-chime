@@ -236,10 +236,9 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
 		gchar *last_sent;
 		g_object_get(obj, "last-sent", &last_sent, NULL);
 
-		if (!last_sent || ! strcmp(last_seen, last_sent)) {
-			printf("No fetch; %s %s\n", last_sent, last_seen);
+		if (!last_sent || ! strcmp(last_seen, last_sent))
 			msgs->msgs_done = TRUE;
-		}
+
 		g_free(last_sent);
 	}
 

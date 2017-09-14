@@ -92,15 +92,30 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 		return;
 	}
 	struct chime_im *im = g_new0(struct chime_im, 1);
-
 	im->peer = members->data;
-	if (!strcmp(chime_connection_get_profile_id(cxn), chime_object_get_id(CHIME_OBJECT(im->peer))))
+
+	const gchar *profile_id = chime_contact_get_profile_id(im->peer);
+	if (!strcmp(chime_connection_get_profile_id(cxn), profile_id)) {
 		im->peer = members->next->data;
+		profile_id = chime_contact_get_profile_id(im->peer);
+	}
 	g_list_free(members);
 	g_object_ref(im->peer);
 
-	g_hash_table_insert(pc->ims_by_email, (void *)chime_contact_get_email(im->peer), im);
-	g_hash_table_insert(pc->ims_by_profile_id, (void *)chime_contact_get_profile_id(im->peer), im);
+	const gchar *email = chime_contact_get_email(im->peer);
+	/* Where multiple profiles exist with the same email address (yes, it happens!),
+	 * we want to prefer the one that has a sane display_name (and not just the
+	 * email address in the display_name field, as incomplete profiles tend to have).
+	 * Theoretically we could look at the ProfileType but we don't actually hav
+	 * that right now.
+	 *
+	 * So insert into the ims_by_email hash table if email != display_name
+	 * or (obviously) if there wasn't already an IM for this email address. */
+	if (strcmp(email, chime_contact_get_display_name(im->peer)) ||
+	    !g_hash_table_lookup(pc->ims_by_email, email))
+		g_hash_table_insert(pc->ims_by_email, (void *)email, im);
+
+	g_hash_table_insert(pc->ims_by_profile_id, (void *)profile_id, im);
 
 	g_signal_connect(conv, "typing", G_CALLBACK(on_conv_typing), im);
 

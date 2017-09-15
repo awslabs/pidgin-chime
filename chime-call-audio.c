@@ -43,6 +43,8 @@ struct _ChimeCallAudio {
 	guint data_ack_source;
 	guint32 data_next_seq;
 	guint64 data_ack_mask;
+	gint32 data_next_logical_msg;
+	GSList *data_messages;
 #ifdef AUDIO_HACKS
 	OpusDecoder *opus_dec;
 	int audio_fd;
@@ -224,10 +226,57 @@ static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt,
 	if (msg->has_authorized && msg->authorized)
 		audio_send_rt_packet(audio);
 
+
 	g_signal_emit_by_name(audio->call, "call-connected");
 
 	auth_message__free_unpacked(msg, NULL);
 	return TRUE;
+}
+struct message_frag {
+	struct message_frag *next;
+	gint32 start;
+	gint32 end;
+};
+
+struct message_buf {
+	gint32 msg_id;
+	gint32 len;
+	uint8_t *buf;
+	struct message_frag *frags;
+};
+
+static struct message_buf *find_msgbuf(ChimeCallAudio *audio, gint32 msg_id, gint32 msg_len)
+{
+	GSList **l = &audio->data_messages;
+	struct message_buf *m;
+
+	while (*l) {
+		m = (*l)->data;
+		if (m->msg_id == msg_id)
+			return m;
+		else if (m->msg_id > msg_id)
+			break;
+		else
+			l = &((*l)->next);
+	}
+	m = g_new0(struct message_buf, 1);
+	m->msg_id = msg_id;
+	m->len = msg_len;
+	m->buf = g_malloc0(msg_len);
+	/* Insert into the correct place in the sorted list */
+	*l = g_slist_prepend(*l, m);
+	return m;
+}
+
+static void free_msgbuf(struct message_buf *m)
+{
+	while (m->frags) {
+		struct message_frag *f = m->frags;
+		m->frags = f->next;
+		g_free(f);
+	}
+	g_free(m->buf);
+	g_free(m);
 }
 
 static void do_send_ack(ChimeCallAudio *audio)
@@ -256,17 +305,72 @@ static gboolean idle_send_ack(gpointer _audio)
 	return FALSE;
 }
 
+static gboolean insert_frag(struct message_buf *m, gint32 start, gint32 end)
+{
+	struct message_frag **f = &m->frags, *nf;
+	while (*f) {
+		if (end < (*f)->start) {
+			/* Insert before *f */
+			break;
+		} else if (start <= (*f)->end) {
+			/* Overlap / touching *f so merge */
+			if (start < (*f)->start)
+				(*f)->start = start;
+			/* ... and merge subsequent frags that we now touch */
+			if (end > (*f)->end) {
+				(*f)->end = end;
+				nf = (*f)->next;
+				while ((*f)->next && nf->start <= (*f)->end) {
+					(*f)->end = nf->end;
+					(*f)->next = nf->next;
+					g_free(nf);
+				}
+			}
+			goto done;
+		} else {
+			/* New frag lives after *f */
+			f = &(*f)->next;
+		}
+	}
+	nf = g_new0(struct message_frag, 1);
+	nf->start = start;
+	nf->end = end;
+	nf->next = *f;
+	*f = nf;
+ done:
+	return (m->frags->start == 0 &&
+		m->frags->end == m->len);
+}
+
+
+static gboolean audio_receive_stream_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
+{
+	StreamMessage *msg = stream_message__unpack(NULL, len, pkt);
+	if (!msg)
+		return FALSE;
+
+	int i;
+	for (i = 0; i < msg->n_streams; i++)
+		printf("Stream %d: id %x uuid %s\n", i, msg->streams[i]->stream_id, msg->streams[i]->profile_id);
+	/* XX: Find the ChimeContacts, put them into a hash table and use them for
+	   emitting signals on receipt of ProfileMessages */
+
+	stream_message__free_unpacked(msg, NULL);
+	return TRUE;
+}
 static gboolean audio_receive_data_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
 	DataMessage *msg = data_message__unpack(NULL, len, pkt);
 	if (!msg)
 		return FALSE;
 
-	printf("Got DataMessage seq %d %d\n", msg->has_seq, msg->seq);
-	if (!msg->has_seq)
+	printf("Got DataMessage seq %d msg_id %d offset %d\n", msg->seq, msg->msg_id, msg->offset);
+	if (!msg->has_seq || !msg->has_msg_id || !msg->has_msg_len)
 		return FALSE;
 
-	/* If 'pending' then packat 'data_next_seq' does need to be acked. */
+	/* First process ACKs */
+
+	/* If 'pending' then packat 'data_next_seq - 1' also needs to be acked. */
 	gboolean pending = !!audio->data_ack_source;
 
 	if (pending || audio->data_ack_mask) {
@@ -292,10 +396,38 @@ static gboolean audio_receive_data_msg(ChimeCallAudio *audio, gconstpointer pkt,
 		audio->data_ack_mask |= 1;
 	if (!audio->data_ack_source)
 		audio->data_ack_source = g_idle_add(idle_send_ack, audio);
-	return TRUE;
 
-	return FALSE;
+
+	/* Now process the incoming data packet. First, drop packets
+	   that look like replays and are too old. */
+	if (msg->msg_id < audio->data_next_logical_msg)
+		return TRUE;
+
+	struct message_buf *m = find_msgbuf(audio, msg->msg_id, msg->msg_len);
+	if (msg->msg_len != m->len)
+		return FALSE; /* WTF? */
+	if (msg->offset + msg->data.len > m->len)
+		return FALSE;
+
+	memcpy(m->buf + msg->offset, msg->data.data, msg->data.len);
+	if (insert_frag(m, msg->offset, msg->offset + msg->data.len)) {
+		printf("Got full message %d\n", m->msg_id);
+		audio_receive_stream_msg(audio, m->buf, m->len);
+		audio->data_next_logical_msg = m->msg_id + 1;
+		/* Now kill *all* pending messagse up to and including this one */
+		while (audio->data_messages) {
+			struct message_buf *m = audio->data_messages->data;
+
+			if (m->msg_id >= audio->data_next_logical_msg)
+				break;
+
+			free_msgbuf(m);
+			audio->data_messages = g_slist_remove(audio->data_messages, m);
+		}
+	}
+	return TRUE;
 }
+
 static gboolean audio_receive_packet(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
 	if (len < sizeof(struct xrp_header))
@@ -343,11 +475,15 @@ static void free_audio(gpointer _audio)
 
 	g_signal_handlers_disconnect_matched(G_OBJECT(audio->call), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, audio);
 
+	if (audio->data_ack_source)
+		g_source_remove(audio->data_ack_source);
+
 	printf("close audio\n");
 #ifdef AUDIO_HACKS
 	close(audio->audio_fd);
 	opus_decoder_destroy(audio->opus_dec);
 #endif
+	g_slist_free_full(audio->data_messages, (GDestroyNotify) free_msgbuf);
 	soup_websocket_connection_close(audio->ws, 0, NULL);
 	g_object_unref(audio->ws);
 	g_signal_emit_by_name(audio->call, "call-disconnected");

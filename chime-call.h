@@ -70,7 +70,6 @@ GList *chime_call_get_participants(ChimeCall *self);
 
 void chime_connection_close_call(ChimeConnection *cxn, ChimeCall *call);
 
-
 struct _ChimeCallAudio;
 typedef struct _ChimeCallAudio ChimeCallAudio;
 

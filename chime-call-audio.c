@@ -45,6 +45,7 @@ struct _ChimeCallAudio {
 	guint64 data_ack_mask;
 	gint32 data_next_logical_msg;
 	GSList *data_messages;
+	GHashTable *profiles;
 #ifdef AUDIO_HACKS
 	OpusDecoder *opus_dec;
 	int audio_fd;
@@ -193,24 +194,29 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 	}
 	int i;
 	for (i=0; i < msg->n_profiles; i++) {
-		static int prof0_vol = 0;
-		printf("Profile %d:", i);
-		if (msg->profiles[i]->has_stream_id)
-			printf(" id %d", msg->profiles[i]->stream_id);
-		if (msg->profiles[i]->has_volume) {
-			printf(" volume %d", msg->profiles[i]->volume);
-			if (!i) {
-				printf(" delta %d", msg->profiles[i]->volume - prof0_vol);
-				prof0_vol = msg->profiles[i]->volume;
-			}
-		}
-		if (msg->profiles[i]->has_muted)
-			printf(" muted %d", msg->profiles[i]->muted);
+		if (!msg->profiles[i]->has_stream_id)
+			continue;
+
+		ChimeContact *contact = g_hash_table_lookup(audio->profiles,
+							    GUINT_TO_POINTER(msg->profiles[i]->stream_id));
+		if (!contact)
+			continue;
+
+		int vol;
+		if (msg->profiles[i]->has_muted && msg->profiles[i]->muted)
+			vol = -128;
+		else if (msg->profiles[i]->has_volume)
+			vol = - msg->profiles[i]->volume;
+		else /* We should have one or the other */
+			continue;
+
+		int signal_strength = -1;
 		if (msg->profiles[i]->has_signal_strength)
-			printf(" signal_strength %d", msg->profiles[i]->signal_strength);
-		if (msg->profiles[i]->has_ntp_timestamp)
-			printf(" ntp_timestamp %ld", msg->profiles[i]->ntp_timestamp);
-		printf("\n");
+			signal_strength = msg->profiles[i]->signal_strength;
+
+		// XX: Doing this by name is inefficient... */
+		g_signal_emit_by_name(audio->call, "profile-stats", contact,
+				      vol, signal_strength);
 	}
 	rtmessage__free_unpacked(msg, NULL);
 	return TRUE;
@@ -349,9 +355,21 @@ static gboolean audio_receive_stream_msg(ChimeCallAudio *audio, gconstpointer pk
 	if (!msg)
 		return FALSE;
 
+	ChimeConnection *cxn = chime_call_get_connection(audio->call);
+	if (!cxn)
+		return FALSE;
+
 	int i;
-	for (i = 0; i < msg->n_streams; i++)
-		printf("Stream %d: id %x uuid %s\n", i, msg->streams[i]->stream_id, msg->streams[i]->profile_id);
+	for (i = 0; i < msg->n_streams; i++) {
+		if (!msg->streams[i]->profile_id || !msg->streams[i]->has_stream_id)
+			continue;
+
+		chime_debug("Stream %d: id %x uuid %s\n", i, msg->streams[i]->stream_id, msg->streams[i]->profile_id);
+		ChimeContact *contact = chime_connection_contact_by_id(cxn, msg->streams[i]->profile_id);
+		if (contact)
+			g_hash_table_insert(audio->profiles, GUINT_TO_POINTER(msg->streams[i]->stream_id),
+					    g_object_ref(contact));
+	}
 	/* XX: Find the ChimeContacts, put them into a hash table and use them for
 	   emitting signals on receipt of ProfileMessages */
 
@@ -483,6 +501,7 @@ static void free_audio(gpointer _audio)
 	close(audio->audio_fd);
 	opus_decoder_destroy(audio->opus_dec);
 #endif
+	g_hash_table_destroy(audio->profiles);
 	g_slist_free_full(audio->data_messages, (GDestroyNotify) free_msgbuf);
 	soup_websocket_connection_close(audio->ws, 0, NULL);
 	g_object_unref(audio->ws);
@@ -507,6 +526,7 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _task)
 	ChimeCallAudio *audio = g_new0(ChimeCallAudio, 1);
 	audio->ws = ws;
 	audio->call = g_object_ref(call);
+	audio->profiles = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_object_unref);
 #ifdef AUDIO_HACKS
 	int opuserr;
 	audio->opus_dec = opus_decoder_create(16000, 1, &opuserr);

@@ -55,6 +55,7 @@ enum {
 	ENDED,
 	CALL_CONNECTED,
 	CALL_DISCONNECTED,
+	PROFILE_STATS,
 	LAST_SIGNAL,
 };
 
@@ -164,6 +165,12 @@ static void chime_call_class_init(ChimeCallClass *klass)
 		g_signal_new ("call-disconnected",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
+
+	signals[PROFILE_STATS] =
+		g_signal_new ("profile-stats",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 3, CHIME_TYPE_CONTACT,
+			      G_TYPE_INT, G_TYPE_INT);
 }
 
 static void chime_call_init(ChimeCall *self)

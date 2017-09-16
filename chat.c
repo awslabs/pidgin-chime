@@ -145,6 +145,26 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 }
 
 
+static void on_call_profile_stats(ChimeCall *call, ChimeContact *contact, int vol, int signal,
+				  struct chime_chat *chat)
+{
+	const gchar *who = chime_contact_get_email(contact);
+
+	if (!purple_conv_chat_find_user(PURPLE_CONV_CHAT(chat->conv), who))
+		return;
+
+	PurpleConvChatBuddyFlags oldflags, flags;
+	oldflags = flags = purple_conv_chat_user_get_flags(PURPLE_CONV_CHAT(chat->conv), who);
+
+	if (vol > -50)
+		flags |= PURPLE_CBFLAGS_VOICE;
+	else
+		flags &= ~PURPLE_CBFLAGS_VOICE;
+
+	if (flags != oldflags)
+		purple_conv_chat_user_set_flags(PURPLE_CONV_CHAT(chat->conv), who, flags);
+}
+
 static void on_room_membership(ChimeRoom *room, ChimeRoomMember *member, struct chime_chat *chat)
 {
 	const gchar *who = chime_contact_get_email(member->contact);
@@ -192,6 +212,8 @@ void chime_destroy_chat(struct chime_chat *chat)
 	if (chat->meeting) {
 		if (chat->audio) {
 			chime_connection_call_audio_close(chat->audio);
+			g_signal_handlers_disconnect_matched(chat->call, G_SIGNAL_MATCH_DATA,
+							     0, 0, NULL, NULL, chat);
 			chat->audio = NULL;
 		}
 		chime_connection_close_meeting(cxn, chat->meeting);
@@ -220,6 +242,11 @@ static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 	struct chime_chat *chat = _chat;
 
 	chat->audio = chime_connection_join_call_audio_finish(cxn, result, NULL);
+
+	if (!chat->audio)
+		return;
+
+	g_signal_connect(chat->call, "profile-stats", G_CALLBACK(on_call_profile_stats), chat);
 
 #if 0 /* FIXME make this work... */
 	const gchar *uuid = chime_call_get_uuid(chat->call);

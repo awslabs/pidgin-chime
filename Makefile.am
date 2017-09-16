@@ -19,10 +19,12 @@ libchime_la_SOURCES = chime.c buddy.c rooms.c chat.c messages.c conversations.c 
 	chime-call.c chime-call.h chime-call-audio.c \
 	protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
 	protobuf/data_message.pb-c.c protobuf/data_message.pb-c.h \
-	protobuf/rt_message.pb-c.c protobuf/rt_message.pb-c.h
+	protobuf/rt_message.pb-c.c protobuf/rt_message.pb-c.h \
+	fs-app-transmitter.c fs-app-transmitter.h \
+	fs-app-stream-transmitter.c fs-app-stream-transmitter.h
 
-libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(OPUS_CFLAGS)
-libchime_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS) $(OPUS_LIBS)
+libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(OPUS_CFLAGS) $(FARSTREAM_CFLAGS)
+libchime_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS) $(OPUS_LIBS) $(FARSTREAM_LIBS)
 libchime_la_LDFLAGS = -module -avoid-version -no-undefined
 
 POTFILES = $(libchime_la_SOURCES)

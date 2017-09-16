@@ -310,21 +310,21 @@ static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 	struct chime_chat *chat = _chat;
 
 	chat->audio = chime_connection_join_call_audio_finish(cxn, result, NULL);
-
 	if (!chat->audio)
 		return;
 
 #if 0 /* FIXME make this work... */
-	const gchar *uuid = chime_call_get_uuid(chat->call);
-	chat->media = purple_media_manager_create_media(purple_media_manager_get(),
+	const gchar *name = chime_call_get_alert_body(chat->call);
+	PurpleMedia *media = purple_media_manager_create_media(purple_media_manager_get(),
 							       chat->conv->account,
 							       "fsrawconference",
-							       uuid,
+							       name,
 							       TRUE);
-	printf("media for %s %p\n", uuid, chat->media);
-	if (chat->media) {
-		gboolean r = purple_media_add_stream(chat->media, "chime", uuid,
-						     PURPLE_MEDIA_AUDIO, TRUE,  "nice", 0, NULL);
+	printf("media for %s %p\n", name, media);
+	if (media) {
+		gboolean r = purple_media_add_stream(media, "chime", name,
+						     PURPLE_MEDIA_AUDIO, TRUE,
+						     "app", 0, NULL);
 		printf("Add stream %s\n", r ? "succeeded" : "failed");
 
 	}

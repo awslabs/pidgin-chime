@@ -39,7 +39,6 @@
 struct _ChimeCallAudio {
 	ChimeCall *call;
 	SoupWebsocketConnection *ws;
-
 	guint data_ack_source;
 	guint32 data_next_seq;
 	guint64 data_ack_mask;
@@ -50,6 +49,10 @@ struct _ChimeCallAudio {
 	OpusDecoder *opus_dec;
 	int audio_fd;
 #endif
+	guint send_rt_source;
+	gint64 last_server_time_offset;
+	RTMessage rt_msg;
+	AudioMessage audio_msg;
 };
 
 struct xrp_header {
@@ -61,6 +64,7 @@ enum xrp_pkt_type {
 	XRP_RT_MESSAGE = 2,
 	XRP_AUTH_MESSAGE= 3,
 	XRP_DATA_MESSAGE = 4,
+	XRP_STREAM_MESSAGE = 5,
 };
 
 static void hexdump(const void *buf, int len)
@@ -100,18 +104,6 @@ static void audio_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type type, con
 	hexdump(hdr, len);
 	soup_websocket_connection_send_binary(audio->ws, hdr, len);
 	g_free(hdr);
-}
-
-static void audio_send_rt_packet(ChimeCallAudio *audio)
-{
-	ChimeConnection *cxn = chime_call_get_connection(audio->call);
-	if (!cxn)
-		return;
-
-	RTMessage msg;
-	rtmessage__init(&msg);
-
-	audio_send_packet(audio, XRP_RT_MESSAGE, &msg.base);
 }
 
 static void audio_send_auth_packet(ChimeCallAudio *audio)
@@ -158,12 +150,14 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 	RTMessage *msg = rtmessage__unpack(NULL, len, pkt);
 	if (!msg)
 		return FALSE;
-
+	gint64 now = g_get_monotonic_time();
 	printf("Got RTMessage client_stats %zd qualities %zd client_status %p\n",
 	       msg->n_client_stats, msg->n_qualities, msg->client_status);
 
 	if (msg->audio) {
 		printf("Audio:");
+		if (msg->audio->has_server_time)
+			audio->last_server_time_offset = msg->audio->server_time - now;
 		if (msg->audio->has_seq)
 			printf(" seq %d", msg->audio->seq);
 		if (msg->audio->has_sample_time)
@@ -222,6 +216,21 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 	return TRUE;
 }
 
+static gboolean do_send_rt_packet(ChimeCallAudio *audio)
+{
+	audio->audio_msg.seq++;
+
+	if (audio->last_server_time_offset) {
+		audio->audio_msg.has_echo_time = 1;
+		audio->audio_msg.echo_time = audio->last_server_time_offset + g_get_monotonic_time();
+		audio->last_server_time_offset = 0;
+	} else
+		audio->audio_msg.has_echo_time = 0;
+
+	audio_send_packet(audio, XRP_RT_MESSAGE, &audio->rt_msg.base);
+
+	return TRUE;
+}
 static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
 	AuthMessage *msg = auth_message__unpack(NULL, len, pkt);
@@ -230,8 +239,9 @@ static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt,
 
 	printf("Got AuthMessage authorised %d %d\n", msg->has_authorized, msg->authorized);
 	if (msg->has_authorized && msg->authorized)
-		audio_send_rt_packet(audio);
+		do_send_rt_packet(audio);
 
+	audio->send_rt_source = g_timeout_add(100, (GSourceFunc)do_send_rt_packet, audio);
 
 	g_signal_emit_by_name(audio->call, "call-connected");
 
@@ -266,6 +276,7 @@ static struct message_buf *find_msgbuf(ChimeCallAudio *audio, gint32 msg_id, gin
 			l = &((*l)->next);
 	}
 	m = g_new0(struct message_buf, 1);
+
 	m->msg_id = msg_id;
 	m->len = msg_len;
 	m->buf = g_malloc0(msg_len);
@@ -429,9 +440,12 @@ static gboolean audio_receive_data_msg(ChimeCallAudio *audio, gconstpointer pkt,
 
 	memcpy(m->buf + msg->offset, msg->data.data, msg->data.len);
 	if (insert_frag(m, msg->offset, msg->offset + msg->data.len)) {
-		printf("Got full message %d\n", m->msg_id);
-		audio_receive_stream_msg(audio, m->buf, m->len);
-		audio->data_next_logical_msg = m->msg_id + 1;
+		struct xrp_header *hdr = (void *)m->buf;
+		if (m->len > sizeof(*hdr) && ntohs(hdr->len) == m->len &&
+		    ntohs(hdr->type) == XRP_STREAM_MESSAGE) {
+			audio_receive_stream_msg(audio, m->buf + sizeof(*hdr), m->len - sizeof(*hdr));
+			audio->data_next_logical_msg = m->msg_id + 1;
+		}
 		/* Now kill *all* pending messagse up to and including this one */
 		while (audio->data_messages) {
 			struct message_buf *m = audio->data_messages->data;
@@ -496,6 +510,8 @@ static void free_audio(gpointer _audio)
 	if (audio->data_ack_source)
 		g_source_remove(audio->data_ack_source);
 
+	if (audio->send_rt_source)
+		g_source_remove(audio->send_rt_source);
 	printf("close audio\n");
 #ifdef AUDIO_HACKS
 	close(audio->audio_fd);
@@ -536,6 +552,11 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _task)
 #endif
 	g_signal_connect(G_OBJECT(ws), "closed", G_CALLBACK(on_audiows_closed), audio);
 	g_signal_connect(G_OBJECT(ws), "message", G_CALLBACK(on_audiows_message), audio);
+
+	rtmessage__init(&audio->rt_msg);
+	audio_message__init(&audio->audio_msg);
+	audio->rt_msg.audio = &audio->audio_msg;
+	audio->audio_msg.has_seq = 1;
 
 	audio_send_auth_packet(audio);
 	g_task_return_pointer(task, audio, free_audio);

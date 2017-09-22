@@ -51,6 +51,7 @@ struct _ChimeCallAudio {
 #endif
 	guint send_rt_source;
 	gint64 last_server_time_offset;
+	gboolean echo_server_time;
 	RTMessage rt_msg;
 	AudioMessage audio_msg;
 };
@@ -156,8 +157,11 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 
 	if (msg->audio) {
 		printf("Audio:");
-		if (msg->audio->has_server_time)
+		if (msg->audio->has_server_time) {
 			audio->last_server_time_offset = msg->audio->server_time - now;
+			audio->echo_server_time = TRUE;
+			printf("Got server_time, offset %ld from %ld\n", audio->last_server_time_offset, msg->audio->server_time);
+		}
 		if (msg->audio->has_seq)
 			printf(" seq %d", msg->audio->seq);
 		if (msg->audio->has_sample_time)
@@ -221,11 +225,26 @@ static gboolean do_send_rt_packet(ChimeCallAudio *audio)
 	audio->audio_msg.seq++;
 
 	if (audio->last_server_time_offset) {
-		audio->audio_msg.has_echo_time = 1;
-		audio->audio_msg.echo_time = audio->last_server_time_offset + g_get_monotonic_time();
-		audio->last_server_time_offset = 0;
+		gint64 t = audio->last_server_time_offset + g_get_monotonic_time();
+		if (audio->echo_server_time) {
+			audio->audio_msg.has_echo_time = 1;
+			audio->audio_msg.echo_time = t;
+			printf("Sending server_time, offset %ld gives %ld\n", audio->last_server_time_offset, audio->audio_msg.echo_time);
+			audio->echo_server_time = FALSE;
+		}
+		audio->audio_msg.has_server_time = TRUE;
+		audio->audio_msg.server_time = t;
 	} else
 		audio->audio_msg.has_echo_time = 0;
+
+	audio->audio_msg.has_total_frames_lost = TRUE;
+	audio->audio_msg.total_frames_lost = 0;
+
+	audio->audio_msg.has_ntp_time = TRUE;
+	audio->audio_msg.ntp_time = g_get_real_time();
+
+	audio->audio_msg.has_audio = TRUE;
+	audio->audio_msg.audio.len = 0;
 
 	audio_send_packet(audio, XRP_RT_MESSAGE, &audio->rt_msg.base);
 

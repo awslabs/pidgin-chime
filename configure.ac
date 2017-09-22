@@ -61,10 +61,19 @@ if test "$MSGFMT" = ""; then
    AC_MSG_ERROR([msgfmt could not be found. Try configuring with --disable-nls])
 fi
 
+
 AC_PATH_PROG(PROTOC, protoc-c)
 if test "$PROTOC" = ""; then
    AC_MSG_ERROR([protoc-c could not be found. Try installing protobuf-c-compiler])
 fi
+
+build_evoplugin=
+PKG_CHECK_MODULES(EVOLUTION, [evolution-calendar-3.0 evolution-shell-3.0 evolution-data-server-1.2 libebook-1.2 libecal-1.2],
+		  [build_evoplugin=yes
+		   evomoddir="$($PKG_CONFIG --variable=moduledir evolution-shell-3.0)"
+		   AC_SUBST(evomoddir, ${evomoddir})],
+		  [:]);
+AM_CONDITIONAL(BUILD_EVOPLUGIN, [ test "$build_evoplugin" = "yes" ])
 
 AC_SUBST([CONFIG_STATUS_DEPENDENCIES],
 	['$(top_srcdir)/po/LINGUAS'])
@@ -84,5 +93,6 @@ AC_CONFIG_FILES([
 	pixmaps/24/Makefile
 	pixmaps/32/Makefile
 	pixmaps/48/Makefile
+	evolution-plugin/Makefile
 	])
 AC_OUTPUT

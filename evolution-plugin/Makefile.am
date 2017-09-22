@@ -1,5 +1,7 @@
 # @EVO_PLUGIN_RULE@
 
+AM_CFLAGS = @WFLAGS@
+
 evomod_LTLIBRARIES = module-event-from-template.la
 
 module_event_from_template_la_CPPFLAGS = $(EVOLUTION_CFLAGS)

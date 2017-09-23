@@ -104,9 +104,9 @@ set_attendees (ECalComponent *comp,
 
 			ca->value = temp;
 			ca->cn = name;
-			ca->cutype = ICAL_CUTYPE_ROOM;
-			ca->status = ICAL_PARTSTAT_DELEGATED;
-			ca->role = ICAL_ROLE_NONPARTICIPANT;
+			ca->cutype = ICAL_CUTYPE_INDIVIDUAL;
+			ca->status = ICAL_PARTSTAT_NEEDSACTION;
+			ca->role = ICAL_ROLE_REQPARTICIPANT;
 
 			to_free = g_slist_prepend (to_free, temp);
 
@@ -191,7 +191,9 @@ static void got_client_cb(GObject *object, GAsyncResult *res, gpointer user_data
 	data = NULL;
 }
 
-static ECalComponent *generate_comp(void)
+static ECalComponent *generate_comp(const gchar *organizer, const gchar *location,
+				    const gchar *summary, const gchar *description,
+				    GSList *attendees)
 {
 	ECalComponentDateTime dt, dt2;
 	struct icaltimetype tt, tt2;
@@ -208,7 +210,7 @@ static ECalComponent *generate_comp(void)
 	icaltime_adjust (&tt2, 0, 0, 30, 0);
 	dt2.value = &tt2;
 	dt2.tzid = icaltimezone_get_tzid(tz);
-	printf("tz %s %s\n", dt2.tzid, e_cal_match_tzid(dt2.tzid));
+
 	ECalComponent *comp;
 	ECalComponentText text;
 	icalproperty *icalprop;
@@ -221,30 +223,42 @@ static ECalComponent *generate_comp(void)
 	e_cal_component_set_dtend (comp, &dt2);
 
 	/* set the summary */
-	text.value = "test subject";
-	text.altrep = NULL;
-	e_cal_component_set_summary (comp, &text);
+	if (summary) {
+		text.value = summary;
+		text.altrep = NULL;
+		e_cal_component_set_summary (comp, &text);
+	}
 
-	text.value = "Chime Meeting";
-	GSList *sl = g_slist_append (NULL, &text);
-	e_cal_component_set_description_list (comp, sl);
-	g_slist_free(sl);
+	if (location) {
+		text.value = location;
+		text.altrep = NULL;
+		e_cal_component_set_location (comp, location);
+	}
 
-	if (0) {
-		const gchar *name = "David Woodhoue";
-		const gchar *address = "dwmw@amazon.com";
-		ECalComponentOrganizer organizer = {NULL, NULL, NULL, NULL};
-		gchar *mailto = g_strconcat ("mailto:", address, NULL);
-		organizer.value = mailto;
-		organizer.cn = name;
-		e_cal_component_set_organizer (comp, &organizer);
+	if (description) {
+		text.value = description;
+		GSList *sl = g_slist_append (NULL, &text);
+		e_cal_component_set_description_list (comp, sl);
+		g_slist_free(sl);
+	}
+
+	if (organizer) {
+		ECalComponentOrganizer e_organizer = {NULL, NULL, NULL, NULL};
+		gchar *mailto = g_strconcat ("mailto:", organizer, NULL);
+		e_organizer.value = mailto;
+		e_organizer.cn = NULL;
+		e_cal_component_set_organizer (comp, &e_organizer);
 		g_free(mailto);
 	}
 
 	CamelInternetAddress *addresses = camel_internet_address_new();
-	camel_internet_address_add(addresses, "Chime meeting reminders", "meet@chime.aws");
-	camel_internet_address_add(addresses, NULL, "pin+foobar@chime.aws");
-
+	if (organizer)
+		camel_internet_address_add(addresses, NULL, organizer);
+	GSList *l = attendees;
+	while (l) {
+		camel_internet_address_add(addresses, NULL, l->data);
+		l = l->next;
+	}
 	set_attendees (comp, addresses);
 	g_object_unref(addresses);
 
@@ -260,43 +274,77 @@ static ECalComponent *generate_comp(void)
 	return comp;
 }
 
+enum goodness {
+	MATCH_NONE,
+	MATCH_DEFAULT,
+	MATCH_PARENT_RO,
+	MATCH_PARENT_RW,
+	MATCH_SOURCE_RO,
+	MATCH_SOURCE_RW
+};
+
 static gboolean
 mail_to_event (EShell *shell)
 {
 	ESourceRegistry *registry;
 	ESource *source = NULL;
-
+	const gchar *organizer = "dwmw@amazon.co.uk";
 	registry = e_shell_get_registry (shell);
+	int match = MATCH_DEFAULT;
+
 	source = e_source_registry_ref_default_calendar (registry);
 
-#if 0 // XX: Find the one best matching the organizer field? */
 	GList *list, *iter;
 	list = e_source_registry_list_sources (registry, E_SOURCE_EXTENSION_CALENDAR);
-
-	/* If there is only one writable source, no need to prompt the user. */
 	for (iter = list; iter != NULL; iter = g_list_next (iter)) {
 		ESource *candidate = E_SOURCE (iter->data);
+		int cand_match = MATCH_NONE;
 		ESource *parent = e_source_registry_ref_source(registry, e_source_get_parent(candidate));
-		printf("Parent '%s' display '%s'\n", e_source_get_display_name(parent),
-		       e_source_get_display_name(candidate));
-		if (e_source_get_writable (candidate)) {
-			if (source == NULL)
-				source = candidate;
-			else {
-				source = NULL;
-				break;
+		if (e_source_has_extension(parent, E_SOURCE_EXTENSION_COLLECTION)) {
+			ESourceCollection *coll = e_source_get_extension(parent, E_SOURCE_EXTENSION_COLLECTION);
+			printf("Parent idetn %s\n", e_source_collection_get_identity(coll));
+		}
+
+		if (!strcmp(e_source_get_display_name(candidate), organizer)) {
+			if (e_source_get_writable(candidate))
+				cand_match = MATCH_SOURCE_RW;
+			else
+				cand_match = MATCH_SOURCE_RO;
+		} else if (match < MATCH_SOURCE_RO) {
+			/* Match parent by display name or collecction identity */
+			ESource *parent = e_source_registry_ref_source(registry, e_source_get_parent(candidate));
+			if (!strcmp(e_source_get_display_name(parent), organizer) ||
+			    (e_source_has_extension(parent, E_SOURCE_EXTENSION_COLLECTION) &&
+			     strcmp(organizer,
+				    e_source_collection_get_identity(
+					e_source_get_extension(parent,
+							       E_SOURCE_EXTENSION_COLLECTION))))) {
+				if (e_source_get_writable(candidate))
+					cand_match = MATCH_PARENT_RW;
+				else
+					cand_match = MATCH_PARENT_RO;
 			}
+		}
+		if (cand_match > match) {
+			g_object_unref(source);
+			source = g_object_ref(candidate);
+			match = cand_match;
+			if (match == MATCH_SOURCE_RW)
+				break;
 		}
 	}
 	g_list_free_full (list, (GDestroyNotify) g_object_unref);
-#endif
 
 	AsyncData *data = g_new0 (AsyncData, 1);
 	EClientCache *client_cache = e_shell_get_client_cache (shell);
 
-	data->comp = generate_comp();
+	GSList *attendees = g_slist_append(NULL, (void *)"meet@chime.aws");
+	attendees = g_slist_append(attendees, (void *)"pin+12345678@chime.aws");
+	data->comp = generate_comp(organizer, "Chime PIN:123456788", "Something", "This is a Chime meeting blah blah blah", attendees);
+	g_slist_free(attendees);
+
 	e_client_cache_get_client(client_cache, source,
-				  E_SOURCE_EXTENSION_CALENDAR, 0, NULL, got_client_cb,
+				  E_SOURCE_EXTENSION_CALENDAR, 1, NULL, got_client_cb,
 				  data);
 
 	g_object_unref (source);

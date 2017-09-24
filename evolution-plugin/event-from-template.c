@@ -39,10 +39,31 @@
 #include <mail/message-list.h>
 
 #include <calendar/gui/calendar-config.h>
+
+#ifdef EVO_HAS_E_COMP_EDITOR
+#include <calendar/gui/e-comp-editor.h>
+
+static GtkWindow *
+get_component_editor (EShell *shell,
+                      ECalClient *client,
+                      ECalComponent *comp)
+{
+	ECompEditor *editor;
+	ECompEditorFlags flags = E_COMP_EDITOR_FLAG_IS_NEW| E_COMP_EDITOR_FLAG_WITH_ATTENDEES | E_COMP_EDITOR_FLAG_ORGANIZER_IS_USER;
+
+
+	editor = e_comp_editor_open_for_component(NULL, shell, e_client_get_source (E_CLIENT(client)),
+						  e_cal_component_get_icalcomponent(comp), flags);
+	if (editor)
+		e_comp_editor_set_changed (editor, TRUE);
+
+	return GTK_WINDOW(editor);
+}
+#else
 #include <calendar/gui/dialogs/comp-editor.h>
 #include <calendar/gui/dialogs/event-editor.h>
 
-static CompEditor *
+static GtkWindow *
 get_component_editor (EShell *shell,
                       ECalClient *client,
                       ECalComponent *comp)
@@ -80,9 +101,9 @@ get_component_editor (EShell *shell,
 
 	e_cal_component_free_id (id);
 
-	return editor;
+	return GTK_WINDOW(editor);
 }
-
+#endif
 static void
 set_attendees (ECalComponent *comp,
                CamelInternetAddress *addresses)
@@ -176,11 +197,11 @@ static void got_client_cb(GObject *object, GAsyncResult *res, gpointer user_data
 	}
 
 
-	CompEditor *editor = get_component_editor (e_shell_get_default(),
-						   E_CAL_CLIENT(client), data->comp);
+	GtkWindow *editor = get_component_editor (e_shell_get_default(),
+						  E_CAL_CLIENT(client), data->comp);
 
 	if (editor)
-		gtk_window_present(GTK_WINDOW(editor));
+		gtk_window_present(editor);
 	else
 		report_error_idle (_("Cannot create calendar editor"), NULL);
 

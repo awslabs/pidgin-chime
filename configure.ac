@@ -70,6 +70,9 @@ fi
 build_evoplugin=
 PKG_CHECK_MODULES(EVOLUTION, [evolution-calendar-3.0 evolution-shell-3.0 evolution-data-server-1.2 libebook-1.2 libecal-1.2],
 		  [build_evoplugin=yes
+		   if $PKG_CONFIG --atleast-version 3.20 evolution-shell-3.0; then
+		      AC_DEFINE(EVO_HAS_E_COMP_EDITOR, 1, [Since 3.20])
+		   fi
 		   evomoddir="$($PKG_CONFIG --variable=moduledir evolution-shell-3.0)"
 		   AC_SUBST(evomoddir, ${evomoddir})],
 		  [:]);

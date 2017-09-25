@@ -222,7 +222,8 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 
 static gboolean do_send_rt_packet(ChimeCallAudio *audio)
 {
-	audio->audio_msg.seq++;
+	audio->audio_msg.seq = (audio->audio_msg.seq + 1) & 0xffff;
+	audio->audio_msg.sample_time += 320;
 
 	if (audio->last_server_time_offset) {
 		gint64 t = audio->last_server_time_offset + g_get_monotonic_time();
@@ -576,6 +577,9 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _task)
 	audio_message__init(&audio->audio_msg);
 	audio->rt_msg.audio = &audio->audio_msg;
 	audio->audio_msg.has_seq = 1;
+	audio->audio_msg.seq = g_random_int_range(0, 0x10000);
+	audio->audio_msg.has_sample_time = 1;
+	audio->audio_msg.sample_time = g_random_int();
 
 	audio_send_auth_packet(audio);
 	g_task_return_pointer(task, audio, free_audio);

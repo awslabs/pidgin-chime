@@ -144,77 +144,44 @@ set_attendees (ECalComponent *comp,
 	g_slist_free (attendees);
 }
 
-
-struct _report_error
-{
-	gchar *format;
-	gchar *param;
-};
-
-static gboolean
-do_report_error (struct _report_error *err)
-{
-	if (err) {
-		e_notice (NULL, GTK_MESSAGE_ERROR, err->format, err->param);
-		g_free (err->format);
-		g_free (err->param);
-		g_free (err);
-	}
-
-	return FALSE;
-}
-
-static void
-report_error_idle (const gchar *format,
-                   const gchar *param)
-{
-	struct _report_error *err = g_new (struct _report_error, 1);
-
-	err->format = g_strdup (format);
-	if (param)
-		err->param = g_strdup (param);
-	else err->param = NULL;
-
-	g_usleep (250);
-	g_idle_add ((GSourceFunc) do_report_error, err);
-}
-
-
 typedef struct {
 	ECalComponent *comp;
+	EShell *shell;
+	GDBusMethodInvocation *invocation;
 }AsyncData;
 
 static void got_client_cb(GObject *object, GAsyncResult *res, gpointer user_data)
 {
 	AsyncData *data = user_data;
 	GError *error = NULL;
+
 	EClient *client = e_client_cache_get_client_finish(E_CLIENT_CACHE(object), res, &error);
-
 	if (!client) {
-		report_error_idle (_("Cannot open calendar. %s"), error->message);
-		g_error_free(error);
-		return;
+		g_dbus_method_invocation_take_error(data->invocation, error);
+	} else {
+		GtkWindow *editor = get_component_editor (data->shell,
+							  E_CAL_CLIENT(client), data->comp);
+
+		if (editor) {
+			g_dbus_method_invocation_return_value (data->invocation, g_variant_new ("(b)", TRUE));
+			gtk_window_present(editor);
+		} else {
+			g_dbus_method_invocation_return_error_literal (data->invocation, E_CLIENT_ERROR,
+								       E_CLIENT_ERROR_OTHER_ERROR,
+								       _("Cannot create event editor"));
+		}
+		g_object_unref (client);
+
 	}
-
-
-	GtkWindow *editor = get_component_editor (e_shell_get_default(),
-						  E_CAL_CLIENT(client), data->comp);
-
-	if (editor)
-		gtk_window_present(editor);
-	else
-		report_error_idle (_("Cannot create calendar editor"), NULL);
-
-	g_object_unref (client);
-
 	g_object_unref (data->comp);
+	g_object_unref (data->shell);
 	g_free (data);
 	data = NULL;
 }
 
-static ECalComponent *generate_comp(const gchar *organizer, const gchar *location,
-				    const gchar *summary, const gchar *description,
-				    GSList *attendees)
+static ECalComponent *generate_comp(const gchar *organizer, const gchar *summary,
+				    const gchar *location, const gchar *description,
+				    GVariantIter *attendees)
 {
 	ECalComponentDateTime dt, dt2;
 	struct icaltimetype tt, tt2;
@@ -263,25 +230,24 @@ static ECalComponent *generate_comp(const gchar *organizer, const gchar *locatio
 		g_slist_free(sl);
 	}
 
-	if (organizer) {
+	CamelInternetAddress *addresses = camel_internet_address_new();
+	if (organizer && camel_address_unformat(CAMEL_ADDRESS(addresses), organizer) > 0) {
 		ECalComponentOrganizer e_organizer = {NULL, NULL, NULL, NULL};
-		gchar *mailto = g_strconcat ("mailto:", organizer, NULL);
+		const gchar *name, *addr;
+		camel_internet_address_get(addresses, 0, &name, &addr);
+		gchar *mailto = g_strconcat ("mailto:", addr, NULL);
 		e_organizer.value = mailto;
-		e_organizer.cn = NULL;
+		e_organizer.cn = name;
 		e_cal_component_set_organizer (comp, &e_organizer);
 		g_free(mailto);
 	}
 
-	CamelInternetAddress *addresses = camel_internet_address_new();
-	if (organizer)
-		camel_internet_address_add(addresses, NULL, organizer);
-	GSList *l = attendees;
-	while (l) {
-		camel_internet_address_add(addresses, NULL, l->data);
-		l = l->next;
+	gchar *attendee;
+	while (g_variant_iter_loop(attendees, "s", &attendee)) {
+		camel_address_unformat(CAMEL_ADDRESS(addresses), attendee);
 	}
+	g_variant_iter_free(attendees);
 	set_attendees (comp, addresses);
-	g_object_unref(addresses);
 
 	/* no need to increment a sequence number, this is a new component */
 	e_cal_component_abort_sequence (comp);
@@ -304,12 +270,12 @@ enum goodness {
 	MATCH_SOURCE_RW
 };
 
-static gboolean
-mail_to_event (EShell *shell)
+static void
+mail_to_event (EShell *shell, GDBusMethodInvocation *invocation, const gchar *organizer, const gchar *summary,
+	       const gchar *location, const gchar *description, GVariantIter *attendees)
 {
 	ESourceRegistry *registry;
 	ESource *source = NULL;
-	const gchar *organizer = "dwmw@amazon.co.uk";
 	registry = e_shell_get_registry (shell);
 	int match = MATCH_DEFAULT;
 
@@ -320,11 +286,6 @@ mail_to_event (EShell *shell)
 	for (iter = list; iter != NULL; iter = g_list_next (iter)) {
 		ESource *candidate = E_SOURCE (iter->data);
 		int cand_match = MATCH_NONE;
-		ESource *parent = e_source_registry_ref_source(registry, e_source_get_parent(candidate));
-		if (e_source_has_extension(parent, E_SOURCE_EXTENSION_COLLECTION)) {
-			ESourceCollection *coll = e_source_get_extension(parent, E_SOURCE_EXTENSION_COLLECTION);
-			printf("Parent idetn %s\n", e_source_collection_get_identity(coll));
-		}
 
 		if (!strcmp(e_source_get_display_name(candidate), organizer)) {
 			if (e_source_get_writable(candidate))
@@ -359,17 +320,15 @@ mail_to_event (EShell *shell)
 	AsyncData *data = g_new0 (AsyncData, 1);
 	EClientCache *client_cache = e_shell_get_client_cache (shell);
 
-	GSList *attendees = g_slist_append(NULL, (void *)"meet@chime.aws");
-	attendees = g_slist_append(attendees, (void *)"pin+12345678@chime.aws");
-	data->comp = generate_comp(organizer, "Chime PIN:123456788", "Something", "This is a Chime meeting blah blah blah", attendees);
-	g_slist_free(attendees);
+	data->comp = generate_comp(organizer, summary, location, description, attendees);
+	data->invocation = invocation;
+	data->shell = g_object_ref(shell);
 
 	e_client_cache_get_client(client_cache, source,
 				  E_SOURCE_EXTENSION_CALENDAR, 1, NULL, got_client_cb,
 				  data);
 
 	g_object_unref (source);
-	return FALSE;
 }
 
 /* Standard GObject macros */
@@ -410,11 +369,95 @@ event_template_handler_get_shell (EEventTemplateHandler *extension)
 }
 
 
+#define EVENT_FROM_TEMPLATE_SERVICE_NAME "im.pidgin.event_editor"
+#define EVENT_FROM_TEMPLATE_OBJECT_PATH "/im/pidgin/event_editor"
+#define EVENT_FROM_TEMPLATE_INTERFACE "im.pidgin.event_editor"
+
+
+static const char introspection_xml[] =
+"<node>"
+"  <interface name='" EVENT_FROM_TEMPLATE_INTERFACE "'>"
+"    <method name='CreateEvent'>"
+"      <arg type='s' name='organizer' direction='in'/>"
+"      <arg type='s' name='summary' direction='in'/>"
+"      <arg type='s' name='location' direction='in'/>"
+"      <arg type='s' name='description' direction='in'/>"
+"      <arg type='as' name='attendees' direction='in'/>"
+"      <arg type='b' name='success' direction='out'/>"
+"    </method>"
+"  </interface>"
+"</node>";
+
+static void
+handle_method_call (GDBusConnection *connection,
+                    const char *sender,
+                    const char *object_path,
+                    const char *interface_name,
+                    const char *method_name,
+                    GVariant *parameters,
+                    GDBusMethodInvocation *invocation,
+                    gpointer user_data)
+{
+        if (g_strcmp0 (interface_name, EVENT_FROM_TEMPLATE_INTERFACE) ||
+	    g_strcmp0 (method_name, "CreateEvent"))
+                return;
+
+	const gchar *organizer = NULL, *summary = NULL, *location = NULL, *description = NULL;
+
+	GVariantIter *attendees = NULL;
+
+	g_variant_get (parameters, "(ssssas)", &organizer, &summary, &location, &description, &attendees);
+
+	mail_to_event(event_template_handler_get_shell(E_EVENT_TEMPLATE_HANDLER(user_data)), invocation,
+		      organizer, summary, location, description, attendees);
+
+}
+
+static const GDBusInterfaceVTable interface_vtable = {
+        handle_method_call,
+        NULL,
+        NULL
+};
+
+static void
+bus_acquired_cb (GDBusConnection *connection,
+                 const char *name,
+                 gpointer user_data)
+{
+        guint registration_id;
+        GError *error = NULL;
+        static GDBusNodeInfo *introspection_data = NULL;
+
+        if (!introspection_data)
+                introspection_data = g_dbus_node_info_new_for_xml (introspection_xml, NULL);
+
+        registration_id =
+                g_dbus_connection_register_object (
+                        connection,
+                        EVENT_FROM_TEMPLATE_OBJECT_PATH,
+                        introspection_data->interfaces[0],
+                        &interface_vtable,
+                        g_object_ref (user_data),
+                        g_object_unref,
+                        &error);
+
+        if (!registration_id) {
+                g_warning ("Failed to register object: %s\n", error->message);
+                g_error_free (error);
+        }
+	g_warning("Registered object\n");
+}
+
 static void
 event_template_handler_listen (EEventTemplateHandler *extension)
 {
-	printf("NOW LISTENING FOR EVENT TEMPLATES (not)\n");
-	g_timeout_add(5000, (GSourceFunc)mail_to_event, event_template_handler_get_shell(extension));
+	g_bus_own_name(G_BUS_TYPE_SESSION,
+		       EVENT_FROM_TEMPLATE_SERVICE_NAME,
+		       G_BUS_NAME_OWNER_FLAGS_NONE,
+		       bus_acquired_cb,
+		       NULL, NULL,
+		       g_object_ref (extension),
+		       g_object_unref);
 }
 
 static void

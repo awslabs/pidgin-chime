@@ -35,25 +35,11 @@ static gchar *format_pin(const gchar *pin)
 		return g_strdup(pin);
 }
 
-static void schedule_meeting_cb(GObject *source, GAsyncResult *result, gpointer _conn)
+static GString *scheduled_meeting_description(ChimeScheduledMeeting *mtg)
 {
-	PurpleConnection *conn = _conn;
-	GError *error = NULL;
-
-	ChimeScheduledMeeting *mtg = chime_connection_meeting_schedule_info_finish(CHIME_CONNECTION(source),
-										   result, &error);
-	if (!mtg) {
-		purple_notify_error(conn, NULL,
-				    _("Unable to schedule meeting"),
-				    error->message);
-		return;
-	}
-
-	gchar *secondary = g_strdup_printf(_("Remember to invite:\n%s, %s"),
-					   "meet@chime.aws", mtg->delegate_scheduling_email);
 	GString *invite_str = g_string_new("");
 
-	g_string_append_printf(invite_str, _("---------- %s ----------<br><br>"),
+	g_string_append_printf(invite_str, _("---------- %s ----------<br>\n"),
 		_("Amazon Chime Meeting Information"));
 	g_string_append_printf(invite_str, _("You have been invited to an online meeting, powered by Amazon Chime.<br><br>"));
 	g_string_append_printf(invite_str, _("1. Click to join the meeting: %s<br>Meeting ID: %s<br><br>"),
@@ -88,14 +74,100 @@ static void schedule_meeting_cb(GObject *source, GAsyncResult *result, gpointer 
 	g_string_append_printf(invite_str, "---------- %s ---------",
 			       _("End of Amazon Chime Meeting Information"));
 
-	purple_notify_formatted(conn, _("Amazon Chime Meeting Information"),
+	return invite_str;
+}
+
+struct scheduled_meeting_data {
+	PurpleConnection *conn;
+	ChimeScheduledMeeting *mtg;
+};
+
+static void scheduled_meeting_notify(struct scheduled_meeting_data *data)
+{
+	gchar *secondary = g_strdup_printf(_("Remember to invite:\n%s, %s"),
+					   "meet@chime.aws", data->mtg->delegate_scheduling_email);
+	GString *invite_str = scheduled_meeting_description(data->mtg);
+
+	purple_notify_formatted(data->conn, _("Amazon Chime Meeting Information"),
 				_("Meeting invite template"),
 		secondary, invite_str->str, NULL, NULL);
 
 	g_free(secondary);
 	g_string_free(invite_str, TRUE);
 
-	chime_scheduled_meeting_free(mtg);
+	chime_scheduled_meeting_free(data->mtg);
+	g_free(data);
+}
+
+static void sent_create_event(GObject *source, GAsyncResult *result, gpointer _data)
+{
+	struct scheduled_meeting_data *data = _data;
+
+	GVariant *reply = g_dbus_proxy_call_finish(G_DBUS_PROXY(source), result, NULL);
+	if (!reply) {
+		scheduled_meeting_notify(data);
+		return;
+	}
+	g_variant_unref(reply);
+	chime_scheduled_meeting_free(data->mtg);
+	g_free(data);
+}
+
+static void got_dbus_proxy(GObject *source, GAsyncResult *result, gpointer _data)
+{
+	struct scheduled_meeting_data *data = _data;
+
+	GDBusProxy *proxy = g_dbus_proxy_new_for_bus_finish(result, NULL);
+	if (!proxy) {
+		scheduled_meeting_notify(data);
+		return;
+	}
+
+	gchar *pin = format_pin(data->mtg->bridge_passcode);
+	gchar *location = g_strdup_printf(_("Chime: PIN %s"), pin);
+	GString *description = scheduled_meeting_description(data->mtg);
+	const gchar *attendees[3];
+
+	attendees[0] = "meet@chime.aws";
+	attendees[1] = data->mtg->delegate_scheduling_email;
+	attendees[2] = NULL;
+
+	gchar *description_text = purple_unescape_html(description->str);
+	g_dbus_proxy_call(proxy, "CreateEvent",
+			  g_variant_new("(ssss^as)", data->conn->account->username,
+					"Chime meeting", location, description_text,
+					attendees),
+			  G_DBUS_CALL_FLAGS_NONE, 10000, NULL, sent_create_event, data);
+
+	g_free(location);
+	g_free(pin);
+	g_free(description_text);
+
+	g_string_free(description, TRUE);
+}
+
+static void schedule_meeting_cb(GObject *source, GAsyncResult *result, gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	GError *error = NULL;
+
+	ChimeScheduledMeeting *mtg = chime_connection_meeting_schedule_info_finish(CHIME_CONNECTION(source),
+										   result, &error);
+	if (!mtg) {
+		purple_notify_error(conn, NULL,
+				    _("Unable to schedule meeting"),
+				    error->message);
+		return;
+	}
+
+	struct scheduled_meeting_data *data = g_new0(struct scheduled_meeting_data, 1);
+	data->conn = conn;
+	data->mtg = mtg;
+
+	g_dbus_proxy_new_for_bus(G_BUS_TYPE_SESSION,
+				 G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES | G_DBUS_PROXY_FLAGS_DO_NOT_CONNECT_SIGNALS,
+				 NULL, "im.pidgin.event_editor", "/im/pidgin/event_editor", "im.pidgin.event_editor",
+				 NULL, got_dbus_proxy, data);
 }
 
 static void do_schedule_meeting(PurplePluginAction *action, gboolean onetime)

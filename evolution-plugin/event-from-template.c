@@ -163,7 +163,7 @@ static void got_client_cb(GObject *object, GAsyncResult *res, gpointer user_data
 							  E_CAL_CLIENT(client), data->comp);
 
 		if (editor) {
-			g_dbus_method_invocation_return_value (data->invocation, g_variant_new ("(b)", TRUE));
+			g_dbus_method_invocation_return_value (data->invocation, g_variant_new ("()"));
 			gtk_window_present(editor);
 		} else {
 			g_dbus_method_invocation_return_error_literal (data->invocation, E_CLIENT_ERROR,
@@ -383,7 +383,6 @@ static const char introspection_xml[] =
 "      <arg type='s' name='location' direction='in'/>"
 "      <arg type='s' name='description' direction='in'/>"
 "      <arg type='as' name='attendees' direction='in'/>"
-"      <arg type='b' name='success' direction='out'/>"
 "    </method>"
 "  </interface>"
 "</node>";

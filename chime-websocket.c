@@ -37,7 +37,7 @@ websocket_connect_async_stop (SoupMessage *msg, gpointer user_data)
 	g_object_ref(msg);
 	if (soup_websocket_client_verify_handshake (msg, &error)) {
 		GIOStream *stream = soup_session_steal_connection (priv->soup_sess, msg);
-		ChimeWebsocketConnection *client = chime_websocket_connection_new (stream,
+		SoupWebsocketConnection *client = soup_websocket_connection_new (stream,
 				 soup_message_get_uri (msg),
 				 SOUP_WEBSOCKET_CONNECTION_CLIENT,
 				 soup_message_headers_get_one (msg->request_headers, "Origin"),
@@ -63,7 +63,7 @@ websocket_connect_async_stop (SoupMessage *msg, gpointer user_data)
  * @callback: the callback to invoke
  * @user_data: data for @callback
  *
- * Asynchronously creates a #ChimeWebsocketConnection to communicate
+ * Asynchronously creates a #SoupWebsocketConnection to communicate
  * with a remote server.
  *
  * All necessary WebSocket-related headers will be added to @msg, and
@@ -74,7 +74,7 @@ websocket_connect_async_stop (SoupMessage *msg, gpointer user_data)
  * code and response headers will be updated, and then the WebSocket
  * handshake will be completed. On success,
  * soup_websocket_connect_finish() will return a new
- * #ChimeWebsocketConnection. On failure it will return a #GError.
+ * #SoupWebsocketConnection. On failure it will return a #GError.
  *
  * If the server returns a status other than "101 Switching
  * Protocols", then @msg will contain the complete response headers
@@ -125,7 +125,7 @@ chime_connection_websocket_connect_async (ChimeConnection      *cxn,
  *
  * Since: 2.50
  */
-ChimeWebsocketConnection *
+SoupWebsocketConnection *
 chime_connection_websocket_connect_finish (ChimeConnection  *cxn,
 					   GAsyncResult     *result,
 					   GError          **error)

@@ -765,13 +765,14 @@ void chime_connection_remove_contact_async(ChimeConnection *cxn,
 	}
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
-	/* Assume success; we'll refetch and reinstate it on failure */
-	chime_object_collection_hash_object(&priv->contacts, CHIME_OBJECT(contact), FALSE);
 
 	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts/%s",
 					   chime_object_get_id(CHIME_OBJECT(contact)));
 	chime_connection_queue_http_request(cxn, NULL, uri, "DELETE",
 					    contact_removed_cb, task);
+
+	/* Assume success; we'll refetch and reinstate it on failure */
+	chime_object_collection_hash_object(&priv->contacts, CHIME_OBJECT(contact), FALSE);
 }
 
 gboolean chime_connection_remove_contact_finish(ChimeConnection *self,

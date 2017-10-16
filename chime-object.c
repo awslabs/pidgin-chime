@@ -239,6 +239,12 @@ void chime_object_collection_hash_object(ChimeObjectCollection *collection, Chim
 
 	priv->generation = collection->generation;
 
+	if (!priv->collection) {
+		priv->collection = collection;
+		g_hash_table_insert(collection->by_id, priv->id, object);
+		g_hash_table_insert(collection->by_name, priv->name, object);
+	}
+
 	if (live && priv->is_dead) {
 		g_object_ref(object);
 		priv->is_dead = FALSE;
@@ -247,12 +253,6 @@ void chime_object_collection_hash_object(ChimeObjectCollection *collection, Chim
 		priv->is_dead = TRUE;
 		g_object_notify(G_OBJECT(object), "dead");
 		g_object_unref(object);
-	}
-
-	if (!priv->collection) {
-		priv->collection = collection;
-		g_hash_table_insert(collection->by_id, priv->id, object);
-		g_hash_table_insert(collection->by_name, priv->name, object);
 	}
 }
 

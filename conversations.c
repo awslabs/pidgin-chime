@@ -151,6 +151,7 @@ void purple_chime_destroy_conversations(struct purple_chime *pc)
 struct im_send_data {
 	PurpleConnection *conn;
 	struct chime_im *im;
+	ChimeContact *contact;
 	gchar *who;
 	gchar *message;
 	PurpleMessageFlags flags;
@@ -207,6 +208,8 @@ static void sent_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 		g_clear_error(&error);
 	}
 
+	if (imd->contact)
+		g_object_unref(imd->contact);
 	g_free(imd->who);
 	g_free(imd->message);
 	g_free(imd);
@@ -234,6 +237,8 @@ static void create_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 	}
  bad:
 	im_send_error(cxn, imd, _("Failed to create IM conversation"));
+	if (imd->contact)
+		g_object_unref(imd->contact);
 	g_free(imd->who);
 	g_free(imd->message);
 	g_free(imd);
@@ -252,6 +257,7 @@ static void find_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 		imd->im = g_hash_table_lookup(pc->ims_by_email, imd->who);
 		if (!imd->im) {
 			purple_debug(PURPLE_DEBUG_INFO, "chime", "No im for %s\n", imd->who);
+			g_object_unref(imd->contact);
 			g_free(imd->who);
 			g_free(imd->message);
 			g_free(imd);
@@ -261,8 +267,7 @@ static void find_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 		return;
 	}
 
-	ChimeContact *contact = chime_connection_contact_by_email(cxn, imd->who);
-	GSList *l = g_slist_append(NULL, contact);
+	GSList *l = g_slist_append(NULL, imd->contact);
 	chime_connection_create_conversation_async(cxn, l, NULL, create_im_cb, imd);
 	g_slist_free_1(l);
 }
@@ -277,6 +282,7 @@ static void autocomplete_im_cb(GObject *source, GAsyncResult *result, gpointer _
 		ChimeContact *contact = contacts->data;
 		if (!strcmp(imd->who, chime_contact_get_email(contact))) {
 			GSList *l = g_slist_append(NULL, contact);
+			imd->contact = g_object_ref(contact);
 			chime_connection_find_conversation_async(cxn, l, NULL, find_im_cb, imd);
 			g_slist_free_1(l);
 			g_slist_free_full(contacts, g_object_unref);

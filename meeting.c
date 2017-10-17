@@ -132,7 +132,8 @@ static void got_dbus_proxy(GObject *source, GAsyncResult *result, gpointer _data
 	attendees[1] = data->mtg->delegate_scheduling_email;
 	attendees[2] = NULL;
 
-	gchar *description_text = purple_unescape_html(description->str);
+	gchar *description_text;
+	purple_markup_html_to_xhtml(description->str, NULL, &description_text);
 	g_dbus_proxy_call(proxy, "CreateEvent",
 			  g_variant_new("(ssss^as)", data->conn->account->username,
 					"Chime meeting", location, description_text,

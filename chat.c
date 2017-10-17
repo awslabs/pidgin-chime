@@ -388,7 +388,9 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	struct chime_chat *chat = g_hash_table_lookup(pc->live_chats, GUINT_TO_POINTER(id));
 
 	/* Chime does not understand HTML. */
-	gchar *expanded, *unescaped = purple_unescape_html(message);
+	gchar *expanded, *unescaped;
+
+	purple_markup_html_to_xhtml(message, NULL, &unescaped);
 
 	if (CHIME_IS_ROOM(chat->m.obj)) {
 		/* Expand member names into the format Chime understands */

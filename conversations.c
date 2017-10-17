@@ -298,7 +298,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 
 	struct im_send_data *imd = g_new0(struct im_send_data, 1);
 	imd->conn = gc;
-	imd->message = purple_unescape_html(message);
+	purple_markup_html_to_xhtml(message, NULL, &imd->message);
 	imd->who = g_strdup(who);
 	imd->flags = flags;
 

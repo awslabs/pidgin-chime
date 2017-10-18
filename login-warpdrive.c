@@ -268,6 +268,7 @@ static void gwt_auth_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 				     "organization", state->directory,
 				     "region", state->region,
 				     "auth_code", response[2], NULL);
+	soup_message_headers_append(next->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 	soup_session_queue_message(session, next, chime_login_token_cb, state);
  out:
 	g_strfreev(response);
@@ -290,6 +291,7 @@ static void send_credentials(struct login_wd *state, const gchar *password)
 			  type, type, "", "", state->client_id, "", NULL,
 			  state->directory, escaped, "", state->username);
 
+	soup_message_headers_append(msg->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 	soup_session_queue_message(login_session(state), msg, gwt_auth_cb, state);
 
 	g_free(escaped);
@@ -424,6 +426,7 @@ static void gwt_policy_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 			   type, type, "ONFAILURE", state->client_id,
 			   state->directory, NULL, NULL, state->redirect_url);
 
+	soup_message_headers_append(next->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 	soup_session_queue_message(session, next, gwt_region_cb, state);
 }
 
@@ -448,6 +451,7 @@ static void gwt_entry_point_cb(SoupSession *session, SoupMessage *msg, gpointer 
 	destination = soup_uri_new_with_base(base, policy_path);
 
 	next = soup_message_new_from_uri(SOUP_METHOD_GET, destination);
+	soup_message_headers_append(next->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 	soup_session_queue_message(session, next, gwt_policy_cb, state);
 
 	soup_uri_free(destination);
@@ -502,6 +506,7 @@ void chime_login_warpdrive(SoupSession *session, SoupMessage *msg, gpointer data
 	state->gwt_module_base = g_strndup(gwt[0], (sep - gwt[0]) + 1);
 
 	next = soup_message_new(SOUP_METHOD_GET, gwt[0]);
+	soup_message_headers_append(next->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 	soup_session_queue_message(session, next, gwt_entry_point_cb, state);
  out:
 	g_strfreev(gwt);

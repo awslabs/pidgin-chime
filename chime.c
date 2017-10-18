@@ -22,6 +22,7 @@
 #include <accountopt.h>
 #include <status.h>
 #include <debug.h>
+#include <request.h>
 
 #include <glib/gi18n.h>
 #include <glib/gstrfuncs.h>
@@ -348,6 +349,42 @@ static void chime_purple_show_about_plugin(PurplePluginAction *action)
 				NULL, NULL);
 }
 
+static void logout_done(GObject *source, GAsyncResult *result, gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	GError *error;
+
+	if (chime_connection_log_out_finish(source, result, &error)) {
+		purple_account_set_string(conn->account, "token", NULL);
+		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("Logged out"));
+		return;
+	}
+
+	g_warning("Failed to log out: %s", error->message);
+	g_error_free(error);
+}
+
+static void logout_confirmed(void *_conn, int act)
+{
+	PurpleConnection *conn = _conn;
+
+	chime_connection_log_out_async (PURPLE_CHIME_CXN(conn), NULL, logout_done, conn);
+}
+
+static void chime_purple_logout(PurplePluginAction *action)
+{
+	PurpleConnection *conn = action->context;
+
+	gchar *primary = g_strdup_printf(_("Log out Chime account '%s'?"),
+					 conn->account->username);
+	purple_request_action(conn, _("Confirm log out"), primary, NULL,
+			      PURPLE_DEFAULT_ACTION_NONE,
+			      purple_connection_get_account(conn), NULL, NULL,
+			      conn, 2, _("_Log out"), logout_confirmed,
+			      _("_Cancel"), NULL);
+	g_free(primary);
+}
+
 static GList *chime_purple_plugin_actions(PurplePlugin *plugin,
 					  gpointer context)
 {
@@ -376,6 +413,10 @@ static GList *chime_purple_plugin_actions(PurplePlugin *plugin,
 
 	act = purple_plugin_action_new(_("Join meeting by PIN..."),
 				       chime_purple_pin_join);
+	acts = g_list_append(acts, act);
+
+	act = purple_plugin_action_new(_("Log out..."),
+				       chime_purple_logout);
 	acts = g_list_append(acts, act);
 
 	return acts;

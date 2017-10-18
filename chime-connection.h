@@ -89,6 +89,14 @@ const gchar     *chime_connection_get_session_token          (ChimeConnection  *
 void             chime_connection_set_session_token          (ChimeConnection  *self,
                                                               const gchar      *sess_tok);
 
+void chime_connection_log_out_async (ChimeConnection    *self,
+				     GCancellable       *cancellable,
+				     GAsyncReadyCallback callback,
+				     gpointer            user_data);
+gboolean chime_connection_log_out_finish (ChimeConnection  *self,
+					  GAsyncResult     *result,
+					  GError          **error);
+
 const gchar *chime_connection_get_profile_id(ChimeConnection *self);
 const gchar *chime_connection_get_display_name(ChimeConnection *self);
 const gchar *chime_connection_get_email(ChimeConnection *self);

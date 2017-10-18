@@ -1226,3 +1226,45 @@ gboolean chime_connection_update_last_read_finish (ChimeConnection  *self,
 
 	return g_task_propagate_boolean(G_TASK(result), error);
 }
+
+static void logout_cb(ChimeConnection *self, SoupMessage *msg,
+		       JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	/* Nothing to do o nsuccess */
+	if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to log out: %d %s"),
+					msg->status_code, msg->reason_phrase);
+	} else
+		g_task_return_boolean(task, TRUE);
+
+	g_object_unref(task);
+}
+
+
+void chime_connection_log_out_async (ChimeConnection    *self,
+				     GCancellable       *cancellable,
+				     GAsyncReadyCallback callback,
+				     gpointer            user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(self));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+
+	GTask *task = g_task_new(self, cancellable, callback, user_data);
+
+	SoupURI *uri = soup_uri_new_printf(priv->server, "/sessions");
+	chime_connection_queue_http_request(self, NULL, uri, "DELETE", logout_cb, task);
+}
+
+gboolean chime_connection_log_out_finish (ChimeConnection  *self,
+					  GAsyncResult     *result,
+					  GError          **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_boolean(G_TASK(result), error);
+}

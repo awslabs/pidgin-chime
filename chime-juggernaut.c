@@ -144,6 +144,14 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 	chime_connection_log(cxn, CHIME_LOGLVL_MISC,
 			     "websocket message received:\n'%s'\n", (char *)data);
 
+	/* DISCONNECT */
+	if (!strcmp(data, "0::")) {
+		/* Do not attempt to reconnect */
+		priv->jugg_online = FALSE;
+		chime_connection_fail(cxn, CHIME_ERROR_NETWORK,
+				      _("Juggernaut server closed connection"));
+		return;
+	}
 	/* CONNECT */
 	if (!strcmp(data, "1::")) {
 		if (!priv->jugg_online) {

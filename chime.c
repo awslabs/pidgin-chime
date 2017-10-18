@@ -354,7 +354,7 @@ static void logout_done(GObject *source, GAsyncResult *result, gpointer _conn)
 	PurpleConnection *conn = _conn;
 	GError *error;
 
-	if (chime_connection_log_out_finish(source, result, &error)) {
+	if (chime_connection_log_out_finish(CHIME_CONNECTION(source), result, &error)) {
 		purple_account_set_string(conn->account, "token", NULL);
 		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("Logged out"));
 		return;

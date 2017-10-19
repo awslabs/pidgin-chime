@@ -265,10 +265,16 @@ void chime_destroy_chat(struct chime_chat *chat)
 	serv_got_chat_left(conn, id);
 
 	if (chat->meeting) {
+		if (chat->participants_ui) {
+			purple_notify_close(PURPLE_NOTIFY_SEARCHRESULTS, chat->participants_ui);
+			chat->participants_ui = NULL;
+		}
+
+		g_signal_handlers_disconnect_matched(chat->call, G_SIGNAL_MATCH_DATA,
+						     0, 0, NULL, NULL, chat);
+
 		if (chat->audio) {
 			chime_connection_call_audio_close(chat->audio);
-			g_signal_handlers_disconnect_matched(chat->call, G_SIGNAL_MATCH_DATA,
-							     0, 0, NULL, NULL, chat);
 			chat->audio = NULL;
 		}
 		chime_connection_close_meeting(cxn, chat->meeting);

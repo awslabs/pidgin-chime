@@ -41,6 +41,7 @@ struct chime_chat {
 	ChimeMeeting *meeting;
 	ChimeCall *call;
 	ChimeCallAudio *audio;
+	void *participants_ui;
 };
 
 /*
@@ -144,10 +145,79 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	g_free(parsed);
 }
 
+static gint participant_sort(gconstpointer a, gconstpointer b)
+{
+	const ChimeCallParticipant *pa = a, *pb = b;
+
+	if (pa->status == pb->status)
+		return g_strcmp0(pa->full_name, pb->full_name);
+	else
+		return pa->status - pb->status;
+}
+
+static PurpleNotifySearchResults *generate_sr_participants(GHashTable *participants)
+{
+	PurpleNotifySearchResults *results = purple_notify_searchresults_new();
+	PurpleNotifySearchColumn *column;
+
+	column = purple_notify_searchresults_column_new(_("Name"));
+	purple_notify_searchresults_column_add(results, column);
+	column = purple_notify_searchresults_column_new(_("Status"));
+	purple_notify_searchresults_column_add(results, column);
+	column = purple_notify_searchresults_column_new("");
+	purple_notify_searchresults_column_add(results, column);
+
+	gpointer klass = g_type_class_ref(CHIME_TYPE_CALL_PARTICIPATION_STATUS);
+
+	GList *pl = g_hash_table_get_values(participants);
+	pl = g_list_sort(pl, participant_sort);
+	while (pl) {
+		ChimeCallParticipant *p = pl->data;
+		GList *row = NULL;
+		row = g_list_append(row, g_strdup(p->full_name));
+		GEnumValue *val = g_enum_get_value(klass, p->status);
+		row = g_list_append(row, g_strdup(_(val->value_nick)));
+
+		const gchar *vol_icon;
+		if (p->status != CHIME_PARTICIPATION_PRESENT)
+			vol_icon = "";
+		else if (p->volume == -128)
+			vol_icon = "🔇";
+		else if (p->volume < -64)
+			vol_icon = "🔈";
+		else if (p->volume < -32)
+			vol_icon = "🔉";
+		else
+			vol_icon = "🔊";
+		row = g_list_append(row, g_strdup(vol_icon));
+
+		purple_notify_searchresults_row_add(results, row);
+
+		pl = g_list_remove(pl, p);
+	}
+	g_type_class_unref(klass);
+	return results;
+
+}
+
+static void participants_closed_cb(gpointer _chat)
+{
+	struct chime_chat *chat = _chat;
+	chat->participants_ui = NULL;
+}
 
 static void on_call_participants(ChimeCall *call, GHashTable *participants, struct chime_chat *chat)
 {
-	
+	PurpleNotifySearchResults *results = generate_sr_participants(participants);
+	PurpleConnection *conn = chat->conv->account->gc;
+
+	if (!chat->participants_ui) {
+		chat->participants_ui = purple_notify_searchresults(conn, _("Call Participants"),
+								    chime_meeting_get_name(chat->meeting),
+								    NULL, results, participants_closed_cb, chat);
+	} else {
+		purple_notify_searchresults_new_rows(conn, results, chat->participants_ui);
+	}
 }
 
 static void on_room_membership(ChimeRoom *room, ChimeRoomMember *member, struct chime_chat *chat)

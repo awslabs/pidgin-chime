@@ -77,10 +77,10 @@ G_DEFINE_TYPE(ChimeCall, chime_call, CHIME_TYPE_OBJECT)
 CHIME_DEFINE_ENUM_TYPE(ChimeCallParticipationStatus, chime_call_participation_status, \
 	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_PRESENT,		"present") \
 	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_CHECKED_IN,	"checked_in") \
-	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_INVITED,		"invited") \
 	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_HUNG_UP,		"hung_up") \
 	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_DROPPED,		"dropped") \
 	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_RUNNING_LATE,	"running_late") \
+	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_INVITED,		"invited") \
 	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_DECLINED,		"declined") \
 	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_INACTIVE,		"inactive"))
 
@@ -315,6 +315,7 @@ static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNod
 	ChimeCallParticipant *cp = g_hash_table_lookup(call->participants, (void *)participant_id);
 	if (!cp) {
 		cp = g_new0(ChimeCallParticipant, 1);
+		cp->volume = -128;
 		cp->participant_id = g_strdup(participant_id);
 		cp->participant_type = g_strdup(participant_type);
 		cp->full_name = g_strdup(full_name);

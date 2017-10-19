@@ -55,7 +55,7 @@ enum {
 	ENDED,
 	CALL_CONNECTED,
 	CALL_DISCONNECTED,
-	PROFILE_STATS,
+	PARTICIPANTS_CHANGED,
 	LAST_SIGNAL,
 };
 
@@ -67,6 +67,7 @@ struct _ChimeCall {
 	CHIME_PROPS_VARS
 
 	ChimeConnection *cxn;
+	GHashTable *participants;
 
 	guint opens;
 };
@@ -84,6 +85,7 @@ CHIME_DEFINE_ENUM_TYPE(ChimeCallParticipationStatus, chime_call_participation_st
 	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_INACTIVE,		"inactive"))
 
 static void unsub_call(gpointer key, gpointer val, gpointer data);
+static void free_participant(void *p);
 
 static void
 chime_call_dispose(GObject *object)
@@ -94,6 +96,8 @@ chime_call_dispose(GObject *object)
 
 	unsub_call(NULL, self, NULL);
 	g_signal_emit(self, signals[ENDED], 0, NULL);
+
+	g_clear_pointer(&self->participants, g_hash_table_destroy);
 
 	G_OBJECT_CLASS(chime_call_parent_class)->dispose(object);
 }
@@ -166,15 +170,15 @@ static void chime_call_class_init(ChimeCallClass *klass)
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 
-	signals[PROFILE_STATS] =
-		g_signal_new ("profile-stats",
+	signals[PARTICIPANTS_CHANGED] =
+		g_signal_new ("participants-changed",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
-			      0, NULL, NULL, NULL, G_TYPE_NONE, 3, CHIME_TYPE_CONTACT,
-			      G_TYPE_INT, G_TYPE_INT);
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_HASH_TABLE);
 }
 
 static void chime_call_init(ChimeCall *self)
 {
+	self->participants = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, free_participant);
 }
 
 
@@ -270,7 +274,6 @@ const gchar *chime_call_get_audio_ws_url(ChimeCall *self)
 	return self->audio_ws_url;
 }
 
-#if 0
 static gboolean parse_call_participation_status(JsonNode *node, const gchar *member, ChimeCallParticipationStatus *type)
 {
 	const gchar *str;
@@ -287,7 +290,97 @@ static gboolean parse_call_participation_status(JsonNode *node, const gchar *mem
 	*type = val->value;
 	return TRUE;
 }
-#endif
+
+static void free_participant(void *p)
+{
+}
+
+static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNode *p)
+{
+	const gchar *participant_id, *full_name, *participant_type;
+	gboolean pots, speaker;
+	ChimeCallParticipationStatus status;
+
+	if (!parse_string(p, "participant_id", &participant_id) ||
+	    !parse_string(p, "full_name", &full_name) ||
+	    !parse_string(p, "participant_type", &participant_type) ||
+	    !parse_call_participation_status(p, "status", &status) ||
+	    !parse_boolean(p, "pots?", &pots) ||
+	    !parse_boolean(p, "speaker?", &speaker))
+		return FALSE;
+
+	const gchar *email = NULL;
+	parse_string(p, "email", &email);
+
+	ChimeCallParticipant *cp = g_hash_table_lookup(call->participants, (void *)participant_id);
+	if (!cp) {
+		cp = g_new0(ChimeCallParticipant, 1);
+		cp->participant_id = g_strdup(participant_id);
+		cp->participant_type = g_strdup(participant_type);
+		cp->full_name = g_strdup(full_name);
+		if (email)
+			cp->email = g_strdup(email);
+		g_hash_table_insert(call->participants, (void *)cp->participant_id, cp);
+	}
+	cp->pots = pots;
+	cp->speaker = speaker;
+	cp->status = status;
+
+	return TRUE;
+}
+
+static gboolean call_roster_cb(ChimeConnection *cxn, gpointer _call, JsonNode *data_node)
+{
+	ChimeCall *call = CHIME_CALL(_call);
+	JsonObject *obj = json_node_get_object(data_node);
+	JsonNode *record = json_object_get_member(obj, "record");
+	if (!record)
+		return FALSE;
+
+	obj = json_node_get_object(record);
+	JsonNode *participants_node = json_object_get_member(obj, "participants");
+	if (!obj)
+		return FALSE;
+	JsonArray *participants_arr = json_node_get_array(participants_node);
+	int i, len = json_array_get_length(participants_arr);
+
+	gboolean ret = TRUE;
+
+	for (i = 0; i < len; i++) {
+		JsonNode *p = json_array_get_element(participants_arr, i);
+		if (!parse_participant(cxn, call, p))
+			ret = FALSE;
+	}
+
+	g_signal_emit(call, signals[PARTICIPANTS_CHANGED], 0, call->participants);
+
+	return ret;
+}
+
+gboolean chime_call_participant_audio_stats(ChimeCall *call, const gchar *participant_id,
+					    int vol, int signal_strength)
+{
+	g_return_val_if_fail(CHIME_IS_CALL(call), FALSE);
+	g_return_val_if_fail(participant_id != NULL, FALSE);
+
+	ChimeCallParticipant *p = g_hash_table_lookup(call->participants, participant_id);
+	if (!p)
+		return FALSE;
+
+	if (vol != p->volume || signal_strength != p->signal_strength) {
+		p->volume = vol;
+		p->signal_strength = signal_strength;
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+void chime_call_emit_participants(ChimeCall *call)
+{
+	g_signal_emit(call, signals[PARTICIPANTS_CHANGED], 0, call->participants);
+}
+
 static gboolean call_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
 	JsonObject *obj = json_node_get_object(data_node);
@@ -326,10 +419,6 @@ ChimeCall *chime_connection_parse_call(ChimeConnection *cxn, JsonNode *node,
 				       "name", alert_body,
 				       CHIME_PROPS_NEWOBJ
 				       NULL);
-
-		call->cxn = cxn;
-		chime_jugg_subscribe(cxn, call->channel, "Call", call_jugg_cb, NULL);
-		chime_jugg_subscribe(cxn, call->roster_channel, NULL, NULL, NULL);
 
 		g_object_ref(call);
 		chime_object_collection_hash_object(&priv->calls, CHIME_OBJECT(call), FALSE);
@@ -370,11 +459,11 @@ static void unsub_call(gpointer key, gpointer val, gpointer data)
 
 	if (call->cxn) {
 		chime_jugg_unsubscribe(call->cxn, call->channel, "Call", call_jugg_cb, NULL);
-		chime_jugg_unsubscribe(call->cxn, call->roster_channel, NULL, NULL, NULL);
+		chime_jugg_unsubscribe(call->cxn, call->roster_channel, "Roster", call_roster_cb, call);
 		call->cxn = NULL;
 	}
 }
-#if 0
+
 void chime_connection_close_call(ChimeConnection *cxn, ChimeCall *call)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
@@ -382,66 +471,15 @@ void chime_connection_close_call(ChimeConnection *cxn, ChimeCall *call)
 	g_return_if_fail(call->opens);
 
 	if (!--call->opens)
-		close_call(NULL, call, NULL);
+		unsub_call(NULL, call, NULL);
 }
 
 
-static void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, GTask *task)
+void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call)
 {
 	if (!call->opens++) {
+		call->cxn = cxn;
+		chime_jugg_subscribe(cxn, call->channel, "Call", call_jugg_cb, NULL);
+		chime_jugg_subscribe(cxn, call->roster_channel, "Roster", call_roster_cb, call);
 	}
-
-	g_task_return_pointer(task, g_object_ref(call), g_object_unref);
-	g_object_unref(task);
 }
-
-
-static void join_got_room(GObject *source, GAsyncResult *result, gpointer user_data)
-{
-	ChimeConnection *cxn = CHIME_CONNECTION(source);
-	ChimeRoom *room = chime_connection_fetch_room_finish(cxn, result, NULL);
-	GTask *task = G_TASK(user_data);
-	ChimeCall *call = CHIME_CALL(g_task_get_task_data(task));
-
-	call->chat_room = room;
-
-	chime_connection_open_call(cxn, call, task);
-}
-
-void chime_connection_join_call_async(ChimeConnection *cxn,
-					 ChimeCall *call,
-					 GCancellable *cancellable,
-					 GAsyncReadyCallback callback,
-					 gpointer user_data)
-{
-	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-
-	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
-	g_task_set_task_data(task, g_object_ref(call), g_object_unref);
-
-	if (call->chat_room_id) {
-		ChimeRoom *room = chime_connection_room_by_id(cxn, call->chat_room_id);
-		if (room) {
-			call->chat_room = g_object_ref(room);
-		} else {
-			/* Not yet known; need to go fetch it explicitly */
-			chime_connection_fetch_room_async(cxn, call->chat_room_id,
-							  NULL, join_got_room, task);
-			return;
-		}
-	}
-
-	chime_connection_open_call(cxn, call, task);
-}
-
-ChimeCall *chime_connection_join_call_finish(ChimeConnection *self,
-						   GAsyncResult *result,
-						   GError **error)
-{
-	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
-	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
-
-	return g_task_propagate_pointer(G_TASK(result), error);
-}
-
-#endif

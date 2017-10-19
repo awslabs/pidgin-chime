@@ -190,14 +190,15 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 		}
 		printf("\n");
 	}
+	gboolean send_sig = FALSE;
 	int i;
 	for (i=0; i < msg->n_profiles; i++) {
 		if (!msg->profiles[i]->has_stream_id)
 			continue;
 
-		ChimeContact *contact = g_hash_table_lookup(audio->profiles,
-							    GUINT_TO_POINTER(msg->profiles[i]->stream_id));
-		if (!contact)
+		const gchar *profile_id = g_hash_table_lookup(audio->profiles,
+							      GUINT_TO_POINTER(msg->profiles[i]->stream_id));
+		if (!profile_id)
 			continue;
 
 		int vol;
@@ -212,10 +213,12 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 		if (msg->profiles[i]->has_signal_strength)
 			signal_strength = msg->profiles[i]->signal_strength;
 
-		// XX: Doing this by name is inefficient... */
-		g_signal_emit_by_name(audio->call, "profile-stats", contact,
-				      vol, signal_strength);
+		if (chime_call_participant_audio_stats(audio->call, profile_id, vol, signal_strength))
+			send_sig = TRUE;
 	}
+	if (send_sig)
+		chime_call_emit_participants(audio->call);
+
 	rtmessage__free_unpacked(msg, NULL);
 	return TRUE;
 }
@@ -396,10 +399,8 @@ static gboolean audio_receive_stream_msg(ChimeCallAudio *audio, gconstpointer pk
 			continue;
 
 		chime_debug("Stream %d: id %x uuid %s\n", i, msg->streams[i]->stream_id, msg->streams[i]->profile_id);
-		ChimeContact *contact = chime_connection_contact_by_id(cxn, msg->streams[i]->profile_id);
-		if (contact)
-			g_hash_table_insert(audio->profiles, GUINT_TO_POINTER(msg->streams[i]->stream_id),
-					    g_object_ref(contact));
+		g_hash_table_insert(audio->profiles, GUINT_TO_POINTER(msg->streams[i]->stream_id),
+				    g_strdup(msg->streams[i]->profile_id));
 	}
 	/* XX: Find the ChimeContacts, put them into a hash table and use them for
 	   emitting signals on receipt of ProfileMessages */
@@ -562,7 +563,7 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _task)
 	ChimeCallAudio *audio = g_new0(ChimeCallAudio, 1);
 	audio->ws = ws;
 	audio->call = g_object_ref(call);
-	audio->profiles = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_object_unref);
+	audio->profiles = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
 #ifdef AUDIO_HACKS
 	int opuserr;
 	audio->opus_dec = opus_decoder_create(16000, 1, &opuserr);

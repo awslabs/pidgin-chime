@@ -245,6 +245,13 @@ void chime_destroy_calls(ChimeConnection *cxn);
 ChimeCall *chime_connection_parse_call(ChimeConnection *cxn, JsonNode *node,
 				       GError **error);
 ChimeConnection *chime_call_get_connection(ChimeCall *self);
+/* Implicitly from open/close meeting */
+void chime_connection_close_call(ChimeConnection *cxn, ChimeCall *call);
+void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call);
+
+gboolean chime_call_participant_audio_stats(ChimeCall *call, const gchar *profile_id, int vol, int signal_strength);
+void chime_call_emit_participants(ChimeCall *call);
+
 
 /* login.c */
 void chime_initial_login(ChimeConnection *cxn);

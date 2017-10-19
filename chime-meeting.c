@@ -567,8 +567,7 @@ static void close_meeting(gpointer key, gpointer val, gpointer data)
 	ChimeMeeting *meeting = CHIME_MEETING (val);
 
 	if (meeting->cxn) {
-//		chime_jugg_unsubscribe(meeting->cxn, meeting->channel, NULL, NULL, NULL);
-//		chime_jugg_unsubscribe(meeting->cxn, meeting->roster_channel, NULL, NULL, NULL);
+		chime_connection_close_call(meeting->cxn, meeting->call);
 		meeting->cxn = NULL;
 	}
 }
@@ -777,49 +776,12 @@ ChimeMeeting *chime_connection_lookup_meeting_by_pin_finish(ChimeConnection *sel
 	return g_task_propagate_pointer(G_TASK(result), error);
 }
 
-#if 0
-static void get_room_cb(ChimeConnection *cxn, SoupMessage *msg,
-			JsonNode *node, gpointer user_data)
-{
-	GTask *task = G_TASK(user_data);
-
-	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
-		GError *error = NULL;
-		JsonObject *obj = json_node_get_object(node);
-		node = json_object_get_member(obj, "meeting");
-		if (!node)
-			goto eparse;
-
-		ChimeMeeting *mtg = chime_connection_parse_meeting(cxn, node, &error);
-		if (mtg)
-			g_task_return_pointer(task, mtg, (GDestroyNotify)g_object_unref);
-		else
-			g_task_return_error(task, error);
-		return;
-	} else {
-		const gchar *reason;
-	eparse:
-		reason = msg->reason_phrase;
-
-		if (node)
-			parse_string(node, "Message", &reason);
-
-		g_task_return_new_error(task, CHIME_ERROR,
-					CHIME_ERROR_NETWORK,
-					_("Failed to obtain meeting details: %s"),
-					reason);
-	}
-
-	g_object_unref(task);
-}
-#endif
 
 static void chime_connection_open_meeting(ChimeConnection *cxn, ChimeMeeting *meeting, GTask *task)
 {
 	if (!meeting->opens++) {
 		meeting->cxn = cxn;
-//		chime_jugg_subscribe(cxn, meeting->channel, NULL, NULL, NULL);
-//		chime_jugg_subscribe(cxn, meeting->roster_channel, NULL, NULL, NULL);
+		chime_connection_open_call(cxn, meeting->call);
 	}
 
 	g_task_return_pointer(task, g_object_ref(meeting), g_object_unref);

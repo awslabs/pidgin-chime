@@ -45,6 +45,12 @@ typedef enum {
 #define CHIME_TYPE_CALL_PARTICIPATION_STATUS (chime_call_participation_status_get_type ())
 GType chime_call_participation_status_get_type (void) G_GNUC_CONST;
 
+typedef enum {
+	CHIME_SHARED_SCREEN_NONE,
+	CHIME_SHARED_SCREEN_VIEWING,
+	CHIME_SHARED_SCREEN_PRESENTING,
+} ChimeCallSharedScreenStatus;
+
 gboolean chime_call_get_ongoing(ChimeCall *self);
 const gchar *chime_call_get_uuid(ChimeCall *self);
 const gchar *chime_call_get_channel(ChimeCall *self);
@@ -59,16 +65,21 @@ const gchar *chime_call_get_mobile_bithub_url(ChimeCall *self);
 const gchar *chime_call_get_stun_server_url(ChimeCall *self);
 
 typedef struct {
-	ChimeContact *contact;
+	const gchar *participant_id;
+	const gchar *participant_type;
+	const gchar *full_name;
+	const gchar *email;
 	ChimeCallParticipationStatus status;
+	ChimeCallSharedScreenStatus shared_screen;
 	gboolean admin;
 	gboolean speaker;
+	gboolean pots;
+	int volume;
+	int signal_strength;
 	char *passcode;
 } ChimeCallParticipant;
 
 GList *chime_call_get_participants(ChimeCall *self);
-
-void chime_connection_close_call(ChimeConnection *cxn, ChimeCall *call);
 
 struct _ChimeCallAudio;
 typedef struct _ChimeCallAudio ChimeCallAudio;

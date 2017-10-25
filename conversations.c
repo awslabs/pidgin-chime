@@ -51,6 +51,18 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 
 	const gchar *email = chime_contact_get_email(im->peer);
 	gchar *escaped = g_markup_escape_text(message, -1);
+
+	ChimeAttachment *att = extract_attachment(record);
+	if (att) {
+		AttachmentContext *ctx = g_new(AttachmentContext, 1);
+		ctx->conn = im->m.conn;
+		ctx->chat_id = -1;
+		ctx->from = email;
+		ctx->when = msg_time;
+		/* The attachment and context structs will be owned by the code doing the download and will be disposed of at the end. */
+		download_attachment(cxn, att, ctx);
+	}
+
 	if (!strcmp(sender, chime_connection_get_profile_id(cxn))) {
 		/* Ick, how do we inject a message from ourselves? */
 		PurpleAccount *account = im->m.conn->account;

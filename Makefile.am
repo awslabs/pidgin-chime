@@ -16,7 +16,7 @@ libchime_la_SOURCES = chime.c buddy.c rooms.c chat.c messages.c conversations.c 
 	login.c login-amazon.c login-warpdrive.c login-private.h \
 	chime-websocket-connection.c chime-websocket-connection.h chime-websocket.c \
 	chime-meeting.c chime-meeting.h meeting.c chime-props.h \
-	chime-call.c chime-call.h chime-call-audio.c \
+	chime-call.c chime-call.h chime-call-audio.c attachments.c \
 	protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
 	protobuf/data_message.pb-c.c protobuf/data_message.pb-c.h \
 	protobuf/rt_message.pb-c.c protobuf/rt_message.pb-c.h

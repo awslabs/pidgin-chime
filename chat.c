@@ -141,6 +141,17 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	} else
 		parsed = escaped;
 
+	struct attachment *att = extract_attachment(node);
+	if (att) {
+		struct attachment_context *ctx = g_new(struct attachment_context, 1);
+		ctx->conn = conn;
+		ctx->chat_id = id;
+		ctx->from = from;
+		ctx->when = msg_time;
+		/* The attachment and context structs will be owned by the code doing the download and will be disposed of at the end. */
+		download_attachment(cxn, att, ctx);
+	}
+
 	serv_got_chat_in(conn, id, from, msg_flags, parsed, msg_time);
 	g_free(parsed);
 }

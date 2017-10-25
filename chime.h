@@ -122,5 +122,32 @@ void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs);
 void cleanup_msgs(struct chime_msgs *msgs);
 void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj, chime_msg_cb cb, const gchar *name, JsonNode *first_msg);
 
+/* attachments.c */
+
+/*
+ * Attachments are located at `data.record.Attachment`. The same structure is
+ * sometimes at `data.record.AttachmentVariants` (an array), for giving smaller
+ * alternatives for images. (There may be other locations in the incoming JSON
+ * messages, those are the ones I found.)
+ */
+struct attachment {
+	/* Not part of the incoming attachment record, but I'm using for getting unique filenames on disk. */
+	gchar *message_id;
+
+	gchar *filename;
+	gchar *url; /* Valid for 1 hour */
+	gchar *content_type;
+};
+
+struct attachment_context {
+	PurpleConnection *conn;
+	const char *from;
+	time_t when;
+	int chat_id; /* -1 for IM */
+};
+
+struct attachment *extract_attachment(JsonNode *record);
+
+void download_attachment(ChimeConnection *cxn, struct attachment *att, struct attachment_context *ctx);
 
 #endif /* __CHIME_H__ */

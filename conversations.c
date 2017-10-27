@@ -317,6 +317,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 	ChimeContact *contact = chime_connection_contact_by_email(pc->cxn, who);
 	if (contact) {
 		GSList *l = g_slist_append(NULL, contact);
+		imd->contact = g_object_ref(contact);
 		chime_connection_find_conversation_async(pc->cxn, l, NULL, find_im_cb, imd);
 		g_slist_free_1(l);
 		return 0;

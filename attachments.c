@@ -15,6 +15,7 @@
  * Lesser General Public License for more details.
  */
 
+#include <errno.h>
 #include "chime.h"
 
 // According to http://docs.aws.amazon.com/chime/latest/ug/chime-ug.pdf this is the maximum allowed size for attachments.
@@ -107,7 +108,7 @@ static void download_callback(PurpleUtilFetchUrlData *url_data, gpointer user_da
 		return;
 	}
 
-	if (g_str_has_prefix(data->att->content_type, "image")) {
+	if (g_content_type_is_a(data->att->content_type, "image/*")) {
 		insert_image_from_file(data->ctx, data->path);
 	} else {
 		gchar *msg = g_strdup_printf("An attachment sent by %s has been downloaded as %s", data->ctx->from, data->path);
@@ -116,16 +117,6 @@ static void download_callback(PurpleUtilFetchUrlData *url_data, gpointer user_da
 	}
 
 	deep_free_download_data(data);
-}
-
-static gchar *get_destination_full_path(ChimeConnection *cxn, ChimeAttachment *att)
-{
-	const gchar *username = chime_connection_get_email(cxn);
-	gchar *dir = g_build_filename(purple_user_dir(), "chime", username, "downloads", NULL);
-	g_mkdir_with_parents(dir, 0755);
-	gchar *full_path = g_strdup_printf("%s/%s-%s", dir, att->message_id, att->filename);
-	g_free(dir);
-	return full_path;
 }
 
 ChimeAttachment *extract_attachment(JsonNode *record)
@@ -157,8 +148,18 @@ ChimeAttachment *extract_attachment(JsonNode *record)
 
 void download_attachment(ChimeConnection *cxn, ChimeAttachment *att, AttachmentContext *ctx)
 {
+	const gchar *username = chime_connection_get_email(cxn);
+	gchar *dir = g_build_filename(purple_user_dir(), "chime", username, "downloads", NULL);
+	if (g_mkdir_with_parents(dir, 0755) == -1) {
+		gchar *msg = g_strdup_printf("Could not make dir %s,will not fetch file/image (errno=%d, errstr=%s)", dir, errno, g_strerror(errno));
+		sys_message(ctx, msg, PURPLE_MESSAGE_ERROR);
+		g_free(dir);
+		g_free(msg);
+		return;
+	}
 	DownloadCallbackData *data = g_new0(DownloadCallbackData, 1);
-	data->path = get_destination_full_path(cxn, att);
+	data->path = g_strdup_printf("%s/%s-%s", dir, att->message_id, att->filename);
+	g_free(dir);
 	data->att = att;
 	data->ctx = ctx;
 	purple_util_fetch_url_len(att->url, TRUE, NULL, FALSE, ATTACHMENT_MAX_SIZE, download_callback, data);

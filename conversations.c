@@ -52,9 +52,9 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 	const gchar *email = chime_contact_get_email(im->peer);
 	gchar *escaped = g_markup_escape_text(message, -1);
 
-	struct attachment *att = extract_attachment(record);
+	ChimeAttachment *att = extract_attachment(record);
 	if (att) {
-		struct attachment_context *ctx = g_new(struct attachment_context, 1);
+		AttachmentContext *ctx = g_new(AttachmentContext, 1);
 		ctx->conn = im->m.conn;
 		ctx->chat_id = -1;
 		ctx->from = email;

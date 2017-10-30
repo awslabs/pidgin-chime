@@ -1,11 +1,29 @@
+/*
+ * Pidgin/libpurple Chime client plugin
+ *
+ * Copyright © 2017 Amazon.com, Inc. or its affiliates.
+ *
+ * Author: David Woodhouse <dwmw2@infradead.org>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ */
+
 #include "chime.h"
 
 // According to http://docs.aws.amazon.com/chime/latest/ug/chime-ug.pdf this is the maximum allowed size for attachments.
 // (The default limit for purple_util_fetch_url() is 512 kB.)
 #define ATTACHMENT_MAX_SIZE (50*1000*1000)
 
-static void img_message(struct attachment_context *ctx, int img_id) {
-	gchar *msg = g_strdup_printf("<br><img id=\"%u\">", img_id);
+static void img_message(struct _AttachmentContext *ctx, int image_id)
+{
+	gchar *msg = g_strdup_printf("<br><img id=\"%u\">", image_id);
 	if (ctx->chat_id != -1) {
 		serv_got_chat_in(ctx->conn, ctx->chat_id, ctx->from, PURPLE_MESSAGE_IMAGES, msg, ctx->when);
 	} else {
@@ -14,7 +32,7 @@ static void img_message(struct attachment_context *ctx, int img_id) {
 	g_free(msg);
 }
 
-static void sys_message(struct attachment_context *ctx, const gchar *msg, PurpleMessageFlags flags)
+static void sys_message(struct _AttachmentContext *ctx, const gchar *msg, PurpleMessageFlags flags)
 {
 	flags |= PURPLE_MESSAGE_SYSTEM;
 	if (ctx->chat_id != -1) {
@@ -24,10 +42,12 @@ static void sys_message(struct attachment_context *ctx, const gchar *msg, Purple
 	}
 }
 
-static void insert_image_from_file(struct attachment_context *ctx, const gchar *path) {
+static void insert_image_from_file(struct _AttachmentContext *ctx, const gchar *path)
+{
 	gchar *contents;
 	gsize size;
 	GError *err = NULL;
+
 	if (!g_file_get_contents(path, &contents, &size, &err)) {
 		sys_message(ctx, err->message, PURPLE_MESSAGE_ERROR);
 		g_error_free(err);
@@ -45,13 +65,14 @@ static void insert_image_from_file(struct attachment_context *ctx, const gchar *
 	img_message(ctx, img_id);
 }
 
-struct _download_callback_data {
-	struct attachment *att;
-	struct attachment_context *ctx;
+typedef struct _DownloadCallbackData {
+	ChimeAttachment *att;
+	AttachmentContext *ctx;
 	gchar *path;
-};
+} DownloadCallbackData;
 
-static void deep_free_download_data(struct _download_callback_data *data) {
+static void deep_free_download_data(DownloadCallbackData *data)
+{
 	g_free(data->att->message_id);
 	g_free(data->att->filename);
 	g_free(data->att->url);
@@ -64,7 +85,7 @@ static void deep_free_download_data(struct _download_callback_data *data) {
 
 static void download_callback(PurpleUtilFetchUrlData *url_data, gpointer user_data, const gchar *url_text, gsize len, const gchar *error_message)
 {
-	struct _download_callback_data *data = user_data;
+	DownloadCallbackData *data = user_data;
 
 	if (error_message != NULL) {
 		sys_message(data->ctx, error_message, PURPLE_MESSAGE_ERROR);
@@ -97,18 +118,19 @@ static void download_callback(PurpleUtilFetchUrlData *url_data, gpointer user_da
 	deep_free_download_data(data);
 }
 
-static gchar *get_destination_full_path(ChimeConnection *cxn, struct attachment *att)
+static gchar *get_destination_full_path(ChimeConnection *cxn, ChimeAttachment *att)
 {
 	const gchar *username = chime_connection_get_email(cxn);
 	const gchar *home = g_get_home_dir();
-	gchar *dir = g_strjoin(G_DIR_SEPARATOR_S, home, ".purple", "chime", username, "downloads", NULL);
+	gchar *dir = g_build_filename(home, ".purple", "chime", username, "downloads", NULL);
 	g_mkdir_with_parents(dir, 0755);
 	gchar *full_path = g_strdup_printf("%s/%s-%s", dir, att->message_id, att->filename);
 	g_free(dir);
 	return full_path;
 }
 
-struct attachment *extract_attachment(JsonNode *record) {
+ChimeAttachment *extract_attachment(JsonNode *record)
+{
 	JsonObject *robj;
 	JsonNode *node;
 	const gchar *msg_id, *filename, *url, *content_type;
@@ -125,7 +147,7 @@ struct attachment *extract_attachment(JsonNode *record) {
 	g_return_val_if_fail(parse_string(node, "Url", &url), NULL);
 	g_return_val_if_fail(parse_string(node, "ContentType", &content_type), NULL);
 
-	struct attachment *att = g_new0(struct attachment, 1);
+	ChimeAttachment *att = g_new0(ChimeAttachment, 1);
 	att->message_id = g_strdup(msg_id);
 	att->filename = g_strdup(filename);
 	att->url = g_strdup(url);
@@ -134,9 +156,9 @@ struct attachment *extract_attachment(JsonNode *record) {
 	return att;
 }
 
-void
-download_attachment(ChimeConnection *cxn, struct attachment *att, struct attachment_context *ctx) {
-	struct _download_callback_data *data = g_new0(struct _download_callback_data, 1);
+void download_attachment(ChimeConnection *cxn, ChimeAttachment *att, AttachmentContext *ctx)
+{
+	DownloadCallbackData *data = g_new0(DownloadCallbackData, 1);
 	data->path = get_destination_full_path(cxn, att);
 	data->att = att;
 	data->ctx = ctx;

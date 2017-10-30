@@ -130,24 +130,24 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
  * alternatives for images. (There may be other locations in the incoming JSON
  * messages, those are the ones I found.)
  */
-struct attachment {
+typedef struct _ChimeAttachment {
 	/* Not part of the incoming attachment record, but I'm using for getting unique filenames on disk. */
 	gchar *message_id;
 
 	gchar *filename;
 	gchar *url; /* Valid for 1 hour */
 	gchar *content_type;
-};
+} ChimeAttachment;
 
-struct attachment_context {
+typedef struct _AttachmentContext {
 	PurpleConnection *conn;
 	const char *from;
 	time_t when;
 	int chat_id; /* -1 for IM */
-};
+} AttachmentContext;
 
-struct attachment *extract_attachment(JsonNode *record);
+ChimeAttachment *extract_attachment(JsonNode *record);
 
-void download_attachment(ChimeConnection *cxn, struct attachment *att, struct attachment_context *ctx);
+void download_attachment(ChimeConnection *cxn, ChimeAttachment *att, AttachmentContext *ctx);
 
 #endif /* __CHIME_H__ */

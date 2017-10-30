@@ -141,9 +141,9 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	} else
 		parsed = escaped;
 
-	struct attachment *att = extract_attachment(node);
+	ChimeAttachment *att = extract_attachment(node);
 	if (att) {
-		struct attachment_context *ctx = g_new(struct attachment_context, 1);
+		AttachmentContext *ctx = g_new(AttachmentContext, 1);
 		ctx->conn = conn;
 		ctx->chat_id = id;
 		ctx->from = from;

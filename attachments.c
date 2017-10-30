@@ -3,7 +3,7 @@
  *
  * Copyright © 2017 Amazon.com, Inc. or its affiliates.
  *
- * Author: David Woodhouse <dwmw2@infradead.org>
+ * Author: Nicola Girardi <nicola@aloc.in>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -21,7 +21,7 @@
 // (The default limit for purple_util_fetch_url() is 512 kB.)
 #define ATTACHMENT_MAX_SIZE (50*1000*1000)
 
-static void img_message(struct _AttachmentContext *ctx, int image_id)
+static void img_message(AttachmentContext *ctx, int image_id)
 {
 	gchar *msg = g_strdup_printf("<br><img id=\"%u\">", image_id);
 	if (ctx->chat_id != -1) {
@@ -32,7 +32,7 @@ static void img_message(struct _AttachmentContext *ctx, int image_id)
 	g_free(msg);
 }
 
-static void sys_message(struct _AttachmentContext *ctx, const gchar *msg, PurpleMessageFlags flags)
+static void sys_message(AttachmentContext *ctx, const gchar *msg, PurpleMessageFlags flags)
 {
 	flags |= PURPLE_MESSAGE_SYSTEM;
 	if (ctx->chat_id != -1) {
@@ -42,7 +42,7 @@ static void sys_message(struct _AttachmentContext *ctx, const gchar *msg, Purple
 	}
 }
 
-static void insert_image_from_file(struct _AttachmentContext *ctx, const gchar *path)
+static void insert_image_from_file(AttachmentContext *ctx, const gchar *path)
 {
 	gchar *contents;
 	gsize size;
@@ -121,8 +121,7 @@ static void download_callback(PurpleUtilFetchUrlData *url_data, gpointer user_da
 static gchar *get_destination_full_path(ChimeConnection *cxn, ChimeAttachment *att)
 {
 	const gchar *username = chime_connection_get_email(cxn);
-	const gchar *home = g_get_home_dir();
-	gchar *dir = g_build_filename(home, ".purple", "chime", username, "downloads", NULL);
+	gchar *dir = g_build_filename(purple_user_dir(), "chime", username, "downloads", NULL);
 	g_mkdir_with_parents(dir, 0755);
 	gchar *full_path = g_strdup_printf("%s/%s-%s", dir, att->message_id, att->filename);
 	g_free(dir);

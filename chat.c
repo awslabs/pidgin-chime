@@ -42,6 +42,7 @@ struct chime_chat {
 	ChimeCall *call;
 	ChimeCallAudio *audio;
 	void *participants_ui;
+	PurpleMedia *media;
 };
 
 /*
@@ -273,6 +274,12 @@ void chime_destroy_chat(struct chime_chat *chat)
 		g_signal_handlers_disconnect_matched(chat->call, G_SIGNAL_MATCH_DATA,
 						     0, 0, NULL, NULL, chat);
 
+		if (chat->media) {
+			purple_media_end(chat->media, "chime", chime_call_get_uuid(chat->call));
+			purple_media_manager_remove_media(purple_media_manager_get(),
+							  chat->media);
+			chat->media = NULL;
+		}
 		if (chat->audio) {
 			chime_connection_call_audio_close(chat->audio);
 			chat->audio = NULL;
@@ -309,16 +316,17 @@ static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 
 #if 0 /* FIXME make this work... */
 	const gchar *uuid = chime_call_get_uuid(chat->call);
-	PurpleMedia *media = purple_media_manager_create_media(purple_media_manager_get(),
+	chat->media = purple_media_manager_create_media(purple_media_manager_get(),
 							       chat->conv->account,
 							       "fsrawconference",
 							       uuid,
-							       FALSE);
-	printf("media for %s %p\n", uuid, media);
-	if (media) {
-		gboolean r = purple_media_add_stream(media, "chime", uuid,
-						     PURPLE_MEDIA_AUDIO, FALSE,  "nice", 0, NULL);
+							       TRUE);
+	printf("media for %s %p\n", uuid, chat->media);
+	if (chat->media) {
+		gboolean r = purple_media_add_stream(chat->media, "chime", uuid,
+						     PURPLE_MEDIA_AUDIO, TRUE,  "nice", 0, NULL);
 		printf("Add stream %s\n", r ? "succeeded" : "failed");
+
 	}
 #endif
 }

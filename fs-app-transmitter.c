@@ -1,11 +1,11 @@
 /*
- * Farstream - Farstream Shm UDP Transmitter
+ * Farstream - Farstream App UDP Transmitter
  *
  * Copyright 2007-2008 Collabora Ltd.
  *  @author: Olivier Crete <olivier.crete@collabora.co.uk>
  * Copyright 2007-2008 Nokia Corp.
  *
- * fs-app-transmitter.c - A Farstream shm UDP transmitter
+ * fs-app-transmitter.c - A Farstream appsink/appsrc transmitter
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,9 +24,9 @@
 
 /**
  * SECTION:fs-app-transmitter
- * @short_description: A transmitter for shm UDP
+ * @short_description: A transmitter for appsink/appsrc I/O
  *
- * This transmitter provides shm udp
+ * This transmitter provides appsink/appsrc I/O
  *
  */
 
@@ -118,31 +118,31 @@ enum {
 };
 
 static guint bin_signals[BIN_LAST_SIGNAL] = { 0 };
-static GType shm_bin_type = 0;
-gpointer shm_bin_parent_class = NULL;
+static GType app_bin_type = 0;
+gpointer app_bin_parent_class = NULL;
 
-typedef struct _FsShmBin
+typedef struct _FsAppBin
 {
   GstBin parent;
-} FsShmBin;
+} FsAppBin;
 
-typedef struct _FsShmBinClass
+typedef struct _FsAppBinClass
 {
   GstBinClass parent_class;
-} FsShmBinClass;
+} FsAppBinClass;
 
-static void fs_shm_bin_init (FsShmBin *self)
+static void fs_app_bin_init (FsAppBin *self)
 {
 }
 
 static GstElement *
-fs_shm_bin_new (void)
+fs_app_bin_new (void)
 {
-  return g_object_new (shm_bin_type, NULL);
+  return g_object_new (app_bin_type, NULL);
 }
 
 static void
-fs_shm_bin_handle_message (GstBin *bin, GstMessage *message)
+fs_app_bin_handle_message (GstBin *bin, GstMessage *message)
 {
   GstState old, new, pending;
   GError *gerror;
@@ -173,14 +173,14 @@ fs_shm_bin_handle_message (GstBin *bin, GstMessage *message)
       break;
   }
 
-  GST_BIN_CLASS (shm_bin_parent_class)->handle_message (bin, message);
+  GST_BIN_CLASS (app_bin_parent_class)->handle_message (bin, message);
 }
 
-static void fs_shm_bin_class_init (FsShmBinClass *klass)
+static void fs_app_bin_class_init (FsAppBinClass *klass)
 {
   GstBinClass *bin_class = GST_BIN_CLASS (klass);
 
-  shm_bin_parent_class = g_type_class_peek_parent (klass);
+  app_bin_parent_class = g_type_class_peek_parent (klass);
 
   bin_signals[BIN_SIGNAL_READY] =
     g_signal_new ("ready", G_TYPE_FROM_CLASS (klass),
@@ -192,7 +192,7 @@ static void fs_shm_bin_class_init (FsShmBinClass *klass)
         G_SIGNAL_RUN_LAST, 0, NULL, NULL,
         g_cclosure_marshal_VOID__OBJECT, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
 
-  bin_class->handle_message = GST_DEBUG_FUNCPTR (fs_shm_bin_handle_message);
+  bin_class->handle_message = GST_DEBUG_FUNCPTR (fs_app_bin_handle_message);
 }
 
 /*
@@ -226,29 +226,29 @@ fs_app_transmitter_register_type (FsPlugin *module)
   };
 
   static const GTypeInfo bin_info = {
-    sizeof (FsShmBinClass),
+    sizeof (FsAppBinClass),
     NULL,
     NULL,
-    (GClassInitFunc) fs_shm_bin_class_init,
+    (GClassInitFunc) fs_app_bin_class_init,
     NULL,
     NULL,
-    sizeof (FsShmBin),
+    sizeof (FsAppBin),
     0,
-    (GInstanceInitFunc) fs_shm_bin_init
+    (GInstanceInitFunc) fs_app_bin_init
   };
 
 
   GST_DEBUG_CATEGORY_INIT (fs_app_transmitter_debug,
-      "fsshmtransmitter", 0,
-      "Farstream shm UDP transmitter");
+      "fsapptransmitter", 0,
+      "Farstream app UDP transmitter");
 
   fs_app_stream_transmitter_register_type (module);
 
   type = g_type_register_static (FS_TYPE_TRANSMITTER, "FsAppTransmitter",
       &info, 0);
 
-  shm_bin_type = g_type_register_static (
-    GST_TYPE_BIN, "FsShmBin", &bin_info, 0);
+  app_bin_type = g_type_register_static (
+    GST_TYPE_BIN, "FsAppBin", &bin_info, 0);
 
   return type;
 }
@@ -313,7 +313,7 @@ fs_app_transmitter_constructed (GObject *object)
 
   /* First we need the src elemnet */
 
-  self->priv->gst_src = fs_shm_bin_new ();
+  self->priv->gst_src = fs_app_bin_new ();
 
   if (!self->priv->gst_src) {
     trans->construction_error = g_error_new (FS_ERROR,
@@ -327,7 +327,7 @@ fs_app_transmitter_constructed (GObject *object)
 
   /* Second, we do the sink element */
 
-  self->priv->gst_sink = fs_shm_bin_new ();
+  self->priv->gst_sink = fs_app_bin_new ();
 
   if (!self->priv->gst_sink) {
     trans->construction_error = g_error_new (FS_ERROR,
@@ -559,7 +559,7 @@ fs_app_transmitter_get_stream_transmitter_type (
 }
 
 
-struct _ShmSrc {
+struct _AppSrc {
   guint component;
   gchar *path;
   GstElement *src;
@@ -575,27 +575,27 @@ struct _ShmSrc {
 static GstPadProbeReturn
 src_buffer_probe_cb (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
-  ShmSrc *shm = user_data;
+  AppSrc *app = user_data;
   GstBuffer *buffer = GST_PAD_PROBE_INFO_BUFFER (info);
 
-  shm->got_buffer_func (buffer, shm->component, shm->cb_data);
+  app->got_buffer_func (buffer, app->component, app->cb_data);
 
   return TRUE;
 }
 
 
 static void
-disconnected_cb (GstBin *bin, GstElement *elem, ShmSrc *shm)
+disconnected_cb (GstBin *bin, GstElement *elem, AppSrc *app)
 {
-  if (elem != shm->src)
+  if (elem != app->src)
     return;
 
-  shm->disconnected_func (shm->component, 0, shm->cb_data);
+  app->disconnected_func (app->component, 0, app->cb_data);
 }
 
 
-ShmSrc *
-fs_app_transmitter_get_shm_src (FsAppTransmitter *self,
+AppSrc *
+fs_app_transmitter_get_app_src (FsAppTransmitter *self,
     guint component,
     const gchar *path,
     got_buffer got_buffer_func,
@@ -603,22 +603,22 @@ fs_app_transmitter_get_shm_src (FsAppTransmitter *self,
     gpointer cb_data,
     GError **error)
 {
-  ShmSrc *shm = g_slice_new0 (ShmSrc);
+  AppSrc *app = g_slice_new0 (AppSrc);
   GstElement *elem;
   GstPad *pad;
 
-  shm->component = component;
-  shm->got_buffer_func = got_buffer_func;
-  shm->disconnected_func = disconnected_func;
-  shm->cb_data = cb_data;
+  app->component = component;
+  app->got_buffer_func = got_buffer_func;
+  app->disconnected_func = disconnected_func;
+  app->cb_data = cb_data;
 
-  shm->path = g_strdup (path);
+  app->path = g_strdup (path);
 
-  elem = gst_element_factory_make ("shmsrc", NULL);
+  elem = gst_element_factory_make ("audiotestsrc", NULL);
   if (!elem)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
-        "Could not make shmsrc");
+        "Could not make appsrc");
     goto error;
   }
 
@@ -628,9 +628,9 @@ fs_app_transmitter_get_shm_src (FsAppTransmitter *self,
       "is-live", TRUE,
       NULL);
 
-  if (shm->disconnected_func)
+  if (app->disconnected_func)
     g_signal_connect (self->priv->gst_src, "disconnected",
-        G_CALLBACK (disconnected_cb), shm);
+        G_CALLBACK (disconnected_cb), app);
 
   if (!gst_bin_add (GST_BIN (self->priv->gst_src), elem))
   {
@@ -640,20 +640,20 @@ fs_app_transmitter_get_shm_src (FsAppTransmitter *self,
     goto error;
   }
 
-  shm->src = elem;
+  app->src = elem;
 
-  shm->funnelpad = gst_element_get_request_pad (self->priv->funnels[component],
+  app->funnelpad = gst_element_get_request_pad (self->priv->funnels[component],
       "sink_%u");
 
-  if (!shm->funnelpad)
+  if (!app->funnelpad)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
         "Could not get funnelpad");
     goto error;
   }
 
-  pad = gst_element_get_static_pad (shm->src, "src");
-  if (GST_PAD_LINK_FAILED (gst_pad_link (pad, shm->funnelpad)))
+  pad = gst_element_get_static_pad (app->src, "src");
+  if (GST_PAD_LINK_FAILED (gst_pad_link (pad, app->funnelpad)))
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION, "Could not link tee"
         " and valve");
@@ -664,63 +664,63 @@ fs_app_transmitter_get_shm_src (FsAppTransmitter *self,
   gst_object_unref (pad);
 
   if (got_buffer_func)
-    shm->buffer_probe = gst_pad_add_probe (shm->funnelpad,
+    app->buffer_probe = gst_pad_add_probe (app->funnelpad,
         GST_PAD_PROBE_TYPE_BUFFER,
-        src_buffer_probe_cb, shm, NULL);
+        src_buffer_probe_cb, app, NULL);
 
-  if (!gst_element_sync_state_with_parent (shm->src))
+  if (!gst_element_sync_state_with_parent (app->src))
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
-        "Could not sync the state of the new shmsrc with its parent");
+        "Could not sync the state of the new appsrc with its parent");
     goto error;
   }
 
-  return shm;
+  return app;
 
  error:
-  fs_app_transmitter_check_shm_src (self, shm, NULL);
+  fs_app_transmitter_check_app_src (self, app, NULL);
   return NULL;
 }
 
 /*
- * Returns: %TRUE if the path is the same, other %FALSE and freeds the ShmSrc
+ * Returns: %TRUE if the path is the same, other %FALSE and freeds the AppSrc
  */
 
 gboolean
-fs_app_transmitter_check_shm_src (FsAppTransmitter *self, ShmSrc *shm,
+fs_app_transmitter_check_app_src (FsAppTransmitter *self, AppSrc *app,
     const gchar *path)
 {
-  if (path && !strcmp (path, shm->path))
+  if (path && !strcmp (path, app->path))
     return TRUE;
 
-  if (shm->buffer_probe)
-    gst_pad_remove_probe (shm->funnelpad, shm->buffer_probe);
-  shm->buffer_probe = 0;
+  if (app->buffer_probe)
+    gst_pad_remove_probe (app->funnelpad, app->buffer_probe);
+  app->buffer_probe = 0;
 
-  if (shm->funnelpad) {
-    gst_element_release_request_pad (self->priv->funnels[shm->component],
-        shm->funnelpad);
-    gst_object_unref (shm->funnelpad);
+  if (app->funnelpad) {
+    gst_element_release_request_pad (self->priv->funnels[app->component],
+        app->funnelpad);
+    gst_object_unref (app->funnelpad);
   }
-  shm->funnelpad = NULL;
+  app->funnelpad = NULL;
 
-  if (shm->src)
+  if (app->src)
   {
-    gst_element_set_locked_state (shm->src, TRUE);
-    gst_element_set_state (shm->src, GST_STATE_NULL);
-    gst_bin_remove (GST_BIN (self->priv->gst_src), shm->src);
+    gst_element_set_locked_state (app->src, TRUE);
+    gst_element_set_state (app->src, GST_STATE_NULL);
+    gst_bin_remove (GST_BIN (self->priv->gst_src), app->src);
   }
-  shm->src = NULL;
+  app->src = NULL;
 
-  g_free (shm->path);
-  g_slice_free (ShmSrc, shm);
+  g_free (app->path);
+  g_slice_free (AppSrc, app);
 
   return FALSE;
 }
 
 
 
-struct _ShmSink {
+struct _AppSink {
   guint component;
   gchar *path;
   GstElement *sink;
@@ -734,27 +734,27 @@ struct _ShmSink {
 
 
 static void
-ready_cb (GstBin *bin, GstElement *elem, ShmSink *shm)
+ready_cb (GstBin *bin, GstElement *elem, AppSink *app)
 {
   gchar *path = NULL;
 
-  if (elem != shm->sink)
+  if (elem != app->sink)
     return;
 
   g_object_get (elem, "socket-path", &path, NULL);
-  shm->ready_func (shm->component, path, shm->cb_data);
+  app->ready_func (app->component, path, app->cb_data);
   g_free (path);
 }
 
 
 static void
-connected_cb (GstBin *bin, gint id, ShmSink *shm)
+connected_cb (GstBin *bin, gint id, AppSink *app)
 {
-  shm->connected_func (shm->component, id, shm->cb_data);
+  app->connected_func (app->component, id, app->cb_data);
 }
 
-ShmSink *
-fs_app_transmitter_get_shm_sink (FsAppTransmitter *self,
+AppSink *
+fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
     guint component,
     const gchar *path,
     ready ready_func,
@@ -762,31 +762,31 @@ fs_app_transmitter_get_shm_sink (FsAppTransmitter *self,
     gpointer cb_data,
     GError **error)
 {
-  ShmSink *shm = g_slice_new0 (ShmSink);
+  AppSink *app = g_slice_new0 (AppSink);
   GstElement *elem;
   GstPad *pad;
 
-  GST_DEBUG ("Trying to add shm sink for c:%u path %s", component, path);
+  GST_DEBUG ("Trying to add app sink for c:%u path %s", component, path);
 
-  shm->component = component;
+  app->component = component;
 
-  shm->path = g_strdup (path);
+  app->path = g_strdup (path);
 
-  shm->ready_func = ready_func;
-  shm->connected_func = connected_func;
-  shm->cb_data = cb_data;
+  app->ready_func = ready_func;
+  app->connected_func = connected_func;
+  app->cb_data = cb_data;
 
   /* First add the sink */
 
-  elem = gst_element_factory_make ("shmsink", NULL);
+  elem = gst_element_factory_make ("appsink", NULL);
   if (!elem)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
-        "Could not make shmsink");
+        "Could not make appsink");
     goto error;
   }
   g_object_set (elem,
-      "socket-path", path,
+      "location", "/tmp/pidgin.s16",
       "wait-for-connection", FALSE,
       "async", FALSE,
       "sync" , FALSE,
@@ -794,20 +794,20 @@ fs_app_transmitter_get_shm_sink (FsAppTransmitter *self,
 
   if (ready_func)
     g_signal_connect (self->priv->gst_sink, "ready", G_CALLBACK (ready_cb),
-        shm);
+        app);
 
   if (connected_func)
-    g_signal_connect (elem, "client-connected", G_CALLBACK (connected_cb), shm);
+    g_signal_connect (elem, "client-connected", G_CALLBACK (connected_cb), app);
 
   if (!gst_bin_add (GST_BIN (self->priv->gst_sink), elem))
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
-        "Could not add shmsink to bin");
+        "Could not add appsink to bin");
     gst_object_unref (elem);
     goto error;
   }
 
-  shm->sink = elem;
+  app->sink = elem;
 
   /* Second add the recvonly filter */
 
@@ -827,43 +827,43 @@ fs_app_transmitter_get_shm_sink (FsAppTransmitter *self,
     goto error;
   }
 
-  shm->recvonly_filter = elem;
+  app->recvonly_filter = elem;
 
   /* Third connect these */
 
-  if (!gst_element_link (shm->recvonly_filter, shm->sink))
+  if (!gst_element_link (app->recvonly_filter, app->sink))
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
-        "Could not link recvonly filter and shmsink");
+        "Could not link recvonly filter and appsink");
     goto error;
   }
 
-  if (!gst_element_sync_state_with_parent (shm->sink))
+  if (!gst_element_sync_state_with_parent (app->sink))
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
-        "Could not sync the state of the new shmsink with its parent");
+        "Could not sync the state of the new appsink with its parent");
     goto error;
   }
 
-  if (!gst_element_sync_state_with_parent (shm->recvonly_filter))
+  if (!gst_element_sync_state_with_parent (app->recvonly_filter))
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
         "Could not sync the state of the new recvonly filter  with its parent");
     goto error;
   }
 
-  shm->teepad = gst_element_get_request_pad (self->priv->tees[component],
+  app->teepad = gst_element_get_request_pad (self->priv->tees[component],
       "src_%u");
 
-  if (!shm->teepad)
+  if (!app->teepad)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
         "Could not get teepad");
     goto error;
   }
 
-  pad = gst_element_get_static_pad (shm->recvonly_filter, "sink");
-  if (GST_PAD_LINK_FAILED (gst_pad_link (shm->teepad, pad)))
+  pad = gst_element_get_static_pad (app->recvonly_filter, "sink");
+  if (GST_PAD_LINK_FAILED (gst_pad_link (app->teepad, pad)))
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION, "Could not link tee"
         " and valve");
@@ -872,68 +872,68 @@ fs_app_transmitter_get_shm_sink (FsAppTransmitter *self,
   }
   gst_object_unref (pad);
 
-  return shm;
+  return app;
 
  error:
-  fs_app_transmitter_check_shm_sink (self, shm, NULL);
+  fs_app_transmitter_check_app_sink (self, app, NULL);
 
   return NULL;
 }
 
 gboolean
-fs_app_transmitter_check_shm_sink (FsAppTransmitter *self, ShmSink *shm,
+fs_app_transmitter_check_app_sink (FsAppTransmitter *self, AppSink *app,
     const gchar *path)
 {
-  if (path && !strcmp (path, shm->path))
+  if (path && !strcmp (path, app->path))
     return TRUE;
 
   if (path)
-    GST_DEBUG ("Replacing shm socket %s with %s", shm->path, path);
+    GST_DEBUG ("Replacing app socket %s with %s", app->path, path);
   else
-    GST_DEBUG ("Freeing shm socket %s", shm->path);
+    GST_DEBUG ("Freeing app socket %s", app->path);
 
-  if (shm->teepad)
+  if (app->teepad)
   {
-    gst_element_release_request_pad (self->priv->tees[shm->component],
-        shm->teepad);
-    gst_object_unref (shm->teepad);
+    gst_element_release_request_pad (self->priv->tees[app->component],
+        app->teepad);
+    gst_object_unref (app->teepad);
   }
-  shm->teepad = NULL;
+  app->teepad = NULL;
 
-  if (shm->sink)
+  if (app->sink)
   {
-    gst_element_set_locked_state (shm->sink, TRUE);
-    gst_element_set_state (shm->sink, GST_STATE_NULL);
-    gst_bin_remove (GST_BIN (self->priv->gst_sink), shm->sink);
+    gst_element_set_locked_state (app->sink, TRUE);
+    gst_element_set_state (app->sink, GST_STATE_NULL);
+    gst_bin_remove (GST_BIN (self->priv->gst_sink), app->sink);
   }
-  shm->sink = NULL;
+  app->sink = NULL;
 
-  if (shm->recvonly_filter)
+  if (app->recvonly_filter)
   {
-    gst_element_set_locked_state (shm->recvonly_filter, TRUE);
-    gst_element_set_state (shm->recvonly_filter, GST_STATE_NULL);
-    gst_bin_remove (GST_BIN (self->priv->gst_sink), shm->recvonly_filter);
+    gst_element_set_locked_state (app->recvonly_filter, TRUE);
+    gst_element_set_state (app->recvonly_filter, GST_STATE_NULL);
+    gst_bin_remove (GST_BIN (self->priv->gst_sink), app->recvonly_filter);
   }
-  shm->recvonly_filter = NULL;
+  app->recvonly_filter = NULL;
 
-  g_free (shm->path);
-  g_slice_free (ShmSink, shm);
+  g_free (app->path);
+  g_slice_free (AppSink, app);
 
   return FALSE;
 }
 
 
 void
-fs_app_transmitter_sink_set_sending (FsAppTransmitter *self, ShmSink *shm,
+fs_app_transmitter_sink_set_sending (FsAppTransmitter *self, AppSink *app,
     gboolean sending)
 {
-  GObjectClass *klass = G_OBJECT_GET_CLASS (shm->recvonly_filter);
+  GObjectClass *klass = G_OBJECT_GET_CLASS (app->recvonly_filter);
 
   if (g_object_class_find_property (klass, "drop"))
-    g_object_set (shm->recvonly_filter, "drop", !sending, NULL);
+    g_object_set (app->recvonly_filter, "drop", !sending, NULL);
 
   if (sending)
-    gst_element_send_event (shm->sink,
+    gst_element_send_event (app->sink,
         gst_event_new_custom (GST_EVENT_CUSTOM_UPSTREAM,
             gst_structure_new ("GstForceKeyUnit",
               "all-headers", G_TYPE_BOOLEAN, TRUE,

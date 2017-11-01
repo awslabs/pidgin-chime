@@ -84,14 +84,14 @@ struct _FsAppTransmitter
 
 GType fs_app_transmitter_get_type (void);
 
-typedef struct _ShmSrc ShmSrc;
-typedef struct _ShmSink ShmSink;
+typedef struct _AppSrc AppSrc;
+typedef struct _AppSink AppSink;
 
 typedef void (*got_buffer) (GstBuffer *buffer, guint component, gpointer data);
 typedef void (*ready) (guint component, gchar *path, gpointer data);
 typedef void (*connection) (guint component, gint id, gpointer data);
 
-ShmSrc *fs_app_transmitter_get_shm_src (FsAppTransmitter *self,
+AppSrc *fs_app_transmitter_get_app_src (FsAppTransmitter *self,
     guint component,
     const gchar *path,
     got_buffer got_buffer_func,
@@ -99,11 +99,11 @@ ShmSrc *fs_app_transmitter_get_shm_src (FsAppTransmitter *self,
     gpointer cb_data,
     GError **error);
 
-gboolean fs_app_transmitter_check_shm_src (FsAppTransmitter *self,
-    ShmSrc *shm,
+gboolean fs_app_transmitter_check_app_src (FsAppTransmitter *self,
+    AppSrc *app,
     const gchar *path);
 
-ShmSink *fs_app_transmitter_get_shm_sink (FsAppTransmitter *self,
+AppSink *fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
     guint component,
     const gchar *path,
     ready ready_func,
@@ -111,12 +111,12 @@ ShmSink *fs_app_transmitter_get_shm_sink (FsAppTransmitter *self,
     gpointer cb_data,
     GError **error);
 
-gboolean fs_app_transmitter_check_shm_sink (FsAppTransmitter *self,
-    ShmSink *shm,
+gboolean fs_app_transmitter_check_app_sink (FsAppTransmitter *self,
+    AppSink *app,
     const gchar *path);
 
 void fs_app_transmitter_sink_set_sending (FsAppTransmitter *self,
-    ShmSink *shm, gboolean sending);
+    AppSink *app, gboolean sending);
 
 
 

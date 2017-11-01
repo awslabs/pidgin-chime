@@ -275,7 +275,7 @@ void chime_destroy_chat(struct chime_chat *chat)
 						     0, 0, NULL, NULL, chat);
 
 		if (chat->media) {
-			purple_media_end(chat->media, "chime", chime_call_get_uuid(chat->call));
+			purple_media_end(chat->media, "chime", chime_call_get_alert_body(chat->call));
 			purple_media_manager_remove_media(purple_media_manager_get(),
 							  chat->media);
 			chat->media = NULL;
@@ -303,6 +303,7 @@ static void on_chat_name(ChimeObject *obj, GParamSpec *ignored, struct chime_cha
 	if (name && chat->conv)
 		purple_conversation_set_name(chat->conv, name);
 }
+#include <farstream/fs-candidate.h>
 
 static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 {
@@ -313,20 +314,30 @@ static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 	if (!chat->audio)
 		return;
 
-#if 0 /* FIXME make this work... */
+#if 1 /* FIXME make this work... */
 	const gchar *name = chime_call_get_alert_body(chat->call);
-	PurpleMedia *media = purple_media_manager_create_media(purple_media_manager_get(),
+	chat->media = purple_media_manager_create_media(purple_media_manager_get(),
 							       chat->conv->account,
 							       "fsrawconference",
 							       name,
 							       TRUE);
-	printf("media for %s %p\n", name, media);
-	if (media) {
-		gboolean r = purple_media_add_stream(media, "chime", name,
+	printf("media for %s %p\n", name, chat->media);
+	if (chat->media) {
+		gboolean r = purple_media_add_stream(chat->media, "chime", name,
 						     PURPLE_MEDIA_AUDIO, TRUE,
 						     "app", 0, NULL);
+		purple_media_stream_info(chat->media, PURPLE_MEDIA_INFO_ACCEPT, "chime", name, FALSE);
 		printf("Add stream %s\n", r ? "succeeded" : "failed");
+		GList *cands = g_list_append (NULL,
+					      purple_media_candidate_new(NULL, 1,
+									 PURPLE_MEDIA_CANDIDATE_TYPE_HOST, PURPLE_MEDIA_NETWORK_PROTOCOL_UDP, "/tmp/src1", 0));
 
+		GList *codecs = g_list_append(NULL,
+					       purple_media_codec_new(1, "audio/x-raw, format=(string)S16LE, layout=(string)interleaved, rate=(int)44100, channels=(int)1", PURPLE_MEDIA_AUDIO, 0));
+		//		purple_media_set_send_codec(chat->media, "chime", codecs->data);
+
+		purple_media_add_remote_candidates(chat->media, "chime", name, cands);
+		purple_media_set_remote_codecs(chat->media, "chime", name, codecs);
 	}
 #endif
 }

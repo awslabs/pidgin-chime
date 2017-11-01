@@ -5,7 +5,7 @@
  *  @author: Olivier Crete <olivier.crete@collabora.co.uk>
  * Copyright 2009 Nokia Corp.
  *
- * fs-app-stream-transmitter.c - A Farstream Shared memory stream transmitter
+ * fs-app-stream-transmitter.c - A Farstream GstAppShared memory stream transmitter
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,7 +27,7 @@
  * SECTION:fs-app-stream-transmitter
  * @short_description: A stream transmitter object for Shared Memory
  *
- * The name of this transmitter is "shm".
+ * The name of this transmitter is "app".
  *
  * This transmitter is meant to send and received the data from another process
  * on the same system while minimizing the memory pressure associated with the
@@ -125,8 +125,8 @@ struct _FsAppStreamTransmitterPrivate
   /* temporary socket directy in case we made one */
   gchar *socket_dir;
 
-  ShmSrc **shm_src;
-  ShmSink **shm_sink;
+  AppSrc **app_src;
+  AppSink **app_sink;
 };
 
 #define FS_APP_STREAM_TRANSMITTER_GET_PRIVATE(o)  \
@@ -221,7 +221,7 @@ fs_app_stream_transmitter_class_init (FsAppStreamTransmitterClass *klass)
   pspec = g_param_spec_boolean ("create-local-candidates",
     "CreateLocalCandidates",
     "Whether the transmitter should automatically create local candidates",
-    FALSE,
+    TRUE,
     G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
   g_object_class_install_property (gobject_class,
     PROP_CREATE_LOCAL_CANDIDATES,
@@ -253,19 +253,19 @@ fs_app_stream_transmitter_dispose (GObject *object)
 
   for (c = 1; c <= self->priv->transmitter->components; c++)
   {
-    if (self->priv->shm_src[c])
+    if (self->priv->app_src[c])
     {
-      fs_app_transmitter_check_shm_src (self->priv->transmitter,
-          self->priv->shm_src[c], NULL);
+      fs_app_transmitter_check_app_src (self->priv->transmitter,
+          self->priv->app_src[c], NULL);
     }
-    self->priv->shm_src[c] = NULL;
+    self->priv->app_src[c] = NULL;
 
-    if (self->priv->shm_sink[c])
+    if (self->priv->app_sink[c])
     {
-      fs_app_transmitter_check_shm_sink (self->priv->transmitter,
-          self->priv->shm_sink[c], NULL);
+      fs_app_transmitter_check_app_sink (self->priv->transmitter,
+          self->priv->app_sink[c], NULL);
     }
-    self->priv->shm_sink[c] = NULL;
+    self->priv->app_sink[c] = NULL;
   }
 
   if (self->priv->socket_dir != NULL)
@@ -283,8 +283,8 @@ fs_app_stream_transmitter_finalize (GObject *object)
 
   fs_candidate_list_destroy (self->priv->preferred_local_candidates);
 
-  g_free (self->priv->shm_src);
-  g_free (self->priv->shm_sink);
+  g_free (self->priv->app_src);
+  g_free (self->priv->app_sink);
   g_mutex_clear (&self->priv->mutex);
 
   parent_class->finalize (object);
@@ -329,9 +329,9 @@ fs_app_stream_transmitter_set_property (GObject *object,
     case PROP_SENDING:
       FS_APP_STREAM_TRANSMITTER_LOCK (self);
       self->priv->sending = g_value_get_boolean (value);
-      if (self->priv->shm_sink[1])
+      if (self->priv->app_sink[1])
         fs_app_transmitter_sink_set_sending (self->priv->transmitter,
-            self->priv->shm_sink[1], self->priv->sending);
+            self->priv->app_sink[1], self->priv->sending);
       FS_APP_STREAM_TRANSMITTER_UNLOCK (self);
       break;
     case PROP_PREFERRED_LOCAL_CANDIDATES:
@@ -350,9 +350,9 @@ static gboolean
 fs_app_stream_transmitter_build (FsAppStreamTransmitter *self,
   GError **error)
 {
-  self->priv->shm_src = g_new0 (ShmSrc *,
+  self->priv->app_src = g_new0 (AppSrc *,
       self->priv->transmitter->components + 1);
-  self->priv->shm_sink = g_new0 (ShmSink *,
+  self->priv->app_sink = g_new0 (AppSink *,
       self->priv->transmitter->components + 1);
 
   return TRUE;
@@ -400,26 +400,27 @@ fs_app_stream_transmitter_add_sink (FsAppStreamTransmitter *self,
   if (!candidate->ip || !candidate->ip[0])
     return TRUE;
 
-  if (self->priv->shm_sink[candidate->component_id])
+  if (self->priv->app_sink[candidate->component_id])
   {
-    if (fs_app_transmitter_check_shm_sink (self->priv->transmitter,
-            self->priv->shm_sink[candidate->component_id], candidate->ip))
+    if (fs_app_transmitter_check_app_sink (self->priv->transmitter,
+            self->priv->app_sink[candidate->component_id], candidate->ip))
       return TRUE;
-    self->priv->shm_sink[candidate->component_id] = NULL;
+    self->priv->app_sink[candidate->component_id] = NULL;
   }
 
-  self->priv->shm_sink[candidate->component_id] =
-    fs_app_transmitter_get_shm_sink (self->priv->transmitter,
+  self->priv->app_sink[candidate->component_id] =
+    fs_app_transmitter_get_app_sink (self->priv->transmitter,
         candidate->component_id, candidate->ip, ready_cb, connected_cb,
         self, error);
 
-  if (self->priv->shm_sink[candidate->component_id] == NULL)
+  if (self->priv->app_sink[candidate->component_id] == NULL)
     return FALSE;
 
-  if (candidate->component_id == 1)
+  if (candidate->component_id == 1) {
     fs_app_transmitter_sink_set_sending (self->priv->transmitter,
-        self->priv->shm_sink[candidate->component_id], self->priv->sending);
-
+        self->priv->app_sink[candidate->component_id], self->priv->sending);
+    //    connected_cb(1, 0, self);
+  }
   return TRUE;
 }
 
@@ -449,20 +450,20 @@ fs_app_stream_transmitter_force_remote_candidate (
 
   if (path && path[0])
   {
-    if (self->priv->shm_src[candidate->component_id])
+    if (self->priv->app_src[candidate->component_id])
     {
-      if (fs_app_transmitter_check_shm_src (self->priv->transmitter,
-              self->priv->shm_src[candidate->component_id], path))
+      if (fs_app_transmitter_check_app_src (self->priv->transmitter,
+              self->priv->app_src[candidate->component_id], path))
         return TRUE;
-      self->priv->shm_src[candidate->component_id] = NULL;
+      self->priv->app_src[candidate->component_id] = NULL;
     }
 
-    self->priv->shm_src[candidate->component_id] =
-      fs_app_transmitter_get_shm_src (self->priv->transmitter,
+    self->priv->app_src[candidate->component_id] =
+      fs_app_transmitter_get_app_src (self->priv->transmitter,
           candidate->component_id, path, got_buffer_func, disconnected_cb,
           self, error);
 
-    if (self->priv->shm_src[candidate->component_id] == NULL)
+    if (self->priv->app_src[candidate->component_id] == NULL)
       return FALSE;
   }
 
@@ -498,8 +499,8 @@ fs_app_stream_transmitter_force_remote_candidates (
         (!candidate->username || !candidate->username[0]))
     {
       g_set_error (error, FS_ERROR, FS_ERROR_INVALID_ARGUMENTS,
-          "The candidate does not have a SINK shm segment in its ip"
-          " or a SRC shm segment in its username");
+          "The candidate does not have a SINK app segment in its ip"
+          " or a SRC app segment in its username");
       return FALSE;
     }
   }
@@ -555,7 +556,7 @@ fs_app_stream_transmitter_gather_local_candidates (
     gchar *socket_dir;
 
     socket_dir = g_build_filename (g_get_tmp_dir (),
-      "farstream-shm-XXXXXX", NULL);
+      "farstream-app-XXXXXX", NULL);
 
     if (g_mkdtemp (socket_dir) == NULL)
       return FALSE;
@@ -564,19 +565,21 @@ fs_app_stream_transmitter_gather_local_candidates (
 
     for (c = 1; c <= self->priv->transmitter->components; c++)
     {
-      gchar *path = g_strdup_printf ("%s/shm-sink-socket-%d", socket_dir, c);
+      gchar *path = g_strdup_printf ("%s/app-sink-socket-%d", socket_dir, c);
 
-      self->priv->shm_sink[c] =
-        fs_app_transmitter_get_shm_sink (self->priv->transmitter,
+      self->priv->app_sink[c] =
+        fs_app_transmitter_get_app_sink (self->priv->transmitter,
           c, path, ready_cb, connected_cb, self, error);
       g_free (path);
 
-      if (self->priv->shm_sink[c] == NULL)
+      if (self->priv->app_sink[c] == NULL)
         return FALSE;
 
-      if (c == 1)
+      if (c == 1) {
         fs_app_transmitter_sink_set_sending (self->priv->transmitter,
-            self->priv->shm_sink[c], self->priv->sending);
+            self->priv->app_sink[c], self->priv->sending);
+	//	connected_cb(1, 0, self);
+      }
     }
 
     return TRUE;

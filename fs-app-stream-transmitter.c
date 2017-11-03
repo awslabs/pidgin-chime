@@ -385,7 +385,7 @@ static void
 connected_cb (guint component, gint id, gpointer data)
 {
   FsAppStreamTransmitter *self = data;
-
+  printf("emit state-changed for %p:%u\n", self, component);
   g_signal_emit_by_name (self, "state-changed", component,
       FS_STREAM_STATE_READY);
 }
@@ -419,7 +419,7 @@ fs_app_stream_transmitter_add_sink (FsAppStreamTransmitter *self,
   if (candidate->component_id == 1) {
     fs_app_transmitter_sink_set_sending (self->priv->transmitter,
         self->priv->app_sink[candidate->component_id], self->priv->sending);
-    //    connected_cb(1, 0, self);
+    connected_cb(1, 0, self);
   }
   return TRUE;
 }
@@ -578,7 +578,7 @@ fs_app_stream_transmitter_gather_local_candidates (
       if (c == 1) {
         fs_app_transmitter_sink_set_sending (self->priv->transmitter,
             self->priv->app_sink[c], self->priv->sending);
-	//	connected_cb(1, 0, self);
+	connected_cb(1, 0, self);
       }
     }
 

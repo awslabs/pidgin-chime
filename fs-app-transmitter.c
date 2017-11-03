@@ -778,7 +778,7 @@ fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
 
   /* First add the sink */
 
-  elem = gst_element_factory_make ("appsink", NULL);
+  elem = gst_element_factory_make ("filesink", NULL);
   if (!elem)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,

@@ -314,7 +314,7 @@ static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 	if (!chat->audio)
 		return;
 
-#if 1 /* FIXME make this work... */
+#if 0 /* FIXME make this work... */
 	const gchar *name = chime_call_get_alert_body(chat->call);
 	chat->media = purple_media_manager_create_media(purple_media_manager_get(),
 							       chat->conv->account,
@@ -326,7 +326,6 @@ static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 		gboolean r = purple_media_add_stream(chat->media, "chime", name,
 						     PURPLE_MEDIA_AUDIO, TRUE,
 						     "app", 0, NULL);
-		purple_media_stream_info(chat->media, PURPLE_MEDIA_INFO_ACCEPT, "chime", name, FALSE);
 		printf("Add stream %s\n", r ? "succeeded" : "failed");
 		GList *cands = g_list_append (NULL,
 					      purple_media_candidate_new(NULL, 1,
@@ -334,10 +333,10 @@ static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 
 		GList *codecs = g_list_append(NULL,
 					       purple_media_codec_new(1, "audio/x-raw, format=(string)S16LE, layout=(string)interleaved, rate=(int)44100, channels=(int)1", PURPLE_MEDIA_AUDIO, 0));
-		//		purple_media_set_send_codec(chat->media, "chime", codecs->data);
-
 		purple_media_add_remote_candidates(chat->media, "chime", name, cands);
+		purple_media_set_send_codec(chat->media, "chime", codecs->data);
 		purple_media_set_remote_codecs(chat->media, "chime", name, codecs);
+		purple_media_stream_info(chat->media, PURPLE_MEDIA_INFO_ACCEPT, "chime", name, FALSE);
 	}
 #endif
 }

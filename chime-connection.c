@@ -430,7 +430,7 @@ chime_device_register_req(const gchar *devtoken)
 	jb = json_builder_set_member_name(jb, "Device");
 	jb = json_builder_begin_object(jb);
 	jb = json_builder_set_member_name(jb, "Platform");
-	jb = json_builder_add_string_value(jb, "osx");
+	jb = json_builder_add_string_value(jb, "pidgin");
 	jb = json_builder_set_member_name(jb, "DeviceToken");
 	jb = json_builder_add_string_value(jb, devtoken);
 	jb = json_builder_set_member_name(jb, "PlatformDeviceId");

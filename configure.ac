@@ -47,11 +47,7 @@ if test "$purple_datadir" = "" ; then
 fi
 AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
 
-PKG_CHECK_MODULES(FARSTREAM, [farstream-0.2 >= 0.2.8],
-			     [have_farstream=yes
-			     AC_DEFINE(HAVE_FARSTREAM, 1, [Have fs_plugin_register_static])], [have_farstream=no])
-AM_CONDITIONAL(BUILD_FARSTREAM, [ test "$have_farstream" = "yes" ])
-
+PKG_CHECK_MODULES(FARSTREAM, [farstream-0.2])
 PKG_CHECK_MODULES(OPUS, [opus])
 PKG_CHECK_MODULES(PROTOBUF, [libprotobuf-c])
 PKG_CHECK_MODULES(JSON, [json-glib-1.0])
@@ -83,6 +79,9 @@ PKG_CHECK_MODULES(EVOLUTION, [evolution-calendar-3.0 evolution-shell-3.0 evoluti
 		  [:]);
 AM_CONDITIONAL(BUILD_EVOPLUGIN, [ test "$build_evoplugin" = "yes" ])
 
+fsplugindir="$($PKG_CONFIG --variable=pluginsdir farstream-0.2)"
+AC_SUBST(fsplugindir, ${fsplugindir})]
+
 AC_SUBST([CONFIG_STATUS_DEPENDENCIES],
 	['$(top_srcdir)/po/LINGUAS'])
 
@@ -102,5 +101,6 @@ AC_CONFIG_FILES([
 	pixmaps/32/Makefile
 	pixmaps/48/Makefile
 	evolution-plugin/Makefile
+	fs-app-transmitter/Makefile
 	])
 AC_OUTPUT

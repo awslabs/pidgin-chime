@@ -253,6 +253,8 @@ fs_app_transmitter_register_type (FsPlugin *module)
   return type;
 }
 
+FS_INIT_PLUGIN (app, transmitter)
+
 static void
 fs_app_transmitter_class_init (FsAppTransmitterClass *klass)
 {

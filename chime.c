@@ -345,7 +345,7 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 static void chime_purple_show_about_plugin(PurplePluginAction *action)
 {
 	purple_notify_formatted(action->context,
-				NULL, _("Foo"), NULL, _("Hello"),
+				NULL, _("Amazon Chime plugin"), PACKAGE_STRING, _("Hello"),
 				NULL, NULL);
 }
 

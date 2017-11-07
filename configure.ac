@@ -47,7 +47,11 @@ if test "$purple_datadir" = "" ; then
 fi
 AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
 
-PKG_CHECK_MODULES(FARSTREAM, [farstream-0.2])
+PKG_CHECK_MODULES(FARSTREAM, [farstream-0.2 >= 0.2.8],
+			     [have_farstream=yes
+			     AC_DEFINE(HAVE_FARSTREAM, 1, [Have fs_plugin_register_static])], [have_farstream=no])
+AM_CONDITIONAL(BUILD_FARSTREAM, [ test "$have_farstream" = "yes" ])
+
 PKG_CHECK_MODULES(OPUS, [opus])
 PKG_CHECK_MODULES(PROTOBUF, [libprotobuf-c])
 PKG_CHECK_MODULES(JSON, [json-glib-1.0])

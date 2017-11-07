@@ -441,15 +441,20 @@ static PurplePluginInfo chime_plugin_info = {
 	.actions = chime_purple_plugin_actions,
 };
 
+#ifdef HAVE_FARSTREAM
 #include "fs-app-transmitter.h"
 #include <farstream/fs-plugin.h>
 extern GType fs_app_transmitter_register_type(void *);
+#endif
 static void chime_purple_init_plugin(PurplePlugin *plugin)
 {
 	PurpleAccountOption *opt;
 	GList *opts = NULL;
 
+#ifdef HAVE_FARSTREAM
 	fs_plugin_register_static("app", "transmitter", fs_app_transmitter_register_type(NULL));
+#endif
+
 	opt = purple_account_option_string_new(_("Signin URL"),
 					       "server", NULL);
 	opts = g_list_append(opts, opt);

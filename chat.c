@@ -303,7 +303,6 @@ static void on_chat_name(ChimeObject *obj, GParamSpec *ignored, struct chime_cha
 	if (name && chat->conv)
 		purple_conversation_set_name(chat->conv, name);
 }
-#include <farstream/fs-candidate.h>
 
 static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 {

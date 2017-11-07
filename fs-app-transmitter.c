@@ -787,7 +787,6 @@ fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
   }
   g_object_set (elem,
       "location", "/tmp/pidgin.s16",
-      "wait-for-connection", FALSE,
       "async", FALSE,
       "sync" , FALSE,
       NULL);

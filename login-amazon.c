@@ -20,7 +20,7 @@
 
 #include "login-private.h"
 
-#define SIGN_IN_FORM  "//form[@id='ap_signin_form']"
+#define SIGN_IN_FORM  "//form[@name='signIn']"
 #define CONSENT_FORM  "//form[@name='consent-form']"
 #define PASS_FIELD  "password"
 #define PASS_TITLE  _("Amazon Login")

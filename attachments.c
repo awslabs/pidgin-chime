@@ -16,6 +16,7 @@
  */
 
 #include <errno.h>
+#include <glib/gi18n.h>
 #include "chime.h"
 
 // According to http://docs.aws.amazon.com/chime/latest/ug/chime-ug.pdf this is the maximum allowed size for attachments.
@@ -58,7 +59,7 @@ static void insert_image_from_file(AttachmentContext *ctx, const gchar *path)
 	/* The imgstore will take ownership of the contents. */
 	int img_id = purple_imgstore_add_with_id(contents, size, path);
 	if (img_id == 0) {
-		gchar *msg = g_strdup_printf("Could not make purple image from %s", path);
+		gchar *msg = g_strdup_printf(_("Could not make purple image from %s"), path);
 		sys_message(ctx, msg, PURPLE_MESSAGE_ERROR);
 		g_free(msg);
 		return;
@@ -95,7 +96,7 @@ static void download_callback(PurpleUtilFetchUrlData *url_data, gpointer user_da
 	}
 
 	if (len <= 0 || url_text == NULL ){
-		sys_message(data->ctx, "Downloaded empty contents.", PURPLE_MESSAGE_ERROR);
+		sys_message(data->ctx, _("Downloaded empty contents."), PURPLE_MESSAGE_ERROR);
 		deep_free_download_data(data);
 		return;
 	}
@@ -111,7 +112,7 @@ static void download_callback(PurpleUtilFetchUrlData *url_data, gpointer user_da
 	if (g_content_type_is_a(data->att->content_type, "image/*")) {
 		insert_image_from_file(data->ctx, data->path);
 	} else {
-		gchar *msg = g_strdup_printf("An attachment sent by %s has been downloaded as %s", data->ctx->from, data->path);
+		gchar *msg = g_strdup_printf(_("%s has attached <a href=\"file://%s\">%s</a>"), data->ctx->from, data->path, data->att->filename);
 		sys_message(data->ctx, msg, PURPLE_MESSAGE_SYSTEM);
 		g_free(msg);
 	}
@@ -151,7 +152,7 @@ void download_attachment(ChimeConnection *cxn, ChimeAttachment *att, AttachmentC
 	const gchar *username = chime_connection_get_email(cxn);
 	gchar *dir = g_build_filename(purple_user_dir(), "chime", username, "downloads", NULL);
 	if (g_mkdir_with_parents(dir, 0755) == -1) {
-		gchar *msg = g_strdup_printf("Could not make dir %s,will not fetch file/image (errno=%d, errstr=%s)", dir, errno, g_strerror(errno));
+		gchar *msg = g_strdup_printf(_("Could not make dir %s,will not fetch file/image (errno=%d, errstr=%s)"), dir, errno, g_strerror(errno));
 		sys_message(ctx, msg, PURPLE_MESSAGE_ERROR);
 		g_free(dir);
 		g_free(msg);

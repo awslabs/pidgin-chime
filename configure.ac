@@ -80,7 +80,7 @@ PKG_CHECK_MODULES(EVOLUTION, [evolution-calendar-3.0 evolution-shell-3.0 evoluti
 AM_CONDITIONAL(BUILD_EVOPLUGIN, [ test "$build_evoplugin" = "yes" ])
 
 fsplugindir="$($PKG_CONFIG --variable=pluginsdir farstream-0.2)"
-AC_SUBST(fsplugindir, ${fsplugindir})]
+AC_SUBST(fsplugindir, ${fsplugindir})
 
 AC_SUBST([CONFIG_STATUS_DEPENDENCIES],
 	['$(top_srcdir)/po/LINGUAS'])

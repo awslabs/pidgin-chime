@@ -425,7 +425,6 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 
 	destination = soup_uri_new_with_base(soup_message_get_uri(msg), path);
 	next = soup_message_new_from_uri(SOUP_METHOD_GET, destination);
-	soup_message_headers_append(next->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 	soup_message_set_first_party(next, destination);
 	soup_session_queue_message(session, next, handler, state);
 	soup_uri_free(destination);
@@ -450,7 +449,6 @@ static void signin_page_cb(SoupSession *session, SoupMessage *msg, gpointer data
 	g_hash_table_insert(form->params, g_strdup(form->email_name),
 			    g_strdup(login_account_email(state)));
 	next = soup_form_request_new_from_hash(form->method, form->action, form->params);
-	soup_message_headers_append(next->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 	soup_session_queue_message(session, next, signin_search_result_cb, state);
  out:
 	login_free_form(form);
@@ -483,7 +481,10 @@ void chime_initial_login(ChimeConnection *cxn)
 	state = g_new0(struct login, 1);
 	state->connection = g_object_ref(cxn);
 	state->session = soup_session_new_with_options(SOUP_SESSION_ADD_FEATURE_BY_TYPE,
-						       SOUP_TYPE_COOKIE_JAR, NULL);
+						       SOUP_TYPE_COOKIE_JAR,
+						       SOUP_SESSION_USER_AGENT,
+						       "Pidgin-Chime " PACKAGE_VERSION " ",
+						       NULL);
 	/* TODO: This needs to go somewhere else */
 	if (getenv("CHIME_DEBUG") && atoi(getenv("CHIME_DEBUG")) > 0) {
 		SoupLogger *l = soup_logger_new(SOUP_LOGGER_LOG_BODY, -1);

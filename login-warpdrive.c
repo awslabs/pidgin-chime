@@ -79,6 +79,7 @@ static gchar *escaped(const gchar *src)
 			g_string_append(dst, "\\\\");
 			break;
 		case '|':
+			/* GWT escapes the pipe charater with backslash exclamation */
 			g_string_append(dst, "\\!");
 			break;
 		default:

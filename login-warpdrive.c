@@ -68,16 +68,22 @@ static void free_wd_state(struct login_wd *state)
 	g_free(state->gwt_policy);
 }
 
-static gchar *escape_backslash(const gchar *src)
+static gchar *escaped(const gchar *src)
 {
 	GString *dst = g_string_new("");
 	guint i = 0;
 
-	for (i = 0;  src[i] != '\0';  i++) {
-		g_string_append_c(dst, src[i]);
-		if (src[i] == '\\')
-			g_string_append_c(dst, '\\');
-	}
+	for (i = 0;  src[i] != '\0';  i++)
+		switch (src[i]) {
+		case '\\':
+			g_string_append(dst, "\\\\");
+			break;
+		case '|':
+			g_string_append(dst, "\\!");
+			break;
+		default:
+			g_string_append_c(dst, src[i]);
+		}
 	return g_string_free(dst, FALSE);
 }
 
@@ -86,7 +92,7 @@ static void set_username(struct login_wd *state, const gchar *username)
 	if (state->username)
 		g_free(state->username);
 
-	state->username = escape_backslash(username);
+	state->username = escaped(username);
 }
 
 /*
@@ -277,7 +283,7 @@ static void gwt_auth_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 static void send_credentials(struct login_wd *state, const gchar *password)
 {
 	SoupMessage *msg;
-	gchar *escaped;
+	gchar *safe_password;
 	static const gchar *type = "com.amazonaws.warpdrive.console.shared.LoginRequest_v4/3859384737";
 
 	if (!(password && *password)) {
@@ -285,16 +291,16 @@ static void send_credentials(struct login_wd *state, const gchar *password)
 		return;
 	}
 
-	escaped = escape_backslash(password);
+	safe_password = escaped(password);
 
 	msg = gwt_request(state, WARPDRIVE_INTERFACE, "authenticateUser", 11,
 			  type, type, "", "", state->client_id, "", NULL,
-			  state->directory, escaped, "", state->username);
+			  state->directory, safe_password, "", state->username);
 
 	soup_message_headers_append(msg->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 	soup_session_queue_message(login_session(state), msg, gwt_auth_cb, state);
 
-	g_free(escaped);
+	g_free(safe_password);
 }
 
 static void gather_credentials_and_send(struct login_wd *state, PurpleRequestFields *fields)

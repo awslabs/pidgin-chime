@@ -64,7 +64,6 @@ static void login_result_cb(SoupSession *session, SoupMessage *msg, gpointer dat
 						       form->action,
 						       form->params);
 
-		soup_message_headers_append(next->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 		soup_session_queue_message(login_session(state), next, login_result_cb, state);
 
 		login_free_form(form);
@@ -105,7 +104,6 @@ static void send_credentials(struct login_amzn *state, const gchar *password)
 	msg = soup_form_request_new_from_hash(state->form->method,
 					      state->form->action,
 					      state->form->params);
-	soup_message_headers_append(msg->request_headers, "User-Agent", "Pidgin-Chime " PACKAGE_VERSION);
 	soup_session_queue_message(login_session(state), msg, login_result_cb, state);
 
 	clear_form(state);

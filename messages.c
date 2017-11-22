@@ -279,8 +279,7 @@ static void chime_update_last_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	g_free(msgs->last_seen);
 	msgs->last_seen = g_strdup(msg_time);
 
-	/* FIXME: we need to call last_read_finish to handle a possible error */
-	chime_connection_update_last_read_async(cxn, msgs->obj, msg_id, NULL, NULL, NULL);
+	msgs->unseen = TRUE;
 }
 
 /* WARE! msg_id is allocated, msg_time is const */
@@ -308,4 +307,57 @@ gboolean chime_read_last_msg(PurpleConnection *conn, ChimeObject *obj,
 	(*msg_time)++; /* Past the | */
 
 	return TRUE;
+}
+
+static void chime_conv_updated_cb(PurpleConversation *conv, PurpleConvUpdateType type,
+				  PurpleConnection *conn)
+{
+	if (conv->account != conn->account)
+		return;
+
+	int unseen_count = GPOINTER_TO_INT(purple_conversation_get_data(conv, "unseen-count"));
+
+	purple_debug(PURPLE_DEBUG_INFO, "chime",
+		     "Conversation '%s' updated, type %d, unseen %d\n",
+		     conv->name, type, unseen_count);
+
+	if (type != PURPLE_CONV_UPDATE_UNSEEN)
+		return;
+
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+	struct chime_msgs *msgs = NULL;
+
+	if (purple_conversation_get_type(conv) == PURPLE_CONV_TYPE_CHAT) {
+		int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(conv));
+		msgs = g_hash_table_lookup(pc->live_chats, GUINT_TO_POINTER(id));
+	} else if (purple_conversation_get_type(conv) == PURPLE_CONV_TYPE_IM) {
+		msgs = g_hash_table_lookup(pc->ims_by_email, conv->name);
+	}
+
+	if (!msgs || !msgs->unseen)
+		return;
+
+	if (unseen_count)
+		return;
+
+	const gchar *msg_id = g_queue_peek_tail(msgs->seen_msgs);
+	g_return_if_fail(msg_id);
+
+	chime_connection_update_last_read_async(PURPLE_CHIME_CXN(conn), msgs->obj, msg_id, NULL, NULL, NULL);
+	msgs->unseen = FALSE;
+}
+
+
+void purple_chime_init_messages(PurpleConnection *conn)
+{
+	purple_signal_connect(purple_conversations_get_handle(),
+			      "conversation-updated", conn,
+			      PURPLE_CALLBACK(chime_conv_updated_cb), conn);
+}
+
+void purple_chime_destroy_messages(PurpleConnection *conn)
+{
+	purple_signal_disconnect(purple_conversations_get_handle(),
+				 "conversation-updated", conn,
+				 PURPLE_CALLBACK(chime_conv_updated_cb));
 }

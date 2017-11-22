@@ -79,6 +79,14 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		purple_conversation_write(pconv, NULL, escaped, flags | PURPLE_MESSAGE_SEND, msg_time);
 	} else {
 		serv_got_im(im->m.conn, email, escaped, flags | PURPLE_MESSAGE_RECV, msg_time);
+
+		/* If the conversation already had focus and unseen-count didn't change, fake
+		   a PURPLE_CONV_UPDATE_UNSEEN notification anyway, so that we see that it's
+		   (still) zero and tell the server it's read. */
+		PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
+										  email, im->m.conn->account);
+		if (pconv)
+			purple_conversation_update(pconv, PURPLE_CONV_UPDATE_UNSEEN);
 	}
 	g_free(escaped);
 	return TRUE;

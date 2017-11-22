@@ -200,6 +200,7 @@ static void chime_purple_login(PurpleAccount *account)
 	purple_chime_init_meetings(conn);
 	purple_chime_init_conversations(pc);
 	purple_chime_init_chats(pc);
+	purple_chime_init_messages(conn);
 
 	pc->cxn = chime_connection_new(conn, server, devtoken, token);
 
@@ -235,6 +236,7 @@ static void chime_purple_close(PurpleConnection *conn)
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 
 	purple_chime_destroy_meetings(conn);
+	purple_chime_destroy_messages(conn);
 	purple_chime_destroy_conversations(pc);
 	purple_chime_destroy_chats(pc);
 

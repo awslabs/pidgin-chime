@@ -154,6 +154,10 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	}
 
 	serv_got_chat_in(conn, id, from, msg_flags, parsed, msg_time);
+	/* If the conversation already had focus and unseen-count didn't change, fake
+	   a PURPLE_CONV_UPDATE_UNSEEN notification anyway, so that we see that it's
+	   (still) zero and tell the server it's read. */
+	purple_conversation_update(chat->conv, PURPLE_CONV_UPDATE_UNSEEN);
 	g_free(parsed);
 }
 

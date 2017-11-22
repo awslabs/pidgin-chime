@@ -112,6 +112,7 @@ struct chime_msgs {
 	ChimeObject *obj;
 	gchar *last_seen;
 	GQueue *seen_msgs;
+	gboolean unseen;
 	GHashTable *msg_gather;
 	chime_msg_cb cb;
 	gboolean msgs_done, members_done, msgs_failed;
@@ -121,6 +122,8 @@ void fetch_messages(ChimeConnection *cxn, struct chime_msgs *msgs, const gchar *
 void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs);
 void cleanup_msgs(struct chime_msgs *msgs);
 void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj, chime_msg_cb cb, const gchar *name, JsonNode *first_msg);
+void purple_chime_init_messages(PurpleConnection *conn);
+void purple_chime_destroy_messages(PurpleConnection *conn);
 
 /* attachments.c */
 

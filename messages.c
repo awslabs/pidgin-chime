@@ -340,7 +340,7 @@ static void chime_conv_updated_cb(PurpleConversation *conv, PurpleConvUpdateType
 	if (unseen_count)
 		return;
 
-	const gchar *msg_id = g_queue_peek_tail(msgs->seen_msgs);
+	const gchar *msg_id = g_queue_peek_head(msgs->seen_msgs);
 	g_return_if_fail(msg_id);
 
 	chime_connection_update_last_read_async(PURPLE_CHIME_CXN(conn), msgs->obj, msg_id, NULL, NULL, NULL);

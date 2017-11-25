@@ -17,19 +17,46 @@
 
 #include <errno.h>
 #include <glib/gi18n.h>
+#include <debug.h>
 #include "chime.h"
 
 // According to http://docs.aws.amazon.com/chime/latest/ug/chime-ug.pdf this is the maximum allowed size for attachments.
 // (The default limit for purple_util_fetch_url() is 512 kB.)
 #define ATTACHMENT_MAX_SIZE (50*1000*1000)
 
+/*
+ * Writes to the IM conversation handling the case where the user sent message
+ * from other client.
+ */
+static void write_conversation_message(const char *from, const char *im_email,
+		PurpleConnection *conn, const gchar *msg, PurpleMessageFlags flags, time_t when)
+{
+	if (!strcmp(from, im_email)) {
+		serv_got_im(conn, im_email, msg, flags | PURPLE_MESSAGE_RECV, when);
+	} else {
+		PurpleAccount *account = conn->account;
+		PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
+										  im_email, account);
+		if (!pconv) {
+			pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM, account, im_email);
+			if (!pconv) {
+				purple_debug_error("chime", "NO CONV FOR %s\n", im_email);
+				return;
+			}
+		}
+		/* Just inject a message from ourselves, avoiding any notifications */
+		purple_conversation_write(pconv, NULL, msg, flags | PURPLE_MESSAGE_SEND, when);
+	}
+}
+
 static void img_message(AttachmentContext *ctx, int image_id)
 {
+	PurpleMessageFlags flags = PURPLE_MESSAGE_IMAGES;
 	gchar *msg = g_strdup_printf("<br><img id=\"%u\">", image_id);
 	if (ctx->chat_id != -1) {
-		serv_got_chat_in(ctx->conn, ctx->chat_id, ctx->from, PURPLE_MESSAGE_IMAGES, msg, ctx->when);
+		serv_got_chat_in(ctx->conn, ctx->chat_id, ctx->from, flags, msg, ctx->when);
 	} else {
-		serv_got_im(ctx->conn, ctx->from, msg, PURPLE_MESSAGE_IMAGES, ctx->when);
+		write_conversation_message(ctx->from, ctx->im_email, ctx->conn, msg, flags, ctx->when);
 	}
 	g_free(msg);
 }
@@ -40,7 +67,7 @@ static void sys_message(AttachmentContext *ctx, const gchar *msg, PurpleMessageF
 	if (ctx->chat_id != -1) {
 		serv_got_chat_in(ctx->conn, ctx->chat_id, "", flags, msg, time(NULL));
 	} else {
-		serv_got_im(ctx->conn, ctx->from, msg, flags, time(NULL));
+		write_conversation_message(ctx->from, ctx->im_email, ctx->conn, msg, flags, time(NULL));
 	}
 }
 

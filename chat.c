@@ -148,6 +148,7 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 		ctx->conn = conn;
 		ctx->chat_id = id;
 		ctx->from = from;
+		ctx->im_email = "";
 		ctx->when = msg_time;
 		/* The attachment and context structs will be owned by the code doing the download and will be disposed of at the end. */
 		download_attachment(cxn, att, ctx);

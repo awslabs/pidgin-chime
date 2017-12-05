@@ -244,11 +244,12 @@ static void chime_purple_close(PurpleConnection *conn)
 
 	g_signal_handlers_disconnect_matched(pc->cxn, G_SIGNAL_MATCH_DATA,
 					     0, 0, NULL, NULL, conn);
+	chime_connection_disconnect(pc->cxn);
 	g_clear_object(&pc->cxn);
 	g_free(pc);
 	purple_connection_set_protocol_data(conn, NULL);
 
-	purple_debug(PURPLE_DEBUG_INFO, "chime", "Chime close");
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Chime close\n");
 }
 
 

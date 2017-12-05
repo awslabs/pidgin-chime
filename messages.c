@@ -93,13 +93,17 @@ void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 		struct msg_sort *ms = l->data;
 		const gchar *id = ms->id;
 		JsonNode *node = ms->node;
-		if (is_msg_unseen(msgs->seen_msgs, id))
+		gboolean seen_one = FALSE;
+
+		if (is_msg_unseen(msgs->seen_msgs, id)) {
+			seen_one = TRUE;
 			msgs->cb(cxn, msgs, node, ms->tm.tv_sec);
+		}
 		g_free(ms);
 		l = g_list_remove(l, ms);
 
 		/* Last message, note down the received time */
-		if (!l && !msgs->msgs_failed) {
+		if (!l && !msgs->msgs_failed && seen_one) {
 			const gchar *tm;
 			if (parse_string(node, "CreatedOn", &tm))
 				chime_update_last_msg(cxn, msgs, tm, id);

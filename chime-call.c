@@ -441,7 +441,7 @@ void chime_init_calls(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	chime_object_collection_init(&priv->calls);
+	chime_object_collection_init(cxn, &priv->calls);
 }
 
 void chime_destroy_calls(ChimeConnection *cxn)

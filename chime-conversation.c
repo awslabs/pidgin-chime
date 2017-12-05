@@ -622,7 +622,7 @@ void chime_init_conversations(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	chime_object_collection_init(&priv->conversations);
+	chime_object_collection_init(cxn, &priv->conversations);
 
 	chime_jugg_subscribe(cxn, priv->device_channel, "Conversation",
 			     conv_jugg_cb, NULL);

@@ -37,6 +37,7 @@ typedef struct {
 	 * hash table in its ->dispose()  */
 	gboolean is_dead;
 	ChimeObjectCollection *collection;
+	ChimeConnection *cxn;
 } ChimeObjectPrivate;
 
 enum
@@ -66,6 +67,9 @@ chime_object_dispose(GObject *object)
 	}
 
 	chime_debug("Object disposed: %p\n", self);
+
+	if (priv->cxn)
+		g_clear_object(&priv->cxn);
 
 	G_OBJECT_CLASS(chime_object_parent_class)->dispose(object);
 }
@@ -197,6 +201,17 @@ static void chime_object_init(ChimeObject *self)
 {
 }
 
+ChimeConnection *chime_object_get_connection(ChimeObject *self)
+{
+	ChimeObjectPrivate *priv;
+
+	g_return_val_if_fail(CHIME_IS_OBJECT(self), NULL);
+
+	priv = chime_object_get_instance_private (self);
+
+	return priv->cxn;
+
+}
 const gchar *chime_object_get_id(ChimeObject *self)
 {
 	ChimeObjectPrivate *priv;
@@ -238,6 +253,9 @@ void chime_object_collection_hash_object(ChimeObjectCollection *collection, Chim
 	priv = chime_object_get_instance_private (object);
 
 	priv->generation = collection->generation;
+
+	if (!priv->cxn)
+		priv->cxn = g_object_ref(collection->cxn);
 
 	if (!priv->collection) {
 		priv->collection = collection;
@@ -290,12 +308,13 @@ static void unhash_object(gpointer _object)
 	}
 }
 
-void chime_object_collection_init(ChimeObjectCollection *coll)
+void chime_object_collection_init(ChimeConnection *cxn, ChimeObjectCollection *coll)
 {
 	coll->by_id = g_hash_table_new_full(g_str_hash, g_str_equal,
 						    NULL, unhash_object);
 	coll->by_name = g_hash_table_new(g_str_hash, g_str_equal);
 	coll->generation = 0;
+	coll->cxn = cxn;
 }
 
 void chime_object_collection_destroy(ChimeObjectCollection *coll)

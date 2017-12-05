@@ -33,19 +33,21 @@ typedef struct {
 	GHashTable *by_id;
 	GHashTable *by_name;
 	gint64 generation;
+	ChimeConnection *cxn;
 } ChimeObjectCollection;
 
 struct _ChimeObjectClass {
 	GObjectClass parent_class;
 };
 
+ChimeConnection *chime_object_get_connection(ChimeObject *self);
 const gchar *chime_object_get_id(ChimeObject *self);
 const gchar *chime_object_get_name(ChimeObject *self);
 gboolean chime_object_is_dead(ChimeObject *self);
 
 void chime_object_rename(ChimeObject *self, const gchar *name);
 
-void chime_object_collection_init(ChimeObjectCollection *coll);
+void chime_object_collection_init(ChimeConnection *cxn, ChimeObjectCollection *coll);
 void chime_object_collection_destroy(ChimeObjectCollection *coll);
 
 ChimeObject *chime_connection_object_by_name(ChimeObjectCollection *coll,

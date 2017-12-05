@@ -598,7 +598,7 @@ void chime_init_contacts(ChimeConnection *cxn)
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	chime_object_collection_init(&priv->contacts);
+	chime_object_collection_init(cxn, &priv->contacts);
 
 	fetch_contacts(cxn, NULL);
 }

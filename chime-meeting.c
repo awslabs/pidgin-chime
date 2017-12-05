@@ -489,7 +489,7 @@ void chime_init_meetings(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	chime_object_collection_init(&priv->meetings);
+	chime_object_collection_init(cxn, &priv->meetings);
 
 	chime_jugg_subscribe(cxn, priv->device_channel, "JoinableMeetings",
 			     joinable_meetings_jugg_cb, NULL);

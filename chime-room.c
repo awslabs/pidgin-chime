@@ -607,7 +607,7 @@ void chime_init_rooms(ChimeConnection *cxn)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	chime_object_collection_init(&priv->rooms);
+	chime_object_collection_init(cxn, &priv->rooms);
 
 	chime_jugg_subscribe(cxn, priv->profile_channel, "VisibleRooms",
 			     visible_rooms_jugg_cb, NULL);

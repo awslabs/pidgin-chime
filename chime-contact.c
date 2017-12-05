@@ -517,7 +517,7 @@ static gboolean fetch_presences(gpointer _cxn)
 	return FALSE;
 }
 
-static void fetch_contacts(ChimeConnection *cxn);
+static void fetch_contacts(ChimeConnection *cxn, const gchar *next_token);
 
 static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 			gpointer _unused)
@@ -526,17 +526,14 @@ static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 
 	/* If it got invalidated while in transit, refetch */
 	if (priv->contacts_sync != CHIME_SYNC_FETCHING) {
-		fetch_contacts(cxn);
+		priv->contacts_sync = CHIME_SYNC_IDLE;
+		fetch_contacts(cxn, NULL);
 		return;
 	}
-
-	priv->contacts_sync = CHIME_SYNC_IDLE;
 
 	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
 		JsonArray *arr = json_node_get_array(node);
 		guint i, len = json_array_get_length(arr);
-
-		priv->contacts.generation++;
 
 		for (i = 0; i < len; i++) {
 			chime_connection_parse_contact(cxn, TRUE,
@@ -544,11 +541,18 @@ static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 						       NULL);
 		}
 
-		chime_object_collection_expire_outdated(&priv->contacts);
+		const gchar *next_token = soup_message_headers_get_one(msg->response_headers, "aws-ucbuzz-nexttoken");;
+		if (next_token)
+			fetch_contacts(cxn, next_token);
+		else {
+			priv->contacts_sync = CHIME_SYNC_IDLE;
 
-		if (!priv->contacts_online) {
-			priv->contacts_online = TRUE;
-			chime_connection_calculate_online(cxn);
+			chime_object_collection_expire_outdated(&priv->contacts);
+
+			if (!priv->contacts_online) {
+				priv->contacts_online = TRUE;
+				chime_connection_calculate_online(cxn);
+			}
 		}
 	} else {
 		const gchar *reason = msg->reason_phrase;
@@ -561,21 +565,30 @@ static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 	}
 }
 
-static void fetch_contacts(ChimeConnection *cxn)
+static void fetch_contacts(ChimeConnection *cxn, const gchar *next_token)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
-	/* Actually we could listen for the 'starting' flag on the message,
-	 * and as long as *that* hasn't happened yet we don't need to refetch
-	 * as it'll get up-to-date information. */
-	if (priv->contacts_sync == CHIME_SYNC_FETCHING) {
-		priv->contacts_sync = CHIME_SYNC_STALE;
-		return;
+	if (!next_token) {
+		/* Actually we could listen for the 'starting' flag on the message,
+		 * and as long as *that* hasn't happened yet we don't need to refetch
+		 * as it'll get up-to-date information. */
+		switch (priv->contacts_sync) {
+		case CHIME_SYNC_FETCHING:
+			priv->contacts_sync = CHIME_SYNC_STALE;
+		case CHIME_SYNC_STALE:
+			return;
+
+		case CHIME_SYNC_IDLE:
+			priv->contacts.generation++;
+			priv->contacts_sync = CHIME_SYNC_FETCHING;
+		}
 	}
 
-	priv->contacts_sync = CHIME_SYNC_FETCHING;
-
 	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/contacts");
+	if (next_token)
+		soup_uri_set_query_from_fields(uri, "next_token", next_token, NULL);
+
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", contacts_cb,
 					    NULL);
 }
@@ -587,7 +600,7 @@ void chime_init_contacts(ChimeConnection *cxn)
 
 	chime_object_collection_init(&priv->contacts);
 
-	fetch_contacts(cxn);
+	fetch_contacts(cxn, NULL);
 }
 
 static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
@@ -675,7 +688,7 @@ static void contact_invited_cb(ChimeConnection *cxn, SoupMessage *msg,
 		 * get returned to us in the reply? I can't even see any way to
 		 * fetch just this single buddy, either; we have to refetch them
 		 * all. */
-		fetch_contacts(cxn);
+		fetch_contacts(cxn, NULL);
 	}
 
 	g_object_unref(task);
@@ -734,7 +747,7 @@ static void contact_removed_cb(ChimeConnection *cxn, SoupMessage *msg,
 					reason);
 
 		/* We'll put it back */
-		fetch_contacts(cxn);
+		fetch_contacts(cxn, NULL);
 	} else {
 		g_task_return_boolean(task, TRUE);
 	}

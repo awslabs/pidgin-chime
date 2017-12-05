@@ -508,6 +508,11 @@ void purple_chime_init_chats(struct purple_chime *pc)
 
 void purple_chime_destroy_chats(struct purple_chime *pc)
 {
+	GList *chats = g_hash_table_get_values(pc->live_chats);
+	while (chats) {
+		chime_destroy_chat(chats->data);
+		chats = g_list_remove(chats, chats->data);
+	}
 	g_clear_pointer(&pc->live_chats, g_hash_table_unref);
 	g_clear_pointer(&pc->chats_by_room, g_hash_table_unref);
 	g_clear_pointer(&pc->mention_regex, g_regex_unref);

@@ -92,7 +92,7 @@ static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, 
 		PurpleBuddy *buddy = l->data;
 		ChimeContact *contact = chime_connection_contact_by_email(cxn,
 									  purple_buddy_get_name(buddy));
-		if (!contact)
+		if (!contact || !chime_contact_get_contacts_list(contact))
 			purple_blist_remove_buddy(buddy);
 
 		l = g_slist_remove(l, buddy);

@@ -705,13 +705,12 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 	JsonParser *parser = NULL;
 	JsonNode *node = NULL;
 
-	if (priv->state == CHIME_STATE_DISCONNECTED)
-		goto done;
-
-	g_queue_remove(priv->msgs_queued, cmsg);
+	if (priv->msgs_queued)
+		g_queue_remove(priv->msgs_queued, cmsg);
 
 	/* Special case for renew_cb itself, which mustn't recurse! */
-	if (cmsg->cb != renew_cb && cmsg->cb != register_cb &&
+	if (priv->state != CHIME_STATE_DISCONNECTED &&
+	    cmsg->cb != renew_cb && cmsg->cb != register_cb &&
 	    (msg->status_code == 401 /*||
 	     (msg->status_code == 7 && !g_queue_is_empty(priv->msgs_pending_auth))*/)) {
 		g_object_ref(msg);
@@ -748,7 +747,6 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 	if (cmsg->cb)
 		cmsg->cb(cmsg->cxn, msg, node, cmsg->cb_data);
 	g_clear_object(&parser);
- done:
 	g_free(cmsg);
 	g_object_unref(cxn);
 }

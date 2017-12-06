@@ -18,6 +18,7 @@
 
 #include "chime-connection-private.h"
 #include "chime-call.h"
+#include "chime-call-audio.h"
 
 #include <glib/gi18n.h>
 
@@ -66,9 +67,9 @@ struct _ChimeCall {
 
 	CHIME_PROPS_VARS
 
-	ChimeConnection *cxn;
 	GHashTable *participants;
 
+	ChimeCallAudio *audio;
 	guint opens;
 };
 
@@ -94,7 +95,9 @@ chime_call_dispose(GObject *object)
 
 	chime_debug("Call disposed: %p\n", self);
 
-	unsub_call(NULL, self, NULL);
+	if (self->opens)
+		unsub_call(NULL, self, NULL);
+
 	g_signal_emit(self, signals[ENDED], 0, NULL);
 
 	g_clear_pointer(&self->participants, g_hash_table_destroy);
@@ -187,7 +190,7 @@ ChimeConnection *chime_call_get_connection(ChimeCall *self)
 {
 	g_return_val_if_fail(CHIME_IS_CALL(self), NULL);
 
-	return self->cxn;
+	return chime_object_get_connection(CHIME_OBJECT(self));
 }
 
 gboolean chime_call_get_ongoing(ChimeCall *self)
@@ -458,10 +461,13 @@ static void unsub_call(gpointer key, gpointer val, gpointer data)
 {
 	ChimeCall *call = CHIME_CALL (val);
 
-	if (call->cxn) {
-		chime_jugg_unsubscribe(call->cxn, call->channel, "Call", call_jugg_cb, NULL);
-		chime_jugg_unsubscribe(call->cxn, call->roster_channel, "Roster", call_roster_cb, call);
-		call->cxn = NULL;
+	ChimeConnection *cxn = chime_object_get_connection(CHIME_OBJECT(call));
+	chime_jugg_unsubscribe(cxn, call->channel, "Call", call_jugg_cb, NULL);
+	chime_jugg_unsubscribe(cxn, call->roster_channel, "Roster", call_roster_cb, call);
+
+	if (call->audio) {
+		chime_call_audio_close(call->audio, TRUE);
+		call->audio = NULL;
 	}
 }
 
@@ -476,11 +482,15 @@ void chime_connection_close_call(ChimeConnection *cxn, ChimeCall *call)
 }
 
 
-void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call)
+
+void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean muted)
 {
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+	g_return_if_fail(CHIME_IS_CALL(call));
+
 	if (!call->opens++) {
-		call->cxn = cxn;
 		chime_jugg_subscribe(cxn, call->channel, "Call", call_jugg_cb, NULL);
 		chime_jugg_subscribe(cxn, call->roster_channel, "Roster", call_roster_cb, call);
+		call->audio = chime_call_audio_open(cxn, call, muted);
 	}
 }

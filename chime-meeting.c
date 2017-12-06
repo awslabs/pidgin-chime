@@ -781,7 +781,7 @@ static void chime_connection_open_meeting(ChimeConnection *cxn, ChimeMeeting *me
 {
 	if (!meeting->opens++) {
 		meeting->cxn = cxn;
-		chime_connection_open_call(cxn, meeting->call);
+		chime_connection_open_call(cxn, meeting->call, TRUE);
 	}
 
 	g_task_return_pointer(task, g_object_ref(meeting), g_object_unref);

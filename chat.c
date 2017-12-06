@@ -215,11 +215,14 @@ static PurpleNotifySearchResults *generate_sr_participants(GHashTable *participa
 	return results;
 
 }
+static void on_call_participants(ChimeCall *call, GHashTable *participants, struct chime_chat *chat);
 
 static void participants_closed_cb(gpointer _chat)
 {
 	struct chime_chat *chat = _chat;
 	chat->participants_ui = NULL;
+	g_signal_handlers_disconnect_matched(chat->call, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, G_CALLBACK(on_call_participants), chat);
 }
 
 static void on_call_participants(ChimeCall *call, GHashTable *participants, struct chime_chat *chat)
@@ -295,10 +298,12 @@ void chime_destroy_chat(struct chime_chat *chat)
 							  chat->media);
 			chat->media = NULL;
 		}
+#if 0
 		if (chat->audio) {
 			chime_connection_call_audio_close(chat->audio);
 			chat->audio = NULL;
 		}
+#endif
 		chime_connection_close_meeting(cxn, chat->meeting);
 		g_object_unref(chat->meeting);
 	}
@@ -319,6 +324,7 @@ static void on_chat_name(ChimeObject *obj, GParamSpec *ignored, struct chime_cha
 		purple_conversation_set_name(chat->conv, name);
 }
 
+#if 0
 static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 {
 	ChimeConnection *cxn = CHIME_CONNECTION(source);
@@ -354,7 +360,7 @@ static void audio_joined(GObject *source, GAsyncResult *result, gpointer _chat)
 	}
 #endif
 }
-
+#endif
 struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeObject *obj, JsonNode *first_msg, ChimeMeeting *meeting)
 {
 	if (!obj)
@@ -372,9 +378,11 @@ struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, Ch
 		chat->call = chime_meeting_get_call(meeting);
 		if (chat->call) {
 			g_signal_connect(chat->call, "participants-changed", G_CALLBACK(on_call_participants), chat);
+#if 0
 			/* Don't try this at home, kids! (yet) */
 			if (getenv("CHIME_AUDIO"))
 				chime_connection_join_call_audio_async(cxn, chat->call, NULL, audio_joined, chat);
+#endif
 		}
 	}
 
@@ -655,7 +663,48 @@ void chime_purple_chat_invite(PurpleConnection *conn, int id, const char *messag
 	chime_connection_autocomplete_contact_async(pc->cxn, who, NULL, autocomplete_mad_cb, mad);
 }
 
-GList *chime_purple_chat_menu(PurpleChat *chat)
+static void show_participants (PurpleBuddy *buddy, gpointer _chat)
 {
-	return NULL;
+	struct chime_chat *chat = _chat;
+	if (chat->call) {
+		g_signal_handlers_disconnect_matched(chat->call, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+						     0, 0, NULL, G_CALLBACK(on_call_participants), chat);
+		g_signal_connect(chat->call, "participants-changed", G_CALLBACK(on_call_participants), chat);
+		chime_call_emit_participants(chat->call);
+	}
+}
+
+GList *chime_purple_chat_menu(PurpleChat *pchat)
+{
+
+	if (!pchat->components)
+		return NULL;
+
+	const gchar *roomid = g_hash_table_lookup(pchat->components, (char *)"RoomId");
+	if (!roomid)
+		return NULL;
+
+	purple_debug_info("chime", "Chat menu for %s\n", roomid);
+
+	PurpleConnection *conn = pchat->account->gc;
+	if (!conn)
+		return NULL;
+
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+	ChimeRoom *room = chime_connection_room_by_id(pc->cxn, roomid);
+	if (!room)
+		return NULL;
+
+	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, room);
+	if (!chat)
+		return NULL;
+
+	GList *items = NULL;
+	if (chat->call) {
+		items = g_list_append(items,
+				      purple_menu_action_new(_("Show participants"),
+							     PURPLE_CALLBACK(show_participants), chat, NULL));
+	}
+
+	return items;
 }

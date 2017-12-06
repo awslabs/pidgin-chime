@@ -365,6 +365,7 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 				       "organiser", organiser,
 				       NULL);
 
+		g_object_unref(organiser);
 		meeting->call = call;
 		chime_object_collection_hash_object(&priv->meetings, CHIME_OBJECT(meeting), TRUE);
 
@@ -399,7 +400,8 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 		g_object_unref(meeting->organiser);
 		meeting->organiser = organiser;
 		g_object_notify(G_OBJECT(meeting), "organiser");
-	}
+	} else
+		g_object_unref(organiser);
 
 	/* ASSERT(call == meeting->call) */
 	g_object_unref(call);

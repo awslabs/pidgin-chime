@@ -122,7 +122,7 @@ static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt,
 		if (!audio->send_rt_source)
 			audio->send_rt_source = g_timeout_add(100, (GSourceFunc)do_send_rt_packet, audio);
 
-		g_signal_emit_by_name(audio->call, "call-connected");
+		chime_call_audio_set_state(audio, audio->muted ? AUDIO_STATE_MUTED : AUDIO_STATE_AUDIO);
 	}
 
 	auth_message__free_unpacked(msg, NULL);
@@ -378,7 +378,7 @@ void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup)
 	g_hash_table_destroy(audio->profiles);
 	g_slist_free_full(audio->data_messages, (GDestroyNotify) free_msgbuf);
 	chime_call_transport_disconnect(audio, hangup);
-	g_signal_emit_by_name(audio->call, "call-disconnected");
+	chime_call_audio_set_state(audio, AUDIO_STATE_HANGUP);
 	g_free(audio);
 }
 
@@ -404,6 +404,7 @@ ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gbo
 	audio->audio_msg.sample_time = g_random_int();
 
 	chime_call_transport_connect(audio, muted);
+	chime_call_audio_set_state(audio, AUDIO_STATE_CONNECTING);
 
 	return audio;
 }
@@ -417,5 +418,6 @@ void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean muted)
 			g_source_remove(audio->data_ack_source);
 		chime_call_transport_disconnect(audio, TRUE);
 		chime_call_transport_connect(audio, muted);
+		chime_call_audio_set_state(audio, AUDIO_STATE_CONNECTING);
 	}
 }

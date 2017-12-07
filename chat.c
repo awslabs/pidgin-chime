@@ -225,6 +225,10 @@ static void participants_closed_cb(gpointer _chat)
 	g_signal_handlers_disconnect_matched(chat->call, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
 					     0, 0, NULL, G_CALLBACK(on_call_participants), chat);
 }
+static void on_audio_state(ChimeCall *call, int audio_state, struct chime_chat *chat)
+{
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Audio state %d\n", audio_state);
+}
 
 static void on_call_participants(ChimeCall *call, GHashTable *participants, struct chime_chat *chat)
 {
@@ -378,6 +382,7 @@ struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, Ch
 		chat->meeting = g_object_ref(meeting);
 		chat->call = chime_meeting_get_call(meeting);
 		if (chat->call) {
+			g_signal_connect(chat->call, "audio-state", G_CALLBACK(on_audio_state), chat);
 			g_signal_connect(chat->call, "participants-changed", G_CALLBACK(on_call_participants), chat);
 #if 0
 			/* Don't try this at home, kids! (yet) */

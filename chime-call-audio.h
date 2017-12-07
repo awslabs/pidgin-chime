@@ -73,6 +73,7 @@ enum xrp_pkt_type {
 ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gboolean muted);
 void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup);
 void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean muted);
+void chime_call_audio_set_state(ChimeCallAudio *audio, enum audio_state state);
 
 /* Called from audio code */
 void chime_call_transport_connect(ChimeCallAudio *audio, gboolean muted);

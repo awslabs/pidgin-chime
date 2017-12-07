@@ -282,7 +282,7 @@ subscribe_contact(ChimeConnection *cxn, ChimeContact *contact)
 	/* As well as subscribing to the channel, we'll need to fetch the
 	 * initial presence information for this contact */
 	priv->contacts_needed = g_slist_prepend(priv->contacts_needed, contact);
-	g_idle_add(fetch_presences, cxn);
+	g_idle_add(fetch_presences, g_object_ref(cxn));
 }
 
 static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *id,
@@ -514,6 +514,7 @@ static gboolean fetch_presences(gpointer _cxn)
 						    presence_cb, NULL);
 	}
 	g_ptr_array_unref(ids);
+	g_object_unref(cxn);
 	return FALSE;
 }
 

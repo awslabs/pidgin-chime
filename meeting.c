@@ -21,6 +21,7 @@
 #include <prpl.h>
 #include <request.h>
 #include <debug.h>
+#include <version.h>
 
 #include "chime.h"
 #include "chime-meeting.h"
@@ -209,6 +210,7 @@ static void join_mtg_done(GObject *source, GAsyncResult *result, gpointer _conn)
 }
 
 struct pin_join_data {
+	gboolean muted;
 	gchar *query;
 	PurpleConnection *conn;
 };
@@ -226,7 +228,7 @@ static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _pjd)
 				    _("Unable to lookup meeting"),
 				    error->message);
 	} else {
-		chime_connection_join_meeting_async(cxn, mtg, NULL, join_mtg_done, pjd->conn);
+		chime_connection_join_meeting_async(cxn, mtg, pjd->muted, NULL, join_mtg_done, pjd->conn);
 		g_object_unref(mtg);
 	}
 
@@ -235,12 +237,13 @@ static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _pjd)
 	free(pjd);
 }
 
-static void pin_join_begin(PurpleConnection *conn, const char *query)
+static void pin_join_begin(PurpleConnection *conn, const char *query, gboolean muted)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	struct pin_join_data *pjd = g_new0(struct pin_join_data, 1);
 
+	pjd->muted = muted;
 	pjd->conn = conn;
 	pjd->query = g_strdup(query);
 	pc->pin_joins = g_slist_prepend(pc->pin_joins, pjd->query);
@@ -249,19 +252,59 @@ static void pin_join_begin(PurpleConnection *conn, const char *query)
 						     pin_join_done, pjd);
 }
 
+static void pin_join_muted(PurpleConnection *conn, const char *query)
+{
+	pin_join_begin(conn, query, TRUE);
+}
+
+static void pin_join_fields(PurpleConnection *conn, PurpleRequestFields *fields)
+{
+	const char *query =  purple_request_fields_get_string(fields, "pin");
+	gboolean muted = !purple_request_fields_get_bool(fields, "audio");
+
+	pin_join_begin(conn, query, muted);
+}
+
 void chime_purple_pin_join(PurplePluginAction *action)
 {
 	PurpleConnection *conn = (PurpleConnection *) action->context;
 
-	purple_request_input(conn, _("Chime PIN join meeting"),
-			     _("Enter the meeting PIN"), NULL, NULL,
-			     FALSE, FALSE, NULL,
-			     _("Search"), PURPLE_CALLBACK(pin_join_begin),
-			     _("Cancel"), NULL,
-			     NULL, NULL, NULL, conn);
+	/* Don't offer audio before 2.13.0 because it'll SEGV.
+	 * https://developer.pidgin.im/ticket/17246 */
+	if (purple_request_get_ui_ops()->request_fields &&
+	    !purple_version_check(2, 13, 0)) {
+		PurpleRequestField *pin, *audio;
+		PurpleRequestFieldGroup *group;
+		PurpleRequestFields *fields;
+
+		fields = purple_request_fields_new();
+		group = purple_request_field_group_new(NULL);
+
+		pin = purple_request_field_string_new("pin", _("Meeting PIN"), NULL, FALSE);
+		purple_request_field_set_required(pin, TRUE);
+		purple_request_field_group_add_field(group, pin);
+
+		audio = purple_request_field_bool_new("audio", _("Join audio call"), TRUE);
+		purple_request_field_group_add_field(group, audio);
+
+		purple_request_fields_add_group(fields, group);
+
+		purple_request_fields(conn, _("Chime PIN join meeting"),
+				      _("Enter the meeting PIN"), NULL, fields,
+				      _("Join"), G_CALLBACK(pin_join_fields),
+				      _("Cancel"), NULL, conn->account,
+				      NULL, NULL, conn);
+	} else {
+		purple_request_input(conn, _("Chime PIN join meeting"),
+				     _("Enter the meeting PIN"), NULL, NULL,
+				     FALSE, FALSE, NULL,
+				     _("Join"), PURPLE_CALLBACK(pin_join_muted),
+				     _("Cancel"), NULL, conn->account,
+				     NULL, NULL, conn);
+	}
 }
 
-static void join_joinable(PurpleConnection *conn, GList *row, gpointer _unused)
+static void do_join_joinable(PurpleConnection *conn, GList *row, gboolean muted)
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	if (!row)
@@ -272,7 +315,17 @@ static void join_joinable(PurpleConnection *conn, GList *row, gpointer _unused)
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Join meeting %s\n", name);
 	ChimeMeeting *mtg = chime_connection_meeting_by_name(cxn, name);
 	if (mtg)
-		chime_connection_join_meeting_async(cxn, mtg, NULL, join_mtg_done, conn);
+		chime_connection_join_meeting_async(cxn, mtg, muted, NULL, join_mtg_done, conn);
+}
+
+static void join_joinable_audio(PurpleConnection *conn, GList *row, gpointer _unused)
+{
+	do_join_joinable(conn, row, FALSE);
+}
+
+static void join_joinable(PurpleConnection *conn, GList *row, gpointer _unused)
+{
+	do_join_joinable(conn, row, TRUE);
 }
 
 static void append_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _results)
@@ -303,6 +356,10 @@ static PurpleNotifySearchResults *generate_joinable_results(PurpleConnection *co
 	purple_notify_searchresults_column_add(results, column);
 
 	purple_notify_searchresults_button_add(results, PURPLE_NOTIFY_BUTTON_JOIN, join_joinable);
+	/* This check is a bit redundant since before 2.13.0 there was *also* a
+	 * but which meant the labelled buttons didn't show up either. */
+	if (!purple_version_check(2, 13, 0))
+		purple_notify_searchresults_button_add_labeled(results, _("Join with audio"), join_joinable_audio);
 
 	chime_connection_foreach_meeting(PURPLE_CHIME_CXN(conn), append_mtg, results);
 	return results;

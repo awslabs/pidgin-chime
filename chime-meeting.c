@@ -783,7 +783,8 @@ static void chime_connection_open_meeting(ChimeConnection *cxn, ChimeMeeting *me
 {
 	if (!meeting->opens++) {
 		meeting->cxn = cxn;
-		chime_connection_open_call(cxn, meeting->call, TRUE);
+		gboolean muted = !!g_object_get_data(G_OBJECT(task), "call-muted");
+		chime_connection_open_call(cxn, meeting->call, muted);
 	}
 
 	g_task_return_pointer(task, g_object_ref(meeting), g_object_unref);
@@ -805,6 +806,7 @@ static void join_got_room(GObject *source, GAsyncResult *result, gpointer user_d
 
 void chime_connection_join_meeting_async(ChimeConnection *cxn,
 					 ChimeMeeting *meeting,
+					 gboolean muted,
 					 GCancellable *cancellable,
 					 GAsyncReadyCallback callback,
 					 gpointer user_data)
@@ -813,6 +815,8 @@ void chime_connection_join_meeting_async(ChimeConnection *cxn,
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	g_task_set_task_data(task, g_object_ref(meeting), g_object_unref);
+	if (muted)
+		g_object_set_data(G_OBJECT(task), "call-muted", GUINT_TO_POINTER(1));
 
 	if (meeting->chat_room_id) {
 		ChimeRoom *room = chime_connection_room_by_id(cxn, meeting->chat_room_id);

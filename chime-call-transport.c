@@ -184,12 +184,20 @@ void chime_call_transport_connect(ChimeCallAudio *audio, gboolean muted)
 	g_free(origin);
 }
 
+static void on_final_audiows_close(SoupWebsocketConnection *ws, gpointer _unused)
+{
+	chime_debug("audio ws close\n");
+	g_object_unref(ws);
+}
+
+
 void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup)
 {
 	if (hangup)
 		audio_send_hangup_packet(audio);
 	soup_websocket_connection_close(audio->ws, 0, NULL);
 	g_signal_handlers_disconnect_matched(G_OBJECT(audio->ws), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, audio);
+	g_signal_connect(G_OBJECT(audio->ws), "closed", G_CALLBACK(on_final_audiows_close), NULL);
 	audio->ws = NULL;
 }
 
@@ -197,6 +205,9 @@ void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup)
 
 void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type type, const ProtobufCMessage *message)
 {
+	if (!audio->ws)
+		return;
+
 	size_t len = protobuf_c_message_get_packed_size(message);
 
 	len += sizeof(struct xrp_header);

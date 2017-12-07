@@ -721,11 +721,11 @@ static void pin_join_cb(ChimeConnection *cxn, SoupMessage *msg,
 			goto eparse;
 
 		ChimeMeeting *mtg = chime_connection_parse_meeting(cxn, node, &error);
+		/* This returns a *hashed* meeting, which we don't own. So ref it. */
 		if (mtg)
-			g_task_return_pointer(task, mtg, (GDestroyNotify)g_object_unref);
+			g_task_return_pointer(task, g_object_ref(mtg), (GDestroyNotify)g_object_unref);
 		else
 			g_task_return_error(task, error);
-		return;
 	} else {
 		const gchar *reason;
 	eparse:

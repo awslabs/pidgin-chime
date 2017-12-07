@@ -205,6 +205,7 @@ static void join_mtg_done(GObject *source, GAsyncResult *result, gpointer _conn)
 	ChimeRoom *room = chime_meeting_get_chat_room(mtg);
 	if (room)
 		do_join_chat(conn, cxn, CHIME_OBJECT(room), NULL, mtg);
+	g_object_unref(mtg);
 }
 
 struct pin_join_data {
@@ -226,6 +227,7 @@ static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _pjd)
 				    error->message);
 	} else {
 		chime_connection_join_meeting_async(cxn, mtg, NULL, join_mtg_done, pjd->conn);
+		g_object_unref(mtg);
 	}
 
 	pc->pin_joins = g_slist_remove(pc->pin_joins, pjd->query);

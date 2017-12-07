@@ -675,6 +675,13 @@ static void show_participants (PurpleBuddy *buddy, gpointer _chat)
 	}
 }
 
+static void join_audio(PurpleBuddy *buddy, gpointer _chat)
+{
+	struct chime_chat *chat = _chat;
+	if (chat->call)
+		chime_call_set_mute(chat->call, FALSE);
+}
+
 GList *chime_purple_chat_menu(PurpleChat *pchat)
 {
 
@@ -705,6 +712,9 @@ GList *chime_purple_chat_menu(PurpleChat *pchat)
 		items = g_list_append(items,
 				      purple_menu_action_new(_("Show participants"),
 							     PURPLE_CALLBACK(show_participants), chat, NULL));
+		items = g_list_append(items,
+				      purple_menu_action_new(_("Join audio call"),
+							     PURPLE_CALLBACK(join_audio), chat, NULL));
 	}
 
 	return items;

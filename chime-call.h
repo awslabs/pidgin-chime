@@ -64,6 +64,8 @@ const gchar *chime_call_get_desktop_bithub_url(ChimeCall *self);
 const gchar *chime_call_get_mobile_bithub_url(ChimeCall *self);
 const gchar *chime_call_get_stun_server_url(ChimeCall *self);
 
+void chime_call_set_mute(ChimeCall *call, gboolean muted);
+
 typedef struct {
 	const gchar *participant_id;
 	const gchar *participant_type;

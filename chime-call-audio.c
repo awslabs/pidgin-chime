@@ -108,6 +108,7 @@ static gboolean do_send_rt_packet(ChimeCallAudio *audio)
 
 	return TRUE;
 }
+
 static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
 	AuthMessage *msg = auth_message__unpack(NULL, len, pkt);
@@ -118,7 +119,8 @@ static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt,
 	if (msg->has_authorized && msg->authorized) {
 		do_send_rt_packet(audio);
 
-		audio->send_rt_source = g_timeout_add(100, (GSourceFunc)do_send_rt_packet, audio);
+		if (!audio->send_rt_source)
+			audio->send_rt_source = g_timeout_add(100, (GSourceFunc)do_send_rt_packet, audio);
 
 		g_signal_emit_by_name(audio->call, "call-connected");
 	}
@@ -406,3 +408,14 @@ ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gbo
 	return audio;
 }
 
+void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean muted)
+{
+	if (muted != audio->muted) {
+		if (audio->send_rt_source)
+			g_source_remove(audio->send_rt_source);
+		if (audio->data_ack_source)
+			g_source_remove(audio->data_ack_source);
+		chime_call_transport_disconnect(audio, TRUE);
+		chime_call_transport_connect(audio, muted);
+	}
+}

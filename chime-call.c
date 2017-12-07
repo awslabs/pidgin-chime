@@ -494,3 +494,9 @@ void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean 
 		call->audio = chime_call_audio_open(cxn, call, muted);
 	}
 }
+
+void chime_call_set_mute(ChimeCall *call, gboolean muted)
+{
+	if (call->audio)
+		chime_call_audio_reopen(call->audio, muted);
+}

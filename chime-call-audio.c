@@ -26,6 +26,8 @@
 #include "protobuf/rt_message.pb-c.h"
 #include "protobuf/data_message.pb-c.h"
 
+#include <opus/opus.h>
+
 #include <arpa/inet.h>
 #include <string.h>
 #include <ctype.h>
@@ -43,6 +45,16 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 		if (msg->audio->has_server_time) {
 			audio->last_server_time_offset = msg->audio->server_time - now;
 			audio->echo_server_time = TRUE;
+		}
+		if (msg->audio->has_audio) {
+#ifdef AUDIO_HACKS
+			if (audio->pipeline) {
+				GstBuffer *buffer;
+				buffer = gst_buffer_new_allocate(NULL, msg->audio->audio.len, NULL);
+				gst_buffer_fill(buffer, 0, msg->audio->audio.data, msg->audio->audio.len);
+				gst_app_src_push_buffer(GST_APP_SRC(audio->audio_src), buffer);
+			}
+#endif
 		}
 	}
 	gboolean send_sig = FALSE;
@@ -117,11 +129,11 @@ static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt,
 
 	chime_debug("Got AuthMessage authorised %d %d\n", msg->has_authorized, msg->authorized);
 	if (msg->has_authorized && msg->authorized) {
+#ifndef AUDIO_HACKS
 		do_send_rt_packet(audio);
-
 		if (!audio->send_rt_source)
 			audio->send_rt_source = g_timeout_add(100, (GSourceFunc)do_send_rt_packet, audio);
-
+#endif
 		chime_call_audio_set_state(audio, audio->muted ? AUDIO_STATE_MUTED : AUDIO_STATE_AUDIO);
 	}
 
@@ -372,8 +384,12 @@ void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup)
 		g_source_remove(audio->send_rt_source);
 	chime_debug("close audio\n");
 #ifdef AUDIO_HACKS
-	close(audio->audio_fd);
-	opus_decoder_destroy(audio->opus_dec);
+	if (audio->pipeline) {
+		gst_element_set_state(audio->pipeline, GST_STATE_NULL);
+		gst_object_unref(audio->audio_src);
+		gst_object_unref(audio->pipeline);
+	}
+	gst_element_set_state(audio->outpipe, GST_STATE_NULL);
 #endif
 	g_hash_table_destroy(audio->profiles);
 	g_slist_free_full(audio->data_messages, (GDestroyNotify) free_msgbuf);
@@ -382,17 +398,107 @@ void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup)
 	g_free(audio);
 }
 
+#ifdef AUDIO_HACKS
+static GstFlowReturn appsink_new_sample(GstAppSink* self, gpointer data) {
+	ChimeCallAudio *audio = (ChimeCallAudio*)data;
+
+	GstSample *sample = gst_app_sink_pull_sample(self);
+	if (!sample) {
+		return GST_FLOW_OK;
+	}
+
+	GstBuffer *buffer = gst_sample_get_buffer(sample);
+
+	RTMessage rtmsg;
+	rtmessage__init(&rtmsg);
+
+	AudioMessage audiomsg;
+	audio_message__init(&audiomsg);
+
+	rtmsg.audio = &audiomsg;
+
+	rtmsg.audio->has_audio = TRUE;
+	rtmsg.audio->audio.len = gst_buffer_get_size(buffer);
+
+    unsigned char bytes[1024];
+	gst_buffer_extract(buffer, 0, bytes, rtmsg.audio->audio.len);
+	rtmsg.audio->audio.data = bytes;
+
+	rtmsg.audio->has_seq = TRUE;
+    rtmsg.audio->seq = audio->audio_seq++;
+
+	// Based on the observation that all frames coming from the server have 320 samples, and the
+	// sample_time from the server increases by 320 for every packet...  We're setting sample_time
+	// to the running total of samples we've sent so far.
+	rtmsg.audio->has_sample_time = TRUE;
+    rtmsg.audio->sample_time = audio->audio_seq * opus_packet_get_nb_samples(rtmsg.audio->audio.data, rtmsg.audio->audio.len, 16000);
+
+	chime_call_transport_send_packet(audio, XRP_RT_MESSAGE, &rtmsg.base);
+
+	gst_sample_unref(sample);
+	return GST_FLOW_OK;
+}
+#endif /* AUDIO_HACKS */
+
+
 ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gboolean muted)
 {
 	ChimeCallAudio *audio = g_new0(ChimeCallAudio, 1);
 	audio->call = call;
 	audio->profiles = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
+
 #ifdef AUDIO_HACKS
-	int opuserr;
-	audio->opus_dec = opus_decoder_create(16000, 1, &opuserr);
-	gchar *fname = g_strdup_printf("chime-call-%s-audio.s16", chime_call_get_uuid(call));
-	audio->audio_fd = open(fname, O_WRONLY|O_TRUNC|O_CREAT, 0644);
-	g_free(fname);
+	// GStreamer - server-to-speakers
+	audio->pipeline = gst_pipeline_new("dirt-pipeline");
+	audio->audio_src = gst_element_factory_make("appsrc", "appsrc");
+
+	GstAppSrc *src = GST_APP_SRC(audio->audio_src);
+	GstCaps *audio_caps;
+	audio_caps = gst_caps_from_string("audio/x-opus,channel-mapping-family=0");
+	g_object_set (src, "caps", audio_caps, "format", GST_FORMAT_TIME, NULL);
+	gst_app_src_set_size(src, -1);
+	gst_app_src_set_max_bytes(src, -1);
+	gst_app_src_set_stream_type(src, GST_APP_STREAM_TYPE_STREAM);
+
+	GstElement *opusdec = gst_element_factory_make("opusdec", "opusdec");
+	GstElement *convert = gst_element_factory_make("audioconvert", "audioconvert");
+	GstElement *resample = gst_element_factory_make("audioresample", "audioresample");
+	GstElement *sink = gst_element_factory_make("autoaudiosink", "autoaudiosink");
+	gst_bin_add_many(GST_BIN(audio->pipeline), audio->audio_src, opusdec, convert, resample, sink, NULL);
+	if(!gst_element_link_many(audio->audio_src, opusdec, convert, resample, sink, NULL)) {
+		printf("Failed to link incoming pipeline\n");
+	}
+	gst_element_set_state(audio->pipeline, GST_STATE_PLAYING);
+	gst_object_unref(opusdec);
+	gst_object_unref(convert);
+	gst_object_unref(resample);
+	gst_object_unref(sink);
+
+	// GStreamer - mic-to-server
+	audio->outpipe = gst_pipeline_new("upstream-audio");
+	GstElement *mic = gst_element_factory_make("autoaudiosrc", "autoaudiosrc");
+	convert = gst_element_factory_make("audioconvert", "audioconvert");
+	g_object_set(convert, "caps", gst_caps_from_string("audio/x-raw,format=S16,channels=1"), NULL);
+	resample = gst_element_factory_make("audioresample", "audioresample");
+	g_object_set(resample, "caps", gst_caps_from_string("audio/x-raw,rate=16000"), NULL);
+	GstElement *opusenc = gst_element_factory_make("opusenc", "opusenc");
+	g_object_set(opusenc, "caps", gst_caps_from_string("audio/x-raw,rate=16000,format=S16,channels=1"), NULL);
+	g_object_set(opusenc,
+		     "bitrate", 16000,
+		     "bitrate-type", "vbr",
+		     NULL);
+	GstElement *appsink = gst_element_factory_make("appsink", "appsink");
+	gst_bin_add_many(GST_BIN(audio->outpipe), mic, convert, resample, opusenc, appsink, NULL);
+	if(!gst_element_link_many(mic, convert, resample, opusenc, appsink, NULL)) {
+		printf("Failed to link upstream pipeline\n");
+	}
+	gst_element_set_state(audio->outpipe, GST_STATE_PLAYING);
+	GstAppSinkCallbacks appsink_callbacks = {
+		NULL,
+		NULL,
+		appsink_new_sample
+	};
+	gst_app_sink_set_callbacks(GST_APP_SINK(appsink), &appsink_callbacks, audio, NULL);
 #endif
 
 	rtmessage__init(&audio->rt_msg);

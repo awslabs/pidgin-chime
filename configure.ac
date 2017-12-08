@@ -48,6 +48,7 @@ fi
 AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
 
 PKG_CHECK_MODULES(FARSTREAM, [farstream-0.2])
+PKG_CHECK_MODULES(GSTREAMER, [gstreamer-1.0 gstreamer-app-1.0])
 PKG_CHECK_MODULES(OPUS, [opus])
 PKG_CHECK_MODULES(PROTOBUF, [libprotobuf-c])
 PKG_CHECK_MODULES(JSON, [json-glib-1.0])

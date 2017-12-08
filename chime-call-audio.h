@@ -15,6 +15,7 @@
  * Lesser General Public License for more details.
  */
 
+#define AUDIO_HACKS
 
 #include "chime-connection.h"
 #include "chime-call.h"
@@ -25,6 +26,14 @@
 #include "protobuf/auth_message.pb-c.h"
 #include "protobuf/rt_message.pb-c.h"
 #include "protobuf/data_message.pb-c.h"
+
+#ifdef AUDIO_HACKS
+#include <gst/gstelement.h>
+#include <gst/gstpipeline.h>
+#include <gst/gstutils.h>
+#include <gst/app/gstappsrc.h>
+#include <gst/app/gstappsink.h>
+#endif
 
 enum audio_state {
 	AUDIO_STATE_CONNECTING = 0,
@@ -47,8 +56,10 @@ struct _ChimeCallAudio {
 	GSList *data_messages;
 	GHashTable *profiles;
 #ifdef AUDIO_HACKS
-	OpusDecoder *opus_dec;
-	int audio_fd;
+	GstElement *audio_src;
+	GstElement *pipeline;
+	GstElement *outpipe;
+	uint32_t audio_seq;
 #endif
 	guint send_rt_source;
 	gint64 last_server_time_offset;

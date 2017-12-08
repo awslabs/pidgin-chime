@@ -325,7 +325,7 @@ static void on_joinable_changed(ChimeMeeting *mtg, GParamSpec *ignored, PurpleCo
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 
-	if (!pc->joinable_refresh_id)
+	if (pc->joinable_handle && !pc->joinable_refresh_id)
 		pc->joinable_refresh_id = g_idle_add(update_joinable, conn);
 }
 

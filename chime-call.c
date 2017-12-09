@@ -324,6 +324,15 @@ static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNod
 	cp->speaker = speaker;
 	cp->status = status;
 
+	if (!strcmp(participant_id, chime_connection_get_profile_id(cxn))) {
+		JsonObject *obj = json_node_get_object(p);
+		JsonNode *muter = json_object_get_member(obj, "muter");
+		if (muter && json_node_get_node_type(muter) != JSON_NODE_NULL) {
+			if (call->audio)
+				chime_call_audio_local_mute(call->audio, TRUE);
+		}
+	}
+
 	return TRUE;
 }
 

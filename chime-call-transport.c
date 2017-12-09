@@ -96,7 +96,7 @@ static void audio_send_auth_packet(ChimeCallAudio *audio)
 	msg.codec = 7; /* Opus Med. Later... */
 	msg.has_codec = TRUE;
 
-	msg.flags = FLAGS__FLAG_HAS_PROFILE_TABLE;
+	msg.flags = FLAGS__FLAG_HAS_PROFILE_TABLE | FLAGS__FLAG_HAS_CLIENT_STATUS;
 	if (audio->muted)
 		msg.flags |= FLAGS__FLAG_MUTE;
 	msg.has_flags = TRUE;
@@ -195,9 +195,11 @@ void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup)
 {
 	if (hangup)
 		audio_send_hangup_packet(audio);
+	g_mutex_lock(&audio->transport_lock);
 	soup_websocket_connection_close(audio->ws, 0, NULL);
 	g_signal_handlers_disconnect_matched(G_OBJECT(audio->ws), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, audio);
 	g_signal_connect(G_OBJECT(audio->ws), "closed", G_CALLBACK(on_final_audiows_close), NULL);
+	g_mutex_unlock(&audio->transport_lock);
 	audio->ws = NULL;
 }
 
@@ -219,6 +221,8 @@ void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type t
 		printf("sending protobuf of len %zd\n", len);
 		hexdump(hdr, len);
 	}
+	g_mutex_lock(&audio->transport_lock);
 	soup_websocket_connection_send_binary(audio->ws, hdr, len);
+	g_mutex_unlock(&audio->transport_lock);
 	g_free(hdr);
 }

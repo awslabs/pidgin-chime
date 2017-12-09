@@ -37,17 +37,20 @@
 
 enum audio_state {
 	AUDIO_STATE_CONNECTING = 0,
-	AUDIO_STATE_FAILED = 1,
-	AUDIO_STATE_MUTED = 2,
-	AUDIO_STATE_AUDIO = 3,
-	AUDIO_STATE_HANGUP = 4,
-	AUDIO_STATE_DISCONNECTED = 5,
+	AUDIO_STATE_FAILED,
+	AUDIO_STATE_AUDIOLESS,
+	AUDIO_STATE_AUDIO,
+	AUDIO_STATE_AUDIO_MUTED,
+	AUDIO_STATE_HANGUP,
+	AUDIO_STATE_DISCONNECTED,
 };
 
 struct _ChimeCallAudio {
 	ChimeCall *call;
 	enum audio_state state;
+	gboolean local_mute;
 	gboolean muted;
+	GMutex transport_lock;
 	SoupWebsocketConnection *ws;
 	guint data_ack_source;
 	guint32 data_next_seq;
@@ -56,16 +59,19 @@ struct _ChimeCallAudio {
 	GSList *data_messages;
 	GHashTable *profiles;
 #ifdef AUDIO_HACKS
+	GstClockTime next_dts;
+	gint64 last_send_local_time;
 	GstElement *audio_src;
 	GstElement *pipeline;
 	GstElement *outpipe;
-	uint32_t audio_seq;
 #endif
+	GMutex rt_lock;
 	guint send_rt_source;
 	gint64 last_server_time_offset;
 	gboolean echo_server_time;
 	RTMessage rt_msg;
 	AudioMessage audio_msg;
+	ClientStatusMessage client_status_msg;
 };
 
 struct xrp_header {
@@ -85,6 +91,7 @@ ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gbo
 void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup);
 void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean muted);
 void chime_call_audio_set_state(ChimeCallAudio *audio, enum audio_state state);
+void chime_call_audio_local_mute(ChimeCallAudio *audio, gboolean muted);
 
 /* Called from audio code */
 void chime_call_transport_connect(ChimeCallAudio *audio, gboolean muted);

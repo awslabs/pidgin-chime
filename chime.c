@@ -235,15 +235,16 @@ static void chime_purple_close(PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 
+	chime_connection_foreach_contact(pc->cxn, (ChimeContactCB)disconnect_contact, conn);
+
+	g_signal_handlers_disconnect_matched(pc->cxn, G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, NULL, conn);
+
 	purple_chime_destroy_meetings(conn);
 	purple_chime_destroy_messages(conn);
 	purple_chime_destroy_conversations(pc);
 	purple_chime_destroy_chats(pc);
 
-	chime_connection_foreach_contact(pc->cxn, (ChimeContactCB)disconnect_contact, conn);
-
-	g_signal_handlers_disconnect_matched(pc->cxn, G_SIGNAL_MATCH_DATA,
-					     0, 0, NULL, NULL, conn);
 	chime_connection_disconnect(pc->cxn);
 	g_clear_object(&pc->cxn);
 	g_free(pc);

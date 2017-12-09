@@ -144,7 +144,8 @@ typedef struct _ChimeAttachment {
 
 typedef struct _AttachmentContext {
 	PurpleConnection *conn;
-	const char *from;
+	const char *from; /* Sender email. May be the own user in case he/she sends from another client. */
+	const char *im_email; /* Email identifying the IM conversation. May be the the same as `from` */
 	time_t when;
 	int chat_id; /* -1 for IM */
 } AttachmentContext;

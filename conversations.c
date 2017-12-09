@@ -50,6 +50,14 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		flags |= PURPLE_MESSAGE_SYSTEM;
 
 	const gchar *email = chime_contact_get_email(im->peer);
+	const gchar *from = _("Unknown sender");
+	if (!strcmp(sender, chime_connection_get_profile_id(cxn))) {
+		from = chime_connection_get_email(cxn);
+	} else {
+		ChimeContact *who = chime_connection_contact_by_id(cxn, sender);
+		if (who)
+			from = chime_contact_get_email(who);
+	}
 	gchar *escaped = g_markup_escape_text(message, -1);
 
 	ChimeAttachment *att = extract_attachment(record);
@@ -57,7 +65,8 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		AttachmentContext *ctx = g_new(AttachmentContext, 1);
 		ctx->conn = im->m.conn;
 		ctx->chat_id = -1;
-		ctx->from = email;
+		ctx->from = from;
+		ctx->im_email = email;
 		ctx->when = msg_time;
 		/* The attachment and context structs will be owned by the code doing the download and will be disposed of at the end. */
 		download_attachment(cxn, att, ctx);

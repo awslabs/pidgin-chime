@@ -61,7 +61,8 @@ struct _ChimeCallAudio {
 #ifdef AUDIO_HACKS
 	GstClockTime next_dts;
 	gint64 last_send_local_time;
-	GstElement *audio_src;
+	GstAppSrc *audio_src;
+	gboolean appsrc_need_data;
 	GstElement *pipeline;
 	GstElement *outpipe;
 #endif
@@ -100,3 +101,5 @@ void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type t
 
 /* Callbacks into audio code from transport */
 gboolean audio_receive_packet(ChimeCallAudio *audio, gconstpointer pkt, gsize len);
+
+void chime_call_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc *appsrc, GstAppSink *appsink);

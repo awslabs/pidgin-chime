@@ -26,6 +26,9 @@
 #include "chime-contact.h"
 #include "chime-object.h"
 
+#include <gst/app/gstappsrc.h>
+#include <gst/app/gstappsink.h>
+
 G_BEGIN_DECLS
 
 #define CHIME_TYPE_CALL (chime_call_get_type ())
@@ -86,6 +89,17 @@ GList *chime_call_get_participants(ChimeCall *self);
 struct _ChimeCallAudio;
 typedef struct _ChimeCallAudio ChimeCallAudio;
 
+typedef enum {
+	CHIME_AUDIO_STATE_CONNECTING = 0,
+	CHIME_AUDIO_STATE_FAILED,
+	CHIME_AUDIO_STATE_AUDIOLESS,
+	CHIME_AUDIO_STATE_AUDIO,
+	CHIME_AUDIO_STATE_AUDIO_MUTED,
+	CHIME_AUDIO_STATE_HANGUP,
+	CHIME_AUDIO_STATE_DISCONNECTED,
+} ChimeAudioState;
+
+void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, GstAppSink *appsink);
 
 G_END_DECLS
 

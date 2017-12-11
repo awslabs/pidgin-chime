@@ -15,8 +15,6 @@
  * Lesser General Public License for more details.
  */
 
-#define AUDIO_HACKS
-
 #include "chime-connection.h"
 #include "chime-call.h"
 #include "chime-connection-private.h"
@@ -27,27 +25,12 @@
 #include "protobuf/rt_message.pb-c.h"
 #include "protobuf/data_message.pb-c.h"
 
-#ifdef AUDIO_HACKS
-#include <gst/gstelement.h>
-#include <gst/gstpipeline.h>
-#include <gst/gstutils.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
-#endif
-
-enum audio_state {
-	AUDIO_STATE_CONNECTING = 0,
-	AUDIO_STATE_FAILED,
-	AUDIO_STATE_AUDIOLESS,
-	AUDIO_STATE_AUDIO,
-	AUDIO_STATE_AUDIO_MUTED,
-	AUDIO_STATE_HANGUP,
-	AUDIO_STATE_DISCONNECTED,
-};
 
 struct _ChimeCallAudio {
 	ChimeCall *call;
-	enum audio_state state;
+	ChimeAudioState state;
 	gboolean local_mute;
 	gboolean muted;
 	GMutex transport_lock;
@@ -58,14 +41,12 @@ struct _ChimeCallAudio {
 	gint32 data_next_logical_msg;
 	GSList *data_messages;
 	GHashTable *profiles;
-#ifdef AUDIO_HACKS
+
 	GstClockTime next_dts;
 	gint64 last_send_local_time;
 	GstAppSrc *audio_src;
 	gboolean appsrc_need_data;
-	GstElement *pipeline;
-	GstElement *outpipe;
-#endif
+
 	GMutex rt_lock;
 	guint send_rt_source;
 	gint64 last_server_time_offset;
@@ -91,7 +72,7 @@ enum xrp_pkt_type {
 ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gboolean muted);
 void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup);
 void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean muted);
-void chime_call_audio_set_state(ChimeCallAudio *audio, enum audio_state state);
+void chime_call_audio_set_state(ChimeCallAudio *audio, ChimeAudioState state);
 void chime_call_audio_local_mute(ChimeCallAudio *audio, gboolean muted);
 
 /* Called from audio code */
@@ -102,4 +83,4 @@ void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type t
 /* Callbacks into audio code from transport */
 gboolean audio_receive_packet(ChimeCallAudio *audio, gconstpointer pkt, gsize len);
 
-void chime_call_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc *appsrc, GstAppSink *appsink);
+void chime_call_audio_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc *appsrc, GstAppSink *appsink);

@@ -34,6 +34,12 @@
 
 #include <libsoup/soup.h>
 
+#include <gst/gstelement.h>
+#include <gst/gstpipeline.h>
+#include <gst/gstutils.h>
+#include <gst/app/gstappsrc.h>
+#include <gst/app/gstappsink.h>
+
 struct chime_chat {
 	/* msgs first as it's a "subclass". Really ought to do proper GTypes here... */
 	struct chime_msgs m;
@@ -43,6 +49,9 @@ struct chime_chat {
 	ChimeCallAudio *audio;
 	void *participants_ui;
 	PurpleMedia *media;
+
+	GstElement *audio_inpipeline;
+	GstElement *audio_outpipeline;
 };
 
 /*
@@ -225,9 +234,61 @@ static void participants_closed_cb(gpointer _chat)
 	g_signal_handlers_disconnect_matched(chat->call, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
 					     0, 0, NULL, G_CALLBACK(on_call_participants), chat);
 }
-static void on_audio_state(ChimeCall *call, int audio_state, struct chime_chat *chat)
+static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct chime_chat *chat)
 {
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Audio state %d\n", audio_state);
+
+	if (audio_state == CHIME_AUDIO_STATE_AUDIO_MUTED && chat->audio_outpipeline) {
+		gst_element_set_state(chat->audio_outpipeline, GST_STATE_PAUSED);
+	} else if (audio_state == CHIME_AUDIO_STATE_AUDIO && chat->audio_outpipeline) {
+		gst_element_set_state(chat->audio_outpipeline, GST_STATE_PLAYING);
+	} else if (audio_state == CHIME_AUDIO_STATE_AUDIO && !chat->audio_inpipeline) {
+		// GStreamer - server-to-speakers
+		chat->audio_inpipeline = gst_pipeline_new("dirt-pipeline");
+
+		GstAppSrc *src = GST_APP_SRC(gst_element_factory_make("appsrc", "appsrc"));
+		GstCaps *audio_caps;
+		audio_caps = gst_caps_from_string("audio/x-opus,channel-mapping-family=0");
+		g_object_set (src, "caps", audio_caps, "format", GST_FORMAT_TIME, NULL);
+		gst_app_src_set_size(src, -1);
+		gst_app_src_set_max_bytes(src, 100);
+		gst_base_src_set_live(GST_BASE_SRC(src), TRUE);
+		gst_app_src_set_stream_type(src, GST_APP_STREAM_TYPE_STREAM);
+
+		GstElement *opusdec = gst_element_factory_make("opusdec", "opusdec");
+		GstElement *convert = gst_element_factory_make("audioconvert", "audioconvert");
+		GstElement *resample = gst_element_factory_make("audioresample", "audioresample");
+		GstElement *sink = gst_element_factory_make("autoaudiosink", "autoaudiosink");
+		gst_bin_add_many(GST_BIN(chat->audio_inpipeline), GST_ELEMENT(src), opusdec, convert, resample, sink, NULL);
+		if(!gst_element_link_many(GST_ELEMENT(src), opusdec, convert, resample, sink, NULL)) {
+			printf("Failed to link incoming pipeline\n");
+		}
+
+		// GStreamer - mic-to-server
+		chat->audio_outpipeline = gst_pipeline_new("upstream-audio");
+		GstElement *mic = gst_element_factory_make("autoaudiosrc", "autoaudiosrc");
+		convert = gst_element_factory_make("audioconvert", "audioconvert");
+		g_object_set(convert, "caps", gst_caps_from_string("audio/x-raw,format=S16,channels=1"), NULL);
+		resample = gst_element_factory_make("audioresample", "audioresample");
+		g_object_set(resample, "caps", gst_caps_from_string("audio/x-raw"), NULL);
+		GstElement *opusenc = gst_element_factory_make("opusenc", "opusenc");
+		g_object_set(opusenc, "caps", gst_caps_from_string("audio/x-raw,format=S16,channels=1"), NULL);
+		g_object_set(opusenc,
+			     "bitrate", 16000,
+			     "bitrate-type", "vbr",
+			     NULL);
+		GstElement *appsink = gst_element_factory_make("appsink", "appsink");
+		g_object_set(appsink, "caps", gst_caps_from_string("audio/x-opus,channels=1,channel-mapping-family=0"), NULL);
+		gst_bin_add_many(GST_BIN(chat->audio_outpipeline), mic, convert, resample, opusenc, appsink, NULL);
+		if(!gst_element_link_many(mic, convert, resample, opusenc, appsink, NULL)) {
+			printf("Failed to link upstream pipeline\n");
+		}
+
+		chime_call_install_gst_app_callbacks(chat->call, src, GST_APP_SINK(appsink));
+		gst_element_set_state(chat->audio_inpipeline, GST_STATE_PLAYING);
+		gst_element_set_state(chat->audio_outpipeline, GST_STATE_PLAYING);
+	}
+
 }
 
 static void on_call_participants(ChimeCall *call, GHashTable *participants, struct chime_chat *chat)
@@ -303,12 +364,23 @@ void chime_destroy_chat(struct chime_chat *chat)
 							  chat->media);
 			chat->media = NULL;
 		}
-#if 0
-		if (chat->audio) {
-			chime_connection_call_audio_close(chat->audio);
-			chat->audio = NULL;
+
+		if (chat->audio_inpipeline) {
+			GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(chat->audio_inpipeline), GST_DEBUG_GRAPH_SHOW_ALL, "chime-inpipeline");
+
+			gst_element_set_state(chat->audio_inpipeline, GST_STATE_NULL);
+			gst_object_unref(chat->audio_inpipeline);
+			chat->audio_inpipeline = NULL;
 		}
-#endif
+
+		if (chat->audio_outpipeline) {
+			GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(chat->audio_outpipeline), GST_DEBUG_GRAPH_SHOW_ALL, "chime-outpipeline");
+
+			gst_element_set_state(chat->audio_outpipeline, GST_STATE_NULL);
+			gst_object_unref(chat->audio_outpipeline);
+			chat->audio_outpipeline = NULL;
+		}
+
 		chime_connection_close_meeting(cxn, chat->meeting);
 		g_object_unref(chat->meeting);
 	}

@@ -150,7 +150,7 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 			audio->audio_msg.sample_time += (dts - audio->next_dts) / NS_PER_SAMPLE;
 		}
 		audio->next_dts = dts + dur;
-		if (audio->state == AUDIO_STATE_AUDIO) {
+		if (audio->state == CHIME_AUDIO_STATE_AUDIO) {
 			printf ("State %d, send audio\n", audio->state);
 			audio->audio_msg.audio.len = info.size;
 			audio->audio_msg.audio.data = info.data;
@@ -197,8 +197,8 @@ static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt,
 	chime_debug("Got AuthMessage authorised %d %d\n", msg->has_authorized, msg->authorized);
 	if (msg->has_authorized && msg->authorized) {
 		do_send_rt_packet(audio, NULL);
-		chime_call_audio_set_state(audio, audio->muted ? AUDIO_STATE_AUDIOLESS :
-					   (audio->local_mute ? AUDIO_STATE_AUDIO_MUTED : AUDIO_STATE_AUDIO));
+		chime_call_audio_set_state(audio, audio->muted ? CHIME_AUDIO_STATE_AUDIOLESS :
+					   (audio->local_mute ? CHIME_AUDIO_STATE_AUDIO_MUTED : CHIME_AUDIO_STATE_AUDIO));
 	}
 
 	auth_message__free_unpacked(msg, NULL);
@@ -442,21 +442,7 @@ void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup)
 	g_signal_handlers_disconnect_matched(G_OBJECT(audio->call), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, audio);
 
 	chime_debug("close audio\n");
-#ifdef AUDIO_HACKS
-	if (audio->pipeline) {
-		GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(audio->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "chime-pipeline");
 
-		gst_element_set_state(audio->pipeline, GST_STATE_NULL);
-		gst_object_unref(audio->audio_src);
-		gst_object_unref(audio->pipeline);
-	}
-	if (audio->outpipe) {
-		GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(audio->outpipe), GST_DEBUG_GRAPH_SHOW_ALL, "chime-outpipe");
-
-		gst_element_set_state(audio->outpipe, GST_STATE_NULL);
-		gst_object_unref(audio->outpipe);
-	}
-#endif
 	if (audio->data_ack_source)
 		g_source_remove(audio->data_ack_source);
 	if (audio->send_rt_source)
@@ -465,7 +451,7 @@ void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup)
 	g_hash_table_destroy(audio->profiles);
 	g_slist_free_full(audio->data_messages, (GDestroyNotify) free_msgbuf);
 	chime_call_transport_disconnect(audio, hangup);
-	chime_call_audio_set_state(audio, AUDIO_STATE_HANGUP);
+	chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_HANGUP);
 	g_free(audio);
 }
 
@@ -513,7 +499,7 @@ static GstAppSrcCallbacks chime_appsrc_callbacks = {
 	.enough_data = chime_appsrc_enough_data,
 };
 
-void chime_call_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc *appsrc, GstAppSink *appsink)
+void chime_call_audio_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc *appsrc, GstAppSink *appsink)
 {
 	audio->audio_src = appsrc;
 	audio->appsrc_need_data = FALSE;
@@ -530,57 +516,6 @@ ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gbo
 	g_mutex_init(&audio->transport_lock);
 	g_mutex_init(&audio->rt_lock);
 
-#ifdef AUDIO_HACKS
-	if (!audio->muted) {
-		// GStreamer - server-to-speakers
-		audio->pipeline = gst_pipeline_new("dirt-pipeline");
-
-		GstAppSrc *src = GST_APP_SRC(gst_element_factory_make("appsrc", "appsrc"));
-		GstCaps *audio_caps;
-		audio_caps = gst_caps_from_string("audio/x-opus,channel-mapping-family=0");
-		g_object_set (src, "caps", audio_caps, "format", GST_FORMAT_TIME, NULL);
-		gst_app_src_set_size(src, -1);
-		gst_app_src_set_max_bytes(src, 100);
-		gst_base_src_set_live(GST_BASE_SRC(src), TRUE);
-		gst_app_src_set_stream_type(src, GST_APP_STREAM_TYPE_STREAM);
-
-		GstElement *opusdec = gst_element_factory_make("opusdec", "opusdec");
-		GstElement *convert = gst_element_factory_make("audioconvert", "audioconvert");
-		GstElement *resample = gst_element_factory_make("audioresample", "audioresample");
-		GstElement *sink = gst_element_factory_make("autoaudiosink", "autoaudiosink");
-		gst_bin_add_many(GST_BIN(audio->pipeline), GST_ELEMENT(src), opusdec, convert, resample, sink, NULL);
-		if(!gst_element_link_many(GST_ELEMENT(src), opusdec, convert, resample, sink, NULL)) {
-			printf("Failed to link incoming pipeline\n");
-		}
-
-
-
-		// GStreamer - mic-to-server
-		audio->outpipe = gst_pipeline_new("upstream-audio");
-		GstElement *mic = gst_element_factory_make("autoaudiosrc", "autoaudiosrc");
-		convert = gst_element_factory_make("audioconvert", "audioconvert");
-		g_object_set(convert, "caps", gst_caps_from_string("audio/x-raw,format=S16,channels=1"), NULL);
-		resample = gst_element_factory_make("audioresample", "audioresample");
-		g_object_set(resample, "caps", gst_caps_from_string("audio/x-raw"), NULL);
-		GstElement *opusenc = gst_element_factory_make("opusenc", "opusenc");
-		g_object_set(opusenc, "caps", gst_caps_from_string("audio/x-raw,format=S16,channels=1"), NULL);
-		g_object_set(opusenc,
-			     "bitrate", 16000,
-			     "bitrate-type", "vbr",
-			     NULL);
-		GstElement *appsink = gst_element_factory_make("appsink", "appsink");
-		g_object_set(appsink, "caps", gst_caps_from_string("audio/x-opus,channels=1,channel-mapping-family=0"), NULL);
-		gst_bin_add_many(GST_BIN(audio->outpipe), mic, convert, resample, opusenc, appsink, NULL);
-		if(!gst_element_link_many(mic, convert, resample, opusenc, appsink, NULL)) {
-			printf("Failed to link upstream pipeline\n");
-		}
-		chime_call_install_gst_app_callbacks(audio, src, GST_APP_SINK(appsink));
-		gst_element_set_state(audio->pipeline, GST_STATE_PLAYING);
-		gst_element_set_state(audio->outpipe, GST_STATE_PLAYING);
-
-	}
-#endif
-
 	rtmessage__init(&audio->rt_msg);
 	audio_message__init(&audio->audio_msg);
 	client_status_message__init(&audio->client_status_msg);
@@ -591,7 +526,7 @@ ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gbo
 	audio->audio_msg.sample_time = g_random_int();
 
 	chime_call_transport_connect(audio, muted);
-	chime_call_audio_set_state(audio, AUDIO_STATE_CONNECTING);
+	chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING);
 
 	return audio;
 }
@@ -607,7 +542,7 @@ void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean muted)
 			g_source_remove(audio->data_ack_source);
 		chime_call_transport_disconnect(audio, TRUE);
 		chime_call_transport_connect(audio, muted);
-		chime_call_audio_set_state(audio, AUDIO_STATE_CONNECTING);
+		chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING);
 	}
 }
 
@@ -615,15 +550,9 @@ void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean muted)
 void chime_call_audio_local_mute(ChimeCallAudio *audio, gboolean muted)
 {
 	audio->local_mute = muted;
-	if (muted && audio->state == AUDIO_STATE_AUDIO) {
-		chime_call_audio_set_state(audio, AUDIO_STATE_AUDIO_MUTED);
-		if (audio->outpipe) {
-			gst_element_set_state(audio->outpipe, GST_STATE_PAUSED);
-		}
-	} else if (!muted && audio->state == AUDIO_STATE_AUDIO_MUTED) {
-		chime_call_audio_set_state(audio, AUDIO_STATE_AUDIO);
-		if (audio->outpipe) {
-			gst_element_set_state(audio->outpipe, GST_STATE_PLAYING);
-		}
-	}
+
+	if (muted && audio->state == CHIME_AUDIO_STATE_AUDIO)
+		chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_AUDIO_MUTED);
+	else if (!muted && audio->state == CHIME_AUDIO_STATE_AUDIO_MUTED)
+		chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_AUDIO);
 }

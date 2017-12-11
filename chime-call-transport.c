@@ -151,7 +151,7 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _audio
 	SoupWebsocketConnection *ws = chime_connection_websocket_connect_finish(cxn, res, &error);
 	if (!ws) {
 		chime_debug("audio ws error %s\n", error->message);
-		audio->state = AUDIO_STATE_FAILED;
+		audio->state = CHIME_AUDIO_STATE_FAILED;
 		g_object_unref(cxn);
 		return;
 	}

@@ -620,7 +620,7 @@ fs_app_transmitter_get_app_src (FsAppTransmitter *self,
 
   app->path = g_strdup (path);
 
-  elem = gst_element_factory_make ("audiotestsrc", NULL);
+  elem = gst_parse_launch(path, NULL);
   if (!elem)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
@@ -784,7 +784,7 @@ fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
 
   /* First add the sink */
 
-  elem = gst_element_factory_make ("filesink", NULL);
+  elem = gst_parse_launch(path, NULL);
   if (!elem)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
@@ -792,7 +792,6 @@ fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
     goto error;
   }
   g_object_set (elem,
-      "location", "/tmp/pidgin.s16",
       "async", FALSE,
       "sync" , FALSE,
       NULL);

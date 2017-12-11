@@ -97,7 +97,6 @@ enum
   PROP_0,
   PROP_SENDING,
   PROP_PREFERRED_LOCAL_CANDIDATES,
-  PROP_CREATE_LOCAL_CANDIDATES,
 };
 
 struct _FsAppStreamTransmitterPrivate
@@ -117,10 +116,6 @@ struct _FsAppStreamTransmitterPrivate
 
   /* Protected by the mutex */
   FsCandidate **candidates;
-
-  /* Whether we create the local candidate ourselves or rely on the remote end
-   * to pass them to us as part of the candidate */
-  gboolean create_local_candidates;
 
   /* temporary socket directy in case we made one */
   gchar *socket_dir;
@@ -202,7 +197,6 @@ fs_app_stream_transmitter_class_init (FsAppStreamTransmitterClass *klass)
   GObjectClass *gobject_class = (GObjectClass *) klass;
   FsStreamTransmitterClass *streamtransmitterclass =
     FS_STREAM_TRANSMITTER_CLASS (klass);
-  GParamSpec *pspec;
 
   parent_class = g_type_class_peek_parent (klass);
 
@@ -217,16 +211,6 @@ fs_app_stream_transmitter_class_init (FsAppStreamTransmitterClass *klass)
   g_object_class_override_property (gobject_class, PROP_SENDING, "sending");
   g_object_class_override_property (gobject_class,
       PROP_PREFERRED_LOCAL_CANDIDATES, "preferred-local-candidates");
-
-  pspec = g_param_spec_boolean ("create-local-candidates",
-    "CreateLocalCandidates",
-    "Whether the transmitter should automatically create local candidates",
-    TRUE,
-    G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
-  g_object_class_install_property (gobject_class,
-    PROP_CREATE_LOCAL_CANDIDATES,
-    pspec);
-
 
   gobject_class->dispose = fs_app_stream_transmitter_dispose;
   gobject_class->finalize = fs_app_stream_transmitter_finalize;
@@ -308,9 +292,6 @@ fs_app_stream_transmitter_get_property (GObject *object,
     case PROP_PREFERRED_LOCAL_CANDIDATES:
       g_value_set_boxed (value, self->priv->preferred_local_candidates);
       break;
-    case PROP_CREATE_LOCAL_CANDIDATES:
-      g_value_set_boolean (value, self->priv->create_local_candidates);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -336,9 +317,6 @@ fs_app_stream_transmitter_set_property (GObject *object,
       break;
     case PROP_PREFERRED_LOCAL_CANDIDATES:
       self->priv->preferred_local_candidates = g_value_dup_boxed (value);
-      break;
-    case PROP_CREATE_LOCAL_CANDIDATES:
-      self->priv->create_local_candidates = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -394,9 +372,6 @@ static gboolean
 fs_app_stream_transmitter_add_sink (FsAppStreamTransmitter *self,
     FsCandidate *candidate, GError **error)
 {
-  if (self->priv->create_local_candidates)
-    return TRUE;
-
   if (!candidate->ip || !candidate->ip[0])
     return TRUE;
 
@@ -416,11 +391,6 @@ fs_app_stream_transmitter_add_sink (FsAppStreamTransmitter *self,
   if (self->priv->app_sink[candidate->component_id] == NULL)
     return FALSE;
 
-  if (candidate->component_id == 1) {
-    fs_app_transmitter_sink_set_sending (self->priv->transmitter,
-        self->priv->app_sink[candidate->component_id], self->priv->sending);
-    connected_cb(1, 0, self);
-  }
   return TRUE;
 }
 
@@ -443,10 +413,7 @@ fs_app_stream_transmitter_force_remote_candidate (
   if (!fs_app_stream_transmitter_add_sink (self, candidate, error))
     return FALSE;
 
-  if (self->priv->create_local_candidates)
-    path = candidate->ip;
-  else
-    path = candidate->username;
+  path = candidate->username;
 
   if (path && path[0])
   {
@@ -549,41 +516,6 @@ fs_app_stream_transmitter_gather_local_candidates (
   FsAppStreamTransmitter *self =
     FS_APP_STREAM_TRANSMITTER (streamtransmitter);
   GList *item;
-
-  if (self->priv->create_local_candidates)
-  {
-    guint c;
-    gchar *socket_dir;
-
-    socket_dir = g_build_filename (g_get_tmp_dir (),
-      "farstream-app-XXXXXX", NULL);
-
-    if (g_mkdtemp (socket_dir) == NULL)
-      return FALSE;
-
-    self->priv->socket_dir = socket_dir;
-
-    for (c = 1; c <= self->priv->transmitter->components; c++)
-    {
-      gchar *path = g_strdup_printf ("%s/app-sink-socket-%d", socket_dir, c);
-
-      self->priv->app_sink[c] =
-        fs_app_transmitter_get_app_sink (self->priv->transmitter,
-          c, path, ready_cb, connected_cb, self, error);
-      g_free (path);
-
-      if (self->priv->app_sink[c] == NULL)
-        return FALSE;
-
-      if (c == 1) {
-        fs_app_transmitter_sink_set_sending (self->priv->transmitter,
-            self->priv->app_sink[c], self->priv->sending);
-	connected_cb(1, 0, self);
-      }
-    }
-
-    return TRUE;
-  }
 
   for (item = self->priv->preferred_local_candidates;
        item;

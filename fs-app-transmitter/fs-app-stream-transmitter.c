@@ -391,6 +391,13 @@ fs_app_stream_transmitter_add_sink (FsAppStreamTransmitter *self,
   if (self->priv->app_sink[candidate->component_id] == NULL)
     return FALSE;
 
+#if 1
+  if (candidate->component_id == 1) {
+    fs_app_transmitter_sink_set_sending (self->priv->transmitter,
+        self->priv->app_sink[candidate->component_id], self->priv->sending);
+    connected_cb(1, 0, self);
+  }
+#endif
   return TRUE;
 }
 

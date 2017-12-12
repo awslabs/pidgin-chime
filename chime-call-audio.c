@@ -177,8 +177,10 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 		/* Set timer to kick in after 100ms if we stop getting data */
 		if (audio->send_rt_source)
 			g_source_remove(audio->send_rt_source);
-		audio->send_rt_source = g_timeout_add(100, (GSourceFunc)timed_send_rt_packet, audio);
+		audio->send_rt_source = 0;
 	}
+	if (!audio->send_rt_source)
+		audio->send_rt_source = g_timeout_add(100, (GSourceFunc)timed_send_rt_packet, audio);
 	g_mutex_unlock(&audio->rt_lock);
 }
 

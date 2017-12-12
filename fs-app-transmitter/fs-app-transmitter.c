@@ -620,7 +620,7 @@ fs_app_transmitter_get_app_src (FsAppTransmitter *self,
 
   app->path = g_strdup (path);
 
-  elem = gst_parse_launch(path, NULL);
+  elem = gst_parse_bin_from_description(path, TRUE, NULL);
   if (!elem)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
@@ -784,7 +784,7 @@ fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
 
   /* First add the sink */
 
-  elem = gst_parse_launch(path, NULL);
+  elem = gst_parse_bin_from_description(path, TRUE, NULL);
   if (!elem)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
@@ -839,6 +839,8 @@ fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
         "Could not link recvonly filter and appsink");
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(self->priv->gst_sink), GST_DEBUG_GRAPH_SHOW_ALL, "nolink");
+
     goto error;
   }
 

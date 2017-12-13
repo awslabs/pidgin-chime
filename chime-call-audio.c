@@ -61,12 +61,19 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 			audio->echo_server_time = TRUE;
 		}
 		if (msg->audio->has_audio) {
-			if (audio->audio_src && audio->appsrc_need_data) {
+			GstClock *clk;
+			if (audio->audio_src && audio->appsrc_need_data &&
+			    /* It'll have a clock if it's PLAYING. */
+			    (clk = gst_element_get_clock(GST_ELEMENT(audio->audio_src)))) {
 				GstBuffer *buffer = gst_buffer_new_allocate(NULL, msg->audio->audio.len, NULL);
 				gst_buffer_fill(buffer, 0, msg->audio->audio.data, msg->audio->audio.len);
-				if (msg->audio->sample_time)
-					buffer->dts = msg->audio->sample_time;
 
+				if (!audio->audio_src_timebase) {
+					audio->base_src_sample_time = msg->audio->sample_time;
+					audio->audio_src_timebase = gst_clock_get_time(clk) - gst_element_get_base_time(GST_ELEMENT(audio->audio_src));
+					printf("Timebase %ld sample base %d\n", audio->audio_src_timebase, msg->audio->sample_time);
+				}
+				buffer->dts = audio->audio_src_timebase + (uint64_t)NS_PER_SAMPLE * (uint64_t)(msg->audio->sample_time - audio->base_src_sample_time);
 				gst_app_src_push_buffer(GST_APP_SRC(audio->audio_src), buffer);
 			}
 		}
@@ -141,7 +148,6 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 		pts = GST_BUFFER_PTS(buffer);
 		dur = GST_BUFFER_DURATION(buffer);
 
-#define NS_PER_SAMPLE (1000000000 / 16000)
 		nr_samples = GST_BUFFER_DURATION(buffer) / NS_PER_SAMPLE;
 		printf("buf dts %ld pts %ld dur %ld samples %d\n", dts, pts, dur, nr_samples);
 
@@ -493,6 +499,7 @@ static void chime_appsrc_destroy(gpointer _audio)
 {
 	ChimeCallAudio *audio = _audio;
 
+	audio->audio_src_timebase = 0;
 	audio->audio_src = NULL;
 }
 

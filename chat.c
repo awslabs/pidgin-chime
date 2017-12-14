@@ -275,12 +275,16 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 								name,
 								TRUE);
 		if (chat->media) {
+			const gchar *caps = "audio/x-raw,format=(string)S16LE,layout=(string)interleaved,channels=(int)1";
+
 			gboolean r = purple_media_add_stream(chat->media, "chime", name,
 							     PURPLE_MEDIA_AUDIO, TRUE,
 							     "app", 0, NULL);
 			gchar *srcname = g_strdup_printf("chime_src_%p", call);
 			gchar *sinkname = g_strdup_printf("chime_sink_%p", call);
-			gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time caps=audio/x-opus,channel-mapping-family=0 ! opusdec ! audioconvert ! audioresample ", srcname);
+			/* Without the capsfilter (even though there's another capsfilter almost immediately after it in the pipeline, it doesn't work */
+			gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time caps=audio/x-opus,channel-mapping-family=0 ! opusdec ! capsfilter caps=%s",
+							 srcname, caps);
 			gchar *sinkpipe = g_strdup_printf("opusenc bitrate=16000 bitrate-type=vbr ! appsink name=%s async=false", sinkname);
 
 			PurpleMediaCandidate *cand =
@@ -294,7 +298,7 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 
 			GList *cands = g_list_append (NULL, cand);
 			GList *codecs = g_list_append(NULL,
-						      purple_media_codec_new(1, "audio/x-raw, format=(string)S16LE, rate=(int)16000, layout=(string)interleaved, channels=(int)1", PURPLE_MEDIA_AUDIO, 0));
+						      purple_media_codec_new(1, caps, PURPLE_MEDIA_AUDIO, 0));
 			purple_media_add_remote_candidates(chat->media, "chime", name, cands);
 			purple_media_set_remote_codecs(chat->media, "chime", name, codecs);
 
@@ -303,11 +307,11 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 			GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipeline), sinkname);
 			g_free(srcname);
 			g_free(sinkname);
-			printf("Got src %p sink %p\n", appsrc, appsink);
+
 			gst_app_src_set_size(GST_APP_SRC(appsrc), -1);
 			gst_app_src_set_max_bytes(GST_APP_SRC(appsrc), 100);
 			gst_app_src_set_stream_type(GST_APP_SRC(appsrc), GST_APP_STREAM_TYPE_STREAM);
-
+//			gst_base_src_set_live(GST_BASE_SRC(appsrc), TRUE);
 			chime_call_install_gst_app_callbacks(chat->call, GST_APP_SRC(appsrc), GST_APP_SINK(appsink));
 			g_signal_connect(chat->media, "state-changed", G_CALLBACK(call_media_changed), chat);
 			g_signal_connect(chat->media, "stream-info", G_CALLBACK(call_stream_info), chat);

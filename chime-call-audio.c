@@ -499,8 +499,16 @@ static void chime_appsrc_destroy(gpointer _audio)
 {
 	ChimeCallAudio *audio = _audio;
 
+	printf("Appsrc destroy\n");
 	audio->audio_src_timebase = 0;
 	audio->audio_src = NULL;
+}
+
+static void chime_appsink_destroy(gpointer _audio)
+{
+	ChimeCallAudio *audio = _audio;
+
+	printf("Appsink destroy\n");
 }
 
 static GstAppSrcCallbacks chime_appsrc_callbacks = {
@@ -514,7 +522,7 @@ void chime_call_audio_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc
 	audio->appsrc_need_data = FALSE;
 
 	gst_app_src_set_callbacks(appsrc, &chime_appsrc_callbacks, audio, chime_appsrc_destroy);
-	gst_app_sink_set_callbacks(appsink, &chime_appsink_callbacks, audio, NULL);
+	gst_app_sink_set_callbacks(appsink, &chime_appsink_callbacks, audio, chime_appsink_destroy);
 }
 
 ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gboolean muted)

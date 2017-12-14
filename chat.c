@@ -236,6 +236,16 @@ static void participants_closed_cb(gpointer _chat)
 					     0, 0, NULL, G_CALLBACK(on_call_participants), chat);
 }
 
+static void call_stream_info(PurpleMedia *media, PurpleMediaInfoType type, gchar *id, const gchar *participant, gboolean local, struct chime_chat *chat)
+{
+	printf("%s %d\n", __func__, type);
+	if (type == PURPLE_MEDIA_INFO_MUTE) {
+		chime_call_set_local_mute(chat->call, TRUE);
+	} else if (type == PURPLE_MEDIA_INFO_UNMUTE) {
+		chime_call_set_local_mute(chat->call, FALSE);
+	}
+}
+
 static void call_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)
 {
 
@@ -249,9 +259,14 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 {
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Audio state %d\n", audio_state);
 
-	if (audio_state == CHIME_AUDIO_STATE_AUDIO && !chat->media) {
+	const gchar *name = chime_call_get_alert_body(chat->call);
+
+	if (audio_state == CHIME_AUDIO_STATE_AUDIO_MUTED && chat->media) {
+		purple_media_stream_info(chat->media, PURPLE_MEDIA_INFO_MUTE, "chime", name, FALSE);
+	} else if (audio_state == CHIME_AUDIO_STATE_AUDIO && chat->media) {
+		purple_media_stream_info(chat->media, PURPLE_MEDIA_INFO_UNMUTE, "chime", name, FALSE);
+	} else if (audio_state == CHIME_AUDIO_STATE_AUDIO && !chat->media) {
 		PurpleMediaManager *mgr = purple_media_manager_get();
-		const gchar *name = chime_call_get_alert_body(chat->call);
 		chat->media = purple_media_manager_create_media(purple_media_manager_get(),
 								chat->conv->account,
 								"fsrawconference",
@@ -293,6 +308,7 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 
 			chime_call_install_gst_app_callbacks(chat->call, GST_APP_SRC(appsrc), GST_APP_SINK(appsink));
 			g_signal_connect(chat->media, "state-changed", G_CALLBACK(call_media_changed), chat);
+			g_signal_connect(chat->media, "stream-info", G_CALLBACK(call_stream_info), chat);
 
 			purple_media_stream_info(chat->media, PURPLE_MEDIA_INFO_ACCEPT, "chime", name, FALSE);
 			GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)), GST_DEBUG_GRAPH_SHOW_ALL, "chime conference graph");

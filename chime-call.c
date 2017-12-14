@@ -504,6 +504,12 @@ void chime_call_set_mute(ChimeCall *call, gboolean muted)
 		chime_call_audio_reopen(call->audio, muted);
 }
 
+void chime_call_set_local_mute(ChimeCall *call, gboolean muted)
+{
+	if (call->audio)
+		chime_call_audio_local_mute(call->audio, muted);
+}
+
 void chime_call_audio_set_state(ChimeCallAudio *audio, ChimeAudioState state)
 {
 	if (audio->state == state)
@@ -518,3 +524,4 @@ void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, Gs
 	if (call->audio)
 		chime_call_audio_install_gst_app_callbacks(call->audio, appsrc, appsink);
 }
+

@@ -250,8 +250,10 @@ static void call_media_changed(PurpleMedia *media, PurpleMediaState state, const
 {
 
 	if (state == PURPLE_MEDIA_STATE_END && !id && !participant) {
-		chat->media = NULL;
-		chime_call_set_mute(chat->call, TRUE);
+		if (chat->media) {
+			chat->media = NULL;
+			chime_call_set_mute(chat->call, TRUE);
+		}
 	}
 }
 
@@ -386,10 +388,11 @@ void chime_destroy_chat(struct chime_chat *chat)
 						     0, 0, NULL, NULL, chat);
 
 		if (chat->media) {
-			purple_media_end(chat->media, "chime", chime_call_get_alert_body(chat->call));
-			purple_media_manager_remove_media(purple_media_manager_get(),
-							  chat->media);
+			PurpleMedia *media = chat->media;
 			chat->media = NULL;
+
+			purple_media_end(media, "chime", chime_call_get_alert_body(chat->call));
+			purple_media_manager_remove_media(purple_media_manager_get(), media);
 		}
 
 		if (chat->audio_inpipeline) {

@@ -567,7 +567,7 @@ fs_app_transmitter_get_stream_transmitter_type (
 
 struct _AppSrc {
   guint component;
-  gchar *path;
+  gchar *pipeline;
   GstElement *src;
   GstPad *funnelpad;
 
@@ -603,7 +603,7 @@ disconnected_cb (GstBin *bin, GstElement *elem, AppSrc *app)
 AppSrc *
 fs_app_transmitter_get_app_src (FsAppTransmitter *self,
     guint component,
-    const gchar *path,
+    const gchar *pipeline,
     got_buffer got_buffer_func,
     connection disconnected_func,
     gpointer cb_data,
@@ -618,21 +618,15 @@ fs_app_transmitter_get_app_src (FsAppTransmitter *self,
   app->disconnected_func = disconnected_func;
   app->cb_data = cb_data;
 
-  app->path = g_strdup (path);
+  app->pipeline = g_strdup (pipeline);
 
-  elem = gst_parse_bin_from_description(path, TRUE, NULL);
+  elem = gst_parse_bin_from_description(pipeline, TRUE, NULL);
   if (!elem)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
         "Could not make appsrc");
     goto error;
   }
-
-  g_object_set (elem,
-      "socket-path", path,
-      "do-timestamp", self->priv->do_timestamp,
-      "is-live", TRUE,
-      NULL);
 
   if (app->disconnected_func)
     g_signal_connect (self->priv->gst_src, "disconnected",
@@ -689,14 +683,14 @@ fs_app_transmitter_get_app_src (FsAppTransmitter *self,
 }
 
 /*
- * Returns: %TRUE if the path is the same, other %FALSE and freeds the AppSrc
+ * Returns: %TRUE if the pipeline is the same, other %FALSE and freeds the AppSrc
  */
 
 gboolean
 fs_app_transmitter_check_app_src (FsAppTransmitter *self, AppSrc *app,
-    const gchar *path)
+    const gchar *pipeline)
 {
-  if (path && !strcmp (path, app->path))
+  if (pipeline && !strcmp (pipeline, app->pipeline))
     return TRUE;
 
   if (app->buffer_probe)
@@ -718,7 +712,7 @@ fs_app_transmitter_check_app_src (FsAppTransmitter *self, AppSrc *app,
   }
   app->src = NULL;
 
-  g_free (app->path);
+  g_free (app->pipeline);
   g_slice_free (AppSrc, app);
 
   return FALSE;
@@ -728,13 +722,12 @@ fs_app_transmitter_check_app_src (FsAppTransmitter *self, AppSrc *app,
 
 struct _AppSink {
   guint component;
-  gchar *path;
+  gchar *pipeline;
   GstElement *sink;
   GstElement *recvonly_filter;
   GstPad *teepad;
 
   ready ready_func;
-  connection connected_func;
   gpointer cb_data;
 };
 
@@ -742,29 +735,17 @@ struct _AppSink {
 static void
 ready_cb (GstBin *bin, GstElement *elem, AppSink *app)
 {
-  gchar *path = NULL;
-
   if (elem != app->sink)
     return;
 
-  g_object_get (elem, "socket-path", &path, NULL);
-  app->ready_func (app->component, path, app->cb_data);
-  g_free (path);
-}
-
-
-static void
-connected_cb (GstBin *bin, gint id, AppSink *app)
-{
-  app->connected_func (app->component, id, app->cb_data);
+  app->ready_func (app->component, app->pipeline, app->cb_data);
 }
 
 AppSink *
 fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
     guint component,
-    const gchar *path,
+    const gchar *pipeline,
     ready ready_func,
-    connection connected_func,
     gpointer cb_data,
     GError **error)
 {
@@ -772,19 +753,18 @@ fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
   GstElement *elem;
   GstPad *pad;
 
-  GST_DEBUG ("Trying to add app sink for c:%u path %s", component, path);
+  GST_DEBUG ("Trying to add app sink for c:%u pipeline '%s'", component, pipeline);
 
   app->component = component;
 
-  app->path = g_strdup (path);
+  app->pipeline = g_strdup (pipeline);
 
   app->ready_func = ready_func;
-  app->connected_func = connected_func;
   app->cb_data = cb_data;
 
   /* First add the sink */
 
-  elem = gst_parse_bin_from_description(path, TRUE, NULL);
+  elem = gst_parse_bin_from_description(pipeline, TRUE, NULL);
   if (!elem)
   {
     g_set_error (error, FS_ERROR, FS_ERROR_CONSTRUCTION,
@@ -799,9 +779,6 @@ fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
   if (ready_func)
     g_signal_connect (self->priv->gst_sink, "ready", G_CALLBACK (ready_cb),
         app);
-
-  if (connected_func)
-    g_signal_connect (elem, "client-connected", G_CALLBACK (connected_cb), app);
 
   if (!gst_bin_add (GST_BIN (self->priv->gst_sink), elem))
   {
@@ -888,15 +865,15 @@ fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
 
 gboolean
 fs_app_transmitter_check_app_sink (FsAppTransmitter *self, AppSink *app,
-    const gchar *path)
+    const gchar *pipeline)
 {
-  if (path && !strcmp (path, app->path))
+  if (pipeline && !strcmp (pipeline, app->pipeline))
     return TRUE;
 
-  if (path)
-    GST_DEBUG ("Replacing app socket %s with %s", app->path, path);
+  if (pipeline)
+    GST_DEBUG ("Replacing app pipeline '%s' with '%s'", app->pipeline, pipeline);
   else
-    GST_DEBUG ("Freeing app socket %s", app->path);
+    GST_DEBUG ("Freeing app pipeline '%s'", app->pipeline);
 
   if (app->teepad)
   {
@@ -922,7 +899,7 @@ fs_app_transmitter_check_app_sink (FsAppTransmitter *self, AppSink *app,
   }
   app->recvonly_filter = NULL;
 
-  g_free (app->path);
+  g_free (app->pipeline);
   g_slice_free (AppSink, app);
 
   return FALSE;

@@ -356,6 +356,7 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.send_typing = chime_send_typing,
 	.set_idle = chime_purple_set_idle,
 	.blist_node_menu = chime_purple_blist_node_menu,
+	.send_file = chime_send_file,
 	.get_media_caps = chime_purple_get_media_caps,
 	.initiate_media = chime_purple_initiate_media,
 #ifdef PRPL_HAS_GET_CB_ALIAS

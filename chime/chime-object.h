@@ -70,7 +70,8 @@ void             chime_connection_send_message_async         (ChimeConnection   
                                                               const gchar        *message,
                                                               GCancellable       *cancellable,
                                                               GAsyncReadyCallback callback,
-                                                              gpointer            user_data);
+                                                              gpointer            user_data,
+                                                              JsonObject         *additional_json);
 
 JsonNode        *chime_connection_send_message_finish        (ChimeConnection  *self,
                                                               GAsyncResult     *result,

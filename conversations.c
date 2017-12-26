@@ -25,8 +25,9 @@
 #include <debug.h>
 
 #include "chime.h"
-
+#include <mkdio.h>
 #include <libsoup/soup.h>
+
 
 struct chime_im {
 	struct chime_msgs m;
@@ -59,6 +60,13 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 			from = chime_contact_get_email(who);
 	}
 	gchar *escaped = g_markup_escape_text(message, -1);
+        gchar *marked_down;
+        if (!strncmp(message, "/md ", 4)) {
+            mkd_line((gchar*)(escaped + 4), strlen(escaped + 4), &marked_down, 0);
+            g_free(escaped);
+         } else {
+            marked_down = escaped;
+        }
 
 	ChimeAttachment *att = extract_attachment(record);
 	if (att) {
@@ -81,13 +89,13 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 			pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM, account, email);
 			if (!pconv) {
 				purple_debug_error("chime", "NO CONV FOR %s\n", email);
-				g_free(escaped);
+				g_free(marked_down);
 				return FALSE;
 			}
 		}
-		purple_conversation_write(pconv, NULL, escaped, flags | PURPLE_MESSAGE_SEND, msg_time);
+		purple_conversation_write(pconv, NULL, marked_down, flags | PURPLE_MESSAGE_SEND, msg_time);
 	} else {
-		serv_got_im(im->m.conn, email, escaped, flags | PURPLE_MESSAGE_RECV, msg_time);
+		serv_got_im(im->m.conn, email, marked_down, flags | PURPLE_MESSAGE_RECV, msg_time);
 
 		/* If the conversation already had focus and unseen-count didn't change, fake
 		   a PURPLE_CONV_UPDATE_UNSEEN notification anyway, so that we see that it's
@@ -97,7 +105,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		if (pconv)
 			purple_conversation_update(pconv, PURPLE_CONV_UPDATE_UNSEEN);
 	}
-	g_free(escaped);
+	g_free(marked_down);
 	return TRUE;
 }
 

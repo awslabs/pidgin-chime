@@ -20,7 +20,7 @@ libchime_la_SOURCES = chime.c buddy.c rooms.c chat.c messages.c conversations.c 
 	protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
 	protobuf/data_message.pb-c.c protobuf/data_message.pb-c.h \
 	protobuf/rt_message.pb-c.c protobuf/rt_message.pb-c.h \
-	chime-call-audio.h chime-call-transport.c
+	chime-call-audio.h chime-call-transport.c markdown.c
 
 libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(OPUS_CFLAGS) $(FARSTREAM_CFLAGS) $(MARKDOWN_CFLAGS)
 libchime_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS) $(OPUS_LIBS) $(FARSTREAM_LIBS) $(MARKDOWN_LIBS)

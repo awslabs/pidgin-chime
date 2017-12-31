@@ -33,6 +33,7 @@
 #include "chime-meeting.h"
 
 #include <libsoup/soup.h>
+#include "markdown.h"
 
 struct chime_chat {
 	/* msgs first as it's a "subclass". Really ought to do proper GTypes here... */
@@ -48,12 +49,12 @@ struct chime_chat {
 /*
  * Examples:
  *
- * <@all|All members> becomes All members
+ * <@all|All members> becomes @All members
  * <@present|Present members> becomes Present members
- * <@75f50e24-d59d-40e4-996b-6ba3ff3f371f|Surname, Name> becomes Surname, Name
+ * <@75f50e24-d59d-40e4-996b-6ba3ff3f371f|Surname, Name> becomes @Surname, Name
  */
 #define MENTION_PATTERN "&lt;@([\\w\\-]+)\\|(.*?)&gt;"
-#define MENTION_REPLACEMENT "<b>\\2</b>"
+#define MENTION_REPLACEMENT "@<b>\\2</b>"
 
 /*
  * Returns whether `me` was mentioned in the Chime `message`, and allocates a
@@ -76,9 +77,9 @@ static void replace(gchar **dst, const gchar *a, const gchar *b)
 }
 
 /*
- * This will simple look for all chat members mentions and replace them with
- * the Chime format for mentioning. As a special case we expand "@all" and
- * "@present".
+ * This will simply look for all chat members mentions ie "@Doe, John" and
+ * replace them with the Chime format for mentioning. As a special case we
+ * expand "@all" and "@present".
  */
 static gchar *parse_outbound_mentions(ChimeRoom *room, const gchar *message)
 {
@@ -91,14 +92,16 @@ static gchar *parse_outbound_mentions(ChimeRoom *room, const gchar *message)
 		ChimeRoomMember *member = members->data;
 		const gchar *id = chime_contact_get_profile_id(member->contact);
 		const gchar *display_name = chime_contact_get_display_name(member->contact);
+		gchar *atsign_display_name = g_strdup_printf("@%s", display_name);
 
-		if (strstr(parsed, display_name)) {
+		if (strstr(parsed, atsign_display_name)) {
 			gchar *chime_mention = g_strdup_printf("<@%s|%s>", id, display_name);
-			replace(&parsed, display_name, chime_mention);
+			replace(&parsed, atsign_display_name, chime_mention);
 			g_free(chime_mention);
 		}
 
 		members = g_list_remove(members, member);
+		g_free(atsign_display_name);
 	}
 	return parsed;
 }
@@ -111,6 +114,8 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
 	const gchar *content, *sender;
+	gchar *outbound;
+	int rc;
 
 	if (!parse_string(node, "Content", &content) ||
 	    !parse_string(node, "Sender", &sender))
@@ -142,6 +147,18 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	} else
 		parsed = escaped;
 
+	if (g_str_has_prefix(content, "/md ") || g_str_has_prefix(content, "/md\n")) {
+		 rc = do_markdown((gchar*)(parsed + 4), &outbound);
+		 if (rc) {
+			purple_debug(PURPLE_DEBUG_ERROR, "chime", "Markdown failed\n");
+			outbound = parsed;
+		} else {
+			g_free(parsed);
+		}
+	} else {
+		outbound = parsed;
+	}
+
 	ChimeAttachment *att = extract_attachment(node);
 	if (att) {
 		AttachmentContext *ctx = g_new(AttachmentContext, 1);
@@ -154,12 +171,12 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 		download_attachment(cxn, att, ctx);
 	}
 
-	serv_got_chat_in(conn, id, from, msg_flags, parsed, msg_time);
+	serv_got_chat_in(conn, id, from, msg_flags, outbound, msg_time);
 	/* If the conversation already had focus and unseen-count didn't change, fake
 	   a PURPLE_CONV_UPDATE_UNSEEN notification anyway, so that we see that it's
 	   (still) zero and tell the server it's read. */
 	purple_conversation_update(chat->conv, PURPLE_CONV_UPDATE_UNSEEN);
-	g_free(parsed);
+	g_free(outbound);
 }
 
 static gint participant_sort(gconstpointer a, gconstpointer b)

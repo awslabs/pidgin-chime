@@ -25,8 +25,8 @@
 #include <debug.h>
 
 #include "chime.h"
-
 #include <libsoup/soup.h>
+#include "markdown.h"
 
 struct chime_im {
 	struct chime_msgs m;
@@ -38,7 +38,9 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 				    JsonNode *record, time_t msg_time)
 {
 	const gchar *sender, *message;
+	gchar *outbound;
 	gint64 sys;
+	int rc;
 
 	if (!parse_string(record, "Sender", &sender) ||
 	    !parse_string(record, "Content", &message) ||
@@ -59,6 +61,17 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 			from = chime_contact_get_email(who);
 	}
 	gchar *escaped = g_markup_escape_text(message, -1);
+	if (g_str_has_prefix(message, "/md ") || g_str_has_prefix(message, "/md\n")) {
+		rc = do_markdown((gchar*)(escaped + 4), &outbound);
+		if (rc) {
+			purple_debug(PURPLE_DEBUG_ERROR, "chime", "Markdown failed\n");
+			outbound = escaped;
+		} else {
+			g_free(escaped);
+		}
+	} else {
+		outbound = escaped;
+	}
 
 	ChimeAttachment *att = extract_attachment(record);
 	if (att) {
@@ -81,13 +94,13 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 			pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM, account, email);
 			if (!pconv) {
 				purple_debug_error("chime", "NO CONV FOR %s\n", email);
-				g_free(escaped);
+				g_free(outbound);
 				return FALSE;
 			}
 		}
-		purple_conversation_write(pconv, NULL, escaped, flags | PURPLE_MESSAGE_SEND, msg_time);
+		purple_conversation_write(pconv, NULL, outbound, flags | PURPLE_MESSAGE_SEND, msg_time);
 	} else {
-		serv_got_im(im->m.conn, email, escaped, flags | PURPLE_MESSAGE_RECV, msg_time);
+		serv_got_im(im->m.conn, email, outbound, flags | PURPLE_MESSAGE_RECV, msg_time);
 
 		/* If the conversation already had focus and unseen-count didn't change, fake
 		   a PURPLE_CONV_UPDATE_UNSEEN notification anyway, so that we see that it's
@@ -97,7 +110,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		if (pconv)
 			purple_conversation_update(pconv, PURPLE_CONV_UPDATE_UNSEEN);
 	}
-	g_free(escaped);
+	g_free(outbound);
 	return TRUE;
 }
 

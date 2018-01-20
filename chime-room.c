@@ -91,7 +91,7 @@ CHIME_DEFINE_ENUM_TYPE(ChimeRoomType, chime_room_type,			\
 CHIME_DEFINE_ENUM_TYPE(ChimeNotifyPref, chime_notify_pref,		\
        CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_ALWAYS,	"always")	\
        CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_DIRECT_ONLY,	"directOnly")	\
-       CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_NEVER,	"nevers"))
+       CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_NEVER,	"never"))
 
 static void close_room(gpointer key, gpointer val, gpointer data);
 

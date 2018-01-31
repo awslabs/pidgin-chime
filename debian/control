@@ -1,0 +1,45 @@
+Source: pidgin-chime
+Section: net
+Priority: optional
+Maintainer: David Woodhouse <dwmw@amazon.co.uk>
+Homepage: https://code.amazon.com/pkg/PurpleChime
+Standards-Version: 3.9.7
+Build-Depends: debhelper (>= 9),
+	       autoconf,
+	       automake,
+	       libtool,
+	       libpurple-dev,
+	       pidgin-dev,
+	       autotools-dev,
+	       libsoup2.4-dev,
+	       libjson-glib-dev,
+	       libopus-dev,
+	       libfarstream-0.2-dev,
+	       libprotobuf-c-dev,
+	       protobuf-c-compiler,
+	       libmarkdown2-dev,
+	       evolution-dev,
+	       libebook1.2-dev,
+	       libecal1.2-dev,
+	       evolution-data-server-dev,
+	       graphicsmagick-imagemagick-compat
+
+Package: pidgin-chime
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libfarstream-0.2-5 (>= 0.2.7)
+Description: Pidgin plugin for AWS Chime communication platform
+ This package provides the libpurple plugin that implements the
+ protocols to connect with the Chime communication services provided by
+ Amazon Web Services (http://chime.aws).
+
+Package: pidgin-chime-dbg
+Architecture: any
+Section: debug
+Priority: extra
+Depends: ${misc:Depends}, pidgin-chime (= ${binary:Version})
+Description: debugging symbols of pidgin-chime
+ This package provides the libpurple plugin that implements the
+ protocols to connect with the Chime communication services provided by
+ Amazon Web Services (http://chime.aws).
+ .
+ Debugging symbols.

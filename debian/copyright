@@ -1,0 +1,12 @@
+Format: http://dep.debian.net/deps/dep5
+Source: https://github.com/awslabs/PRIVATE-purple-chime
+
+Files: *
+Copyright: 2017, David Woodhouse <dwmw@amazon.co.uk>
+License: LGPL-2.1
+ This is proprietary unpublished source code of Amazon. However, the
+ intent is that it should be *possible* to release it under LGPL.
+ .
+ Therefore, do not incorporate any code into this repository which may
+ not be licensed under the terms of the GNU LGPL v2.1, as stated in the
+ file `/usr/share/common-licenses/LGPL-2.1'.

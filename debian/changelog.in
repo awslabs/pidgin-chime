@@ -1,0 +1,5 @@
+pidgin-chime (%COMMITDESC%) xenial; urgency=low
+
+  * Build from git snapshot
+
+ -- David Woodhouse <dwmw@amazon.com>  %COMMITDATE%

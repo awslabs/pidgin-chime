@@ -46,3 +46,12 @@ chime-call-transport.c chime-call-audio.c chime-call.c: chime-call-transport.h
 	$(PROTOC) $< --c_out .
 
 EXTRA_DIST = COPYING.LGPL README
+
+deb-%: debian/changelog
+	fakeroot debian/rules $(patsubst deb-%,%,$@)
+
+debian/changelog: debian/changelog.in
+	@COMMITDESC=$$(git describe --tags | sed 's/v\(.*\)-g[0-9a-f]\+/\1/'); \
+	 COMMITDATE=$$(git show -s --format=%cD); \
+	 sed -e "s/%COMMITDESC%/$$COMMITDESC/" -e "s/%COMMITDATE%/$$COMMITDATE/" $< > $@
+

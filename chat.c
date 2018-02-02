@@ -238,7 +238,6 @@ static void participants_closed_cb(gpointer _chat)
 
 static void call_stream_info(PurpleMedia *media, PurpleMediaInfoType type, gchar *id, const gchar *participant, gboolean local, struct chime_chat *chat)
 {
-	printf("%s %d\n", __func__, type);
 	if (type == PURPLE_MEDIA_INFO_MUTE) {
 		chime_call_set_local_mute(chat->call, TRUE);
 	} else if (type == PURPLE_MEDIA_INFO_UNMUTE) {
@@ -248,7 +247,6 @@ static void call_stream_info(PurpleMedia *media, PurpleMediaInfoType type, gchar
 
 static void call_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)
 {
-
 	if (state == PURPLE_MEDIA_STATE_END && !id && !participant) {
 		if (chat->media) {
 			chat->media = NULL;
@@ -271,11 +269,11 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 		PurpleMediaManager *mgr = purple_media_manager_get();
 		chat->media = purple_media_manager_create_media(purple_media_manager_get(),
 								chat->conv->account,
-								"fsrawconference",
+								"fsrtpconference",
 								name,
 								TRUE);
 		if (chat->media) {
-			const gchar *caps = "audio/x-raw,format=(string)S16LE,layout=(string)interleaved,channels=(int)1";
+			const gchar *caps = "application/x-rtp,media=(string)audio,payload=(int)96,encoding-name=(string)OPUS";
 
 			gboolean r = purple_media_add_stream(chat->media, "chime", name,
 							     PURPLE_MEDIA_AUDIO, TRUE,
@@ -283,9 +281,8 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 			gchar *srcname = g_strdup_printf("chime_src_%p", call);
 			gchar *sinkname = g_strdup_printf("chime_sink_%p", call);
 			/* Without the capsfilter (even though there's another capsfilter almost immediately after it in the pipeline, it doesn't work */
-			gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time caps=audio/x-opus,channel-mapping-family=0 ! opusdec ! capsfilter caps=%s",
-							 srcname, caps);
-			gchar *sinkpipe = g_strdup_printf("opusenc bitrate=16000 bitrate-type=vbr ! appsink name=%s async=false", sinkname);
+			gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time caps=audio/x-opus,channel-mapping-family=0,channels=1 ! rtpopuspay ! capsfilter caps=%s", srcname, caps);
+			gchar *sinkpipe = g_strdup_printf("rtpopusdepay ! appsink name=%s async=false", sinkname);
 
 			PurpleMediaCandidate *cand =
 				purple_media_candidate_new(NULL, 1,
@@ -298,7 +295,12 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 
 			GList *cands = g_list_append (NULL, cand);
 			GList *codecs = g_list_append(NULL,
-						      purple_media_codec_new(1, caps, PURPLE_MEDIA_AUDIO, 0));
+						      purple_media_codec_new(96, "OPUS", PURPLE_MEDIA_AUDIO, 0));
+			//			g_object_set(codecs->data, "channels", 1, NULL);
+			//			purple_media_codec_add_optional_parameter(codecs->data, "farstream-recv-profile", "rtpopusdepay ! opusdec");
+			//			purple_media_codec_add_optional_parameter(codecs->data, "farstream-send-profile", "opusenc bitrate=16000 bitrate-type=vbr ! rtpopuspay");
+			purple_media_codec_add_optional_parameter(codecs->data, "sprop-stereo", "0");
+			purple_media_codec_add_optional_parameter(codecs->data, "stereo", "0");
 			purple_media_add_remote_candidates(chat->media, "chime", name, cands);
 			purple_media_set_remote_codecs(chat->media, "chime", name, codecs);
 

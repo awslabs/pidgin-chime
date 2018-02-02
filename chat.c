@@ -75,13 +75,13 @@ static int parse_inbound_mentions(ChimeConnection *cxn, GRegex *mention_regex, c
 		strstr(message, "&lt;@present|");
 }
 
-static void replace(gchar **dst, const gchar *a, const gchar *b)
+static void replace(gchar **dst, const gchar *pattern, const gchar *replacement)
 {
-       gchar **parts = g_strsplit(*dst, a, 0);
-       gchar *replaced = g_strjoinv(b, parts);
-       g_strfreev(parts);
-       g_free(*dst);
-       *dst = replaced;
+	GRegex *regex = g_regex_new(pattern, 0, 0, NULL);
+	gchar* replaced = g_regex_replace_literal(regex, *dst, -1, 0, replacement, 0, NULL);
+	g_regex_unref(regex);
+	g_free(*dst);
+	*dst = replaced;
 }
 
 /*
@@ -102,8 +102,12 @@ static gchar *parse_outbound_mentions(ChimeRoom *room, const gchar *message)
 		const gchar *display_name = chime_contact_get_display_name(member->contact);
 
 		if (strstr(parsed, display_name)) {
+			gchar *display_name_escaped = g_regex_escape_string(display_name, -1);
+			gchar *search = g_strdup_printf("(?<!\\|)\\b%s\\b", display_name_escaped);
+			g_free(display_name_escaped);
 			gchar *chime_mention = g_strdup_printf("<@%s|%s>", id, display_name);
-			replace(&parsed, display_name, chime_mention);
+			replace(&parsed, search, chime_mention);
+			g_free(search);
 			g_free(chime_mention);
 		}
 

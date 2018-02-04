@@ -39,6 +39,8 @@ PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0],
 
 
 plugindir="$($PKG_CONFIG --variable=plugindir $purple_pkg)"
+amznphoto_plugindir=$plugindir
+AC_SUBST(amznphoto_plugindir, ${amznphoto_plugindir})
 purple_datadir="$($PKG_CONFIG --variable=datadir $purple_pkg)"
 
 AC_SUBST(plugindir, $plugindir)
@@ -67,6 +69,7 @@ PKG_CHECK_MODULES(MARKDOWN, [libmarkdown], [],
 				  [AC_MSG_RESULT(no)
 				   AC_ERROR([Could not build against libmarkdown])])
 		   LIBS="$oldLIBS"])
+PKG_CHECK_MODULES(PIDGIN, [pidgin])
 
 AC_PATH_PROG(MSGFMT, msgfmt)
 if test "$MSGFMT" = ""; then
@@ -112,6 +115,7 @@ AC_CONFIG_FILES([
 	pixmaps/32/Makefile
 	pixmaps/48/Makefile
 	evolution-plugin/Makefile
+	amznphoto-plugin/Makefile
 	fs-app-transmitter/Makefile
 	])
 AC_OUTPUT

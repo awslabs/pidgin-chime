@@ -5,6 +5,8 @@ if BUILD_EVOPLUGIN
 SUBDIRS += evolution-plugin
 endif
 
+SUBDIRS += amznphoto-plugin
+
 AM_CPPFLAGS = @WFLAGS@
 
 plugin_LTLIBRARIES = libchime.la

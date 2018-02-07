@@ -383,7 +383,7 @@ ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn, gboolean is_c
 				      display_name, is_contact, error);
 }
 
-/* Returns a ChimeConects which is not necessarily in the contacst list,
+/* Returns a ChimeContact which is not necessarily in the contacts list,
  * and caller owns a ref on it. */
 ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 							  JsonNode *node,

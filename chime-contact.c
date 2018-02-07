@@ -165,7 +165,7 @@ static void chime_contact_class_init(ChimeContactClass *klass)
 	GObjectClass *object_class = G_OBJECT_CLASS(klass);
 
 	object_class->finalize = chime_contact_finalize;
-	object_class->finalize = chime_contact_dispose;
+	object_class->dispose = chime_contact_dispose;
 	object_class->get_property = chime_contact_get_property;
 	object_class->set_property = chime_contact_set_property;
 

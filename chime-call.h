@@ -84,6 +84,7 @@ GList *chime_call_get_participants(ChimeCall *self);
 struct _ChimeCallAudio;
 typedef struct _ChimeCallAudio ChimeCallAudio;
 
+void chime_call_emit_participants(ChimeCall *call);
 
 G_END_DECLS
 

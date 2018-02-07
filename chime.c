@@ -33,7 +33,6 @@
 #include <libsoup/soup.h>
 
 #include "chime.h"
-#include "chime-connection-private.h"
 
 static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
 {

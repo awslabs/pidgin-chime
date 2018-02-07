@@ -28,7 +28,6 @@
 #include <mediamanager.h>
 
 #include "chime.h"
-#include "chime-connection-private.h"
 #include "chime-room.h"
 #include "chime-meeting.h"
 

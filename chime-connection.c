@@ -974,11 +974,11 @@ static void send_message_cb(ChimeConnection *self, SoupMessage *msg,
 					msg->status_code, reason);
 	} else {
 		JsonObject *obj = json_node_get_object(node);
-		JsonNode *node = json_object_get_member(obj, "Message");
+		JsonNode *msg_node = json_object_get_member(obj, "Message");
 
-		if (node) {
-			g_signal_emit_by_name(CHIME_OBJECT(g_task_get_task_data(task)), "message", node);
-			g_task_return_pointer(task, json_node_ref(node), (GDestroyNotify)json_node_unref);
+		if (msg_node) {
+			g_signal_emit_by_name(CHIME_OBJECT(g_task_get_task_data(task)), "message", msg_node);
+			g_task_return_pointer(task, json_node_ref(msg_node), (GDestroyNotify)json_node_unref);
 		} else
 			g_task_return_new_error(task, CHIME_ERROR,
 						CHIME_ERROR_NETWORK,

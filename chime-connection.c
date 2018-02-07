@@ -1003,7 +1003,8 @@ chime_connection_send_message_async(ChimeConnection *self,
 
 	/* g_uuid_string_random() not till 2.52. So do this instead... */
 	GChecksum *sum = g_checksum_new(G_CHECKSUM_SHA256);
-	g_checksum_update(sum, (void *)&message, sizeof(&message));
+	/* Mix the pointer itself into the randomness */
+	g_checksum_update(sum, (void *)&message, sizeof(const gchar **));
 	g_checksum_update(sum, (void *)message, strlen(message));
 	gint64 t = g_get_monotonic_time();
 	g_checksum_update(sum, (void *)&t, sizeof(t));

@@ -98,17 +98,20 @@ static gchar *parse_outbound_mentions(ChimeRoom *room, const gchar *message)
 	replace(&parsed, "@present", "<@present|Present Members>");
 	while (members) {
 		ChimeRoomMember *member = members->data;
-		const gchar *id = chime_contact_get_profile_id(member->contact);
-		const gchar *display_name = chime_contact_get_display_name(member->contact);
 
-		if (strstr(parsed, display_name)) {
-			gchar *display_name_escaped = g_regex_escape_string(display_name, -1);
-			gchar *search = g_strdup_printf("(?<!\\|)\\b%s\\b", display_name_escaped);
-			g_free(display_name_escaped);
-			gchar *chime_mention = g_strdup_printf("<@%s|%s>", id, display_name);
-			replace(&parsed, search, chime_mention);
-			g_free(search);
-			g_free(chime_mention);
+		if (member->active) {
+			const gchar *id = chime_contact_get_profile_id(member->contact);
+			const gchar *display_name = chime_contact_get_display_name(member->contact);
+
+			if (strstr(parsed, display_name)) {
+				gchar *display_name_escaped = g_regex_escape_string(display_name, -1);
+				gchar *search = g_strdup_printf("(?<!\\|)\\b%s\\b", display_name_escaped);
+				g_free(display_name_escaped);
+				gchar *chime_mention = g_strdup_printf("<@%s|%s>", id, display_name);
+				replace(&parsed, search, chime_mention);
+				g_free(search);
+				g_free(chime_mention);
+			}
 		}
 
 		members = g_list_remove(members, member);

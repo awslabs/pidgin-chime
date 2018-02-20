@@ -28,6 +28,8 @@
 
 #include <opus/opus.h>
 
+#include <gst/rtp/gstrtpbuffer.h>
+
 #include <arpa/inet.h>
 #include <string.h>
 #include <ctype.h>
@@ -65,16 +67,21 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 			if (audio->audio_src && audio->appsrc_need_data &&
 			    /* It'll have a clock if it's PLAYING. */
 			    (clk = gst_element_get_clock(GST_ELEMENT(audio->audio_src)))) {
-				GstBuffer *buffer = gst_buffer_new_allocate(NULL, msg->audio->audio.len, NULL);
-				gst_buffer_fill(buffer, 0, msg->audio->audio.data, msg->audio->audio.len);
+				GstBuffer *buffer = gst_rtp_buffer_new_allocate(msg->audio->audio.len, 0, 0);
+				GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
+				if (gst_rtp_buffer_map(buffer, GST_MAP_WRITE, &rtp)) {
 
-				if (!audio->audio_src_timebase) {
-					audio->base_src_sample_time = msg->audio->sample_time;
-					audio->audio_src_timebase = gst_clock_get_time(clk) - gst_element_get_base_time(GST_ELEMENT(audio->audio_src));
-					printf("Timebase %ld sample base %d\n", audio->audio_src_timebase, msg->audio->sample_time);
+					gst_rtp_buffer_set_ssrc(&rtp, 0x12345678);
+					gst_rtp_buffer_set_payload_type(&rtp, 96);
+					gst_rtp_buffer_set_seq(&rtp, msg->audio->seq);
+					gst_rtp_buffer_set_timestamp(&rtp, msg->audio->sample_time * 3);
+					gst_rtp_buffer_unmap(&rtp);
+
+					gst_buffer_fill(buffer, gst_rtp_buffer_calc_header_len(0),
+							msg->audio->audio.data, msg->audio->audio.len);
+
+					gst_app_src_push_buffer(GST_APP_SRC(audio->audio_src), buffer);
 				}
-				buffer->dts = audio->audio_src_timebase + (uint64_t)NS_PER_SAMPLE * (uint64_t)(msg->audio->sample_time - audio->base_src_sample_time);
-				gst_app_src_push_buffer(GST_APP_SRC(audio->audio_src), buffer);
 			}
 		}
 	}
@@ -500,14 +507,11 @@ static void chime_appsrc_destroy(gpointer _audio)
 	ChimeCallAudio *audio = _audio;
 
 	printf("Appsrc destroy\n");
-	audio->audio_src_timebase = 0;
 	audio->audio_src = NULL;
 }
 
 static void chime_appsink_destroy(gpointer _audio)
 {
-	ChimeCallAudio *audio = _audio;
-
 	printf("Appsink destroy\n");
 }
 

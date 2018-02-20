@@ -273,15 +273,14 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 								name,
 								TRUE);
 		if (chat->media) {
-			const gchar *caps = "application/x-rtp,media=(string)audio,payload=(int)96,encoding-name=(string)OPUS";
+			const gchar *caps = "application/x-rtp,media=(string)audio,clock-rate=(int)48000,payload=(int)96,encoding-name=(string)OPUS";
 
 			gboolean r = purple_media_add_stream(chat->media, "chime", name,
 							     PURPLE_MEDIA_AUDIO, TRUE,
 							     "app", 0, NULL);
 			gchar *srcname = g_strdup_printf("chime_src_%p", call);
 			gchar *sinkname = g_strdup_printf("chime_sink_%p", call);
-			/* Without the capsfilter (even though there's another capsfilter almost immediately after it in the pipeline, it doesn't work */
-			gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time caps=audio/x-opus,channel-mapping-family=0,channels=1 ! rtpopuspay ! capsfilter caps=%s", srcname, caps);
+			gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time caps=%s", srcname, caps);
 			gchar *sinkpipe = g_strdup_printf("rtpopusdepay ! appsink name=%s async=false", sinkname);
 
 			PurpleMediaCandidate *cand =

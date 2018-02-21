@@ -121,7 +121,7 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 static gboolean timed_send_rt_packet(ChimeCallAudio *audio);
 static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 {
-	GstMapInfo info;
+	GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
 	guint nr_samples; /* This is added *after* sending the frame */
 
 	g_mutex_lock(&audio->rt_lock);
@@ -147,8 +147,9 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 	audio->audio_msg.ntp_time = g_get_real_time();
 
 	audio->audio_msg.has_audio = TRUE;
+
 	if (buffer && GST_BUFFER_DURATION_IS_VALID(buffer) &&
-	    GST_BUFFER_DTS_IS_VALID(buffer) && gst_buffer_map(buffer, &info, GST_MAP_READ)) {
+	    GST_BUFFER_DTS_IS_VALID(buffer) && gst_rtp_buffer_map(buffer, GST_MAP_READ, &rtp)) {
 		GstClockTime dts, pts, dur;
 
 		dts = GST_BUFFER_DTS(buffer);
@@ -165,8 +166,8 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 		audio->next_dts = dts + dur;
 		if (audio->state == CHIME_AUDIO_STATE_AUDIO) {
 			printf ("State %d, send audio\n", audio->state);
-			audio->audio_msg.audio.len = info.size;
-			audio->audio_msg.audio.data = info.data;
+			audio->audio_msg.audio.len = gst_rtp_buffer_get_payload_len(&rtp);
+			audio->audio_msg.audio.data = gst_rtp_buffer_get_payload(&rtp);
 		} else {
 			printf ("State %d, send no audio\n", audio->state);
 			audio->audio_msg.audio.len = 0;
@@ -183,7 +184,7 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 	chime_call_transport_send_packet(audio, XRP_RT_MESSAGE, &audio->rt_msg.base);
 	if (audio->audio_msg.audio.data) {
 		audio->audio_msg.audio.data = NULL;
-		gst_buffer_unmap(buffer, &info);
+		gst_rtp_buffer_unmap(&rtp);
 	}
 	audio->audio_msg.sample_time += nr_samples;
 	if (buffer) {

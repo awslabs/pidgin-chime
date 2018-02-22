@@ -26,6 +26,9 @@
 #include "chime-contact.h"
 #include "chime-object.h"
 
+#include <gst/app/gstappsrc.h>
+#include <gst/app/gstappsink.h>
+
 G_BEGIN_DECLS
 
 #define CHIME_TYPE_CALL (chime_call_get_type ())
@@ -64,6 +67,12 @@ const gchar *chime_call_get_desktop_bithub_url(ChimeCall *self);
 const gchar *chime_call_get_mobile_bithub_url(ChimeCall *self);
 const gchar *chime_call_get_stun_server_url(ChimeCall *self);
 
+/* Is this an audio-less call, where we are just "checked in"? */
+void chime_call_set_mute(ChimeCall *call, gboolean muted);
+
+/* Audio call, but we want to be quiet now. */
+void chime_call_set_local_mute(ChimeCall *call, gboolean muted);
+
 typedef struct {
 	const gchar *participant_id;
 	const gchar *participant_type;
@@ -84,7 +93,21 @@ GList *chime_call_get_participants(ChimeCall *self);
 struct _ChimeCallAudio;
 typedef struct _ChimeCallAudio ChimeCallAudio;
 
+
 void chime_call_emit_participants(ChimeCall *call);
+
+typedef enum {
+	CHIME_AUDIO_STATE_CONNECTING = 0,
+	CHIME_AUDIO_STATE_FAILED,
+	CHIME_AUDIO_STATE_AUDIOLESS,
+	CHIME_AUDIO_STATE_AUDIO,
+	CHIME_AUDIO_STATE_AUDIO_MUTED,
+	CHIME_AUDIO_STATE_HANGUP,
+	CHIME_AUDIO_STATE_DISCONNECTED,
+} ChimeAudioState;
+
+void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, GstAppSink *appsink);
+
 
 G_END_DECLS
 

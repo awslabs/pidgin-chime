@@ -48,6 +48,7 @@ fi
 AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
 
 PKG_CHECK_MODULES(FARSTREAM, [farstream-0.2])
+PKG_CHECK_MODULES(GSTREAMER, [gstreamer-1.0 gstreamer-app-1.0 gstreamer-rtp-1.0])
 PKG_CHECK_MODULES(OPUS, [opus])
 PKG_CHECK_MODULES(PROTOBUF, [libprotobuf-c])
 PKG_CHECK_MODULES(JSON, [json-glib-1.0])
@@ -67,6 +68,9 @@ PKG_CHECK_MODULES(MARKDOWN, [libmarkdown], [],
 				  [AC_MSG_RESULT(no)
 				   AC_ERROR([Could not build against libmarkdown])])
 		   LIBS="$oldLIBS"])
+
+gstplugindir="$($PKG_CONFIG --variable=pluginsdir gstreamer-1.0)"
+AC_SUBST(gstplugindir, ${gstplugindir})
 
 AC_PATH_PROG(MSGFMT, msgfmt)
 if test "$MSGFMT" = ""; then
@@ -113,5 +117,6 @@ AC_CONFIG_FILES([
 	pixmaps/48/Makefile
 	evolution-plugin/Makefile
 	fs-app-transmitter/Makefile
+	gst-chime/Makefile
 	])
 AC_OUTPUT

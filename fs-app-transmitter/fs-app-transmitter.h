@@ -107,7 +107,6 @@ AppSink *fs_app_transmitter_get_app_sink (FsAppTransmitter *self,
     guint component,
     const gchar *path,
     ready ready_func,
-    connection connected_fubnc,
     gpointer cb_data,
     GError **error);
 

@@ -54,8 +54,7 @@ static GParamSpec *props[LAST_PROP];
 
 enum {
 	ENDED,
-	CALL_CONNECTED,
-	CALL_DISCONNECTED,
+	AUDIO_STATE,
 	PARTICIPANTS_CHANGED,
 	LAST_SIGNAL,
 };
@@ -163,15 +162,10 @@ static void chime_call_class_init(ChimeCallClass *klass)
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 
-	signals[CALL_CONNECTED] =
-		g_signal_new ("call-connected",
+	signals[AUDIO_STATE] =
+		g_signal_new ("audio-state",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
-			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
-
-	signals[CALL_DISCONNECTED] =
-		g_signal_new ("call-disconnected",
-			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
-			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_INT);
 
 	signals[PARTICIPANTS_CHANGED] =
 		g_signal_new ("participants-changed",
@@ -329,6 +323,15 @@ static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNod
 	cp->pots = pots;
 	cp->speaker = speaker;
 	cp->status = status;
+
+	if (!strcmp(participant_id, chime_connection_get_profile_id(cxn))) {
+		JsonObject *obj = json_node_get_object(p);
+		JsonNode *muter = json_object_get_member(obj, "muter");
+		if (muter && json_node_get_node_type(muter) != JSON_NODE_NULL) {
+			if (call->audio)
+				chime_call_audio_local_mute(call->audio, TRUE);
+		}
+	}
 
 	return TRUE;
 }
@@ -494,3 +497,31 @@ void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean 
 		call->audio = chime_call_audio_open(cxn, call, muted);
 	}
 }
+
+void chime_call_set_mute(ChimeCall *call, gboolean muted)
+{
+	if (call->audio)
+		chime_call_audio_reopen(call->audio, muted);
+}
+
+void chime_call_set_local_mute(ChimeCall *call, gboolean muted)
+{
+	if (call->audio)
+		chime_call_audio_local_mute(call->audio, muted);
+}
+
+void chime_call_audio_set_state(ChimeCallAudio *audio, ChimeAudioState state)
+{
+	if (audio->state == state)
+		return;
+
+	audio->state = state;
+	g_signal_emit(audio->call, signals[AUDIO_STATE], 0, state);
+}
+
+void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, GstAppSink *appsink)
+{
+	if (call->audio)
+		chime_call_audio_install_gst_app_callbacks(call->audio, appsrc, appsink);
+}
+

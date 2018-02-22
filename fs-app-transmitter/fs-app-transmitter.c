@@ -256,6 +256,7 @@ fs_app_transmitter_register_type (FsPlugin *module)
 #ifdef _FS_REGISTER_TYPE
 FS_INIT_PLUGIN (app, transmitter)
 #else /* <= 0.2.7 */
+void fs_init_plugin(FsPlugin *plugin);
 FS_INIT_PLUGIN (fs_app_transmitter_register_type)
 #endif
 

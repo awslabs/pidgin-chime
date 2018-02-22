@@ -246,6 +246,11 @@ static void call_stream_info(PurpleMedia *media, PurpleMediaInfoType type, gchar
 
 static void call_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)
 {
+	if (state == PURPLE_MEDIA_STATE_CONNECTED) {
+		PurpleMediaManager *mgr = purple_media_manager_get();
+		GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)), GST_DEBUG_GRAPH_SHOW_ALL, "chime connected");
+	}
+
 	if (state == PURPLE_MEDIA_STATE_END && !id && !participant) {
 		if (chat->media) {
 			chat->media = NULL;

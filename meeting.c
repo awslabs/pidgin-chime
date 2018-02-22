@@ -269,10 +269,7 @@ void chime_purple_pin_join(PurplePluginAction *action)
 {
 	PurpleConnection *conn = (PurpleConnection *) action->context;
 
-	/* Don't offer audio before 2.13.0 because it'll SEGV.
-	 * https://developer.pidgin.im/ticket/17246 */
-	if (purple_request_get_ui_ops()->request_fields &&
-	    !purple_version_check(2, 13, 0)) {
+	if (purple_request_get_ui_ops()->request_fields) {
 		PurpleRequestField *pin, *audio;
 		PurpleRequestFieldGroup *group;
 		PurpleRequestFields *fields;
@@ -356,10 +353,8 @@ static PurpleNotifySearchResults *generate_joinable_results(PurpleConnection *co
 	purple_notify_searchresults_column_add(results, column);
 
 	purple_notify_searchresults_button_add(results, PURPLE_NOTIFY_BUTTON_JOIN, join_joinable);
-	/* This check is a bit redundant since before 2.13.0 there was *also* a
-	 * but which meant the labelled buttons didn't show up either. */
-	if (!purple_version_check(2, 13, 0))
-		purple_notify_searchresults_button_add_labeled(results, _("Join with audio"), join_joinable_audio);
+	/* This doesn't show up in Pidgin < 2.13: https://developer.pidgin.im/ticket/17188 */
+	purple_notify_searchresults_button_add_labeled(results, _("Join with audio"), join_joinable_audio);
 
 	chime_connection_foreach_meeting(PURPLE_CHIME_CXN(conn), append_mtg, results);
 	return results;

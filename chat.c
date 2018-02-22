@@ -273,7 +273,7 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 								name,
 								TRUE);
 		if (chat->media) {
-			const gchar *caps = "application/x-srtp,media=(string)audio,clock-rate=(int)48000,payload=(int)96,encoding-name=(string)OPUS,stereo=(string)0";
+			const gchar *caps = "application/x-srtp,media=(string)audio,clock-rate=(int)16000,payload=(int)97,encoding-name=(string)CHIME,stereo=(string)0";
 
 			gboolean r = purple_media_add_stream(chat->media, "chime", name,
 							     PURPLE_MEDIA_AUDIO, TRUE,
@@ -294,14 +294,16 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 
 			GList *cands = g_list_append (NULL, cand);
 			GList *codecs = g_list_append(NULL,
-						      purple_media_codec_new(96, "OPUS", PURPLE_MEDIA_AUDIO, 0));
+						      purple_media_codec_new(97, "CHIME", PURPLE_MEDIA_AUDIO, 0));
 			//			g_object_set(codecs->data, "channels", 1, NULL);
 			//			purple_media_codec_add_optional_parameter(codecs->data, "farstream-recv-profile", "rtpopusdepay ! opusdec");
 			//			purple_media_codec_add_optional_parameter(codecs->data, "farstream-send-profile", "opusenc bitrate=16000 bitrate-type=vbr dtx=1 ! rtpopuspay");
+			#if 0
 			purple_media_codec_add_optional_parameter(codecs->data, "sprop-stereo", "0");
 			purple_media_codec_add_optional_parameter(codecs->data, "stereo", "0");
 			purple_media_codec_add_optional_parameter(codecs->data, "usedtx", "1");
 			purple_media_codec_add_optional_parameter(codecs->data, "maxplaybackrate", "16000");
+			#endif
 			purple_media_add_remote_candidates(chat->media, "chime", name, cands);
 			purple_media_set_remote_codecs(chat->media, "chime", name, codecs);
 

@@ -69,6 +69,9 @@ PKG_CHECK_MODULES(MARKDOWN, [libmarkdown], [],
 				   AC_ERROR([Could not build against libmarkdown])])
 		   LIBS="$oldLIBS"])
 
+gstplugindir="$($PKG_CONFIG --variable=pluginsdir gstreamer-1.0)"
+AC_SUBST(gstplugindir, ${gstplugindir})
+
 AC_PATH_PROG(MSGFMT, msgfmt)
 if test "$MSGFMT" = ""; then
    AC_MSG_ERROR([msgfmt could not be found. Try configuring with --disable-nls])
@@ -114,5 +117,6 @@ AC_CONFIG_FILES([
 	pixmaps/48/Makefile
 	evolution-plugin/Makefile
 	fs-app-transmitter/Makefile
+	gst-chime/Makefile
 	])
 AC_OUTPUT

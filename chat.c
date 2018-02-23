@@ -277,21 +277,21 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 								name,
 								TRUE);
 		if (chat->media) {
-			const gchar *caps = "application/x-srtp,media=(string)audio,clock-rate=(int)16000,payload=(int)97,encoding-name=(string)CHIME,stereo=(string)0";
+//			const gchar *caps = "application/x-srtp,media=(string)audio,clock-rate=(int)16000,payload=(int)97,encoding-name=(string)CHIME,stereo=(string)0";
 
 			gboolean r = purple_media_add_stream(chat->media, "chime", name,
 							     PURPLE_MEDIA_AUDIO, TRUE,
 							     "app", 0, NULL);
 			gchar *srcname = g_strdup_printf("chime_src_%p", call);
 			gchar *sinkname = g_strdup_printf("chime_sink_%p", call);
-			gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time caps=%s", srcname, caps);
+			gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time", srcname);
 			gchar *sinkpipe = g_strdup_printf("appsink name=%s async=false", sinkname);
 
 			PurpleMediaCandidate *cand =
 				purple_media_candidate_new(NULL, 1,
 							   PURPLE_MEDIA_CANDIDATE_TYPE_HOST,
 							   PURPLE_MEDIA_NETWORK_PROTOCOL_UDP,
-							   sinkpipe, 0);
+							   sinkpipe, 16000);
 			g_object_set(cand, "username", srcpipe, NULL);
 			g_free(sinkpipe);
 			g_free(srcpipe);

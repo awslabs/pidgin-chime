@@ -299,17 +299,16 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 			GList *cands = g_list_append (NULL, cand);
 			GList *codecs = g_list_append(NULL,
 						      purple_media_codec_new(97, "CHIME", PURPLE_MEDIA_AUDIO, 0));
-			//			g_object_set(codecs->data, "channels", 1, NULL);
-			//			purple_media_codec_add_optional_parameter(codecs->data, "farstream-recv-profile", "rtpopusdepay ! opusdec");
-			//			purple_media_codec_add_optional_parameter(codecs->data, "farstream-send-profile", "opusenc bitrate=16000 bitrate-type=vbr dtx=1 ! rtpopuspay");
-			#if 0
-			purple_media_codec_add_optional_parameter(codecs->data, "sprop-stereo", "0");
-			purple_media_codec_add_optional_parameter(codecs->data, "stereo", "0");
-			purple_media_codec_add_optional_parameter(codecs->data, "usedtx", "1");
-			purple_media_codec_add_optional_parameter(codecs->data, "maxplaybackrate", "16000");
-			#endif
+			g_object_set(codecs->data, "channels", 1, NULL);
+
 			purple_media_add_remote_candidates(chat->media, "chime", name, cands);
-			purple_media_set_remote_codecs(chat->media, "chime", name, codecs);
+			if (!purple_media_set_remote_codecs(chat->media, "chime", name, codecs)) {
+				purple_media_error(chat->media, _("Error setting Chime OPUS codec\n"));
+				purple_media_end(chat->media, NULL, NULL);
+				chat->media = NULL;
+				chime_call_set_mute(chat->call, TRUE);
+				return;
+			}
 
 			GstElement *pipeline = purple_media_manager_get_pipeline(mgr);
 			GstElement *appsrc = gst_bin_get_by_name(GST_BIN(pipeline), srcname);

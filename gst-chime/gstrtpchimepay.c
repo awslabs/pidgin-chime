@@ -50,7 +50,7 @@ GST_STATIC_PAD_TEMPLATE ("src",
         "media = (string) \"audio\", "
         "payload = (int) " GST_RTP_PAYLOAD_DYNAMIC_STRING ", "
         "clock-rate = (int) 16000, "
-        "encoding-params = (string) \"2\", "
+        "encoding-params = (string) \"1\", "
         "encoding-name = (string) \"CHIME\"")
     );
 

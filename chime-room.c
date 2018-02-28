@@ -710,7 +710,7 @@ static gboolean add_room_member(ChimeConnection *cxn, ChimeRoom *room, JsonNode 
 	if (parse_string(member_node, "LastDelivered", &last_delivered) &&
 	    g_strcmp0(last_delivered, member->last_delivered)) {
 		    g_free(member->last_delivered);
-		    member->last_read = g_strdup(last_delivered);
+		    member->last_delivered = g_strdup(last_delivered);
 	}
 	member->admin = parse_string(node, "Role", &role) && !strcmp(role, "administrator");
 	member->present = parse_string(node, "Presence", &presence) && !strcmp(presence, "present");

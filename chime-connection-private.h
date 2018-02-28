@@ -250,7 +250,6 @@ void chime_connection_close_call(ChimeConnection *cxn, ChimeCall *call);
 void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean muted);
 
 gboolean chime_call_participant_audio_stats(ChimeCall *call, const gchar *profile_id, int vol, int signal_strength);
-void chime_call_emit_participants(ChimeCall *call);
 
 
 /* login.c */

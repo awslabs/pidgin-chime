@@ -15,6 +15,7 @@ Build-Depends: debhelper (>= 9),
 	       libjson-glib-dev,
 	       libopus-dev,
 	       libfarstream-0.2-dev,
+	       libgstreamer-plugins-base1.0-dev,
 	       libprotobuf-c-dev,
 	       protobuf-c-compiler,
 	       libmarkdown2-dev,
@@ -26,7 +27,7 @@ Build-Depends: debhelper (>= 9),
 
 Package: pidgin-chime
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libfarstream-0.2-5 (>= 0.2.7)
+Depends: ${shlibs:Depends}, ${misc:Depends}, libfarstream-0.2-5 (>= 0.2.7), gstreamer1.0-plugins-bad
 Description: Pidgin plugin for AWS Chime communication platform
  This package provides the libpurple plugin that implements the
  protocols to connect with the Chime communication services provided by

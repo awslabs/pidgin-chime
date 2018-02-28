@@ -306,11 +306,11 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _conv, Js
 		return FALSE;
 
 	ChimeContact *member = chime_connection_parse_conversation_contact(cxn, member_node, NULL);
-	if (member_node) {
+	if (member) {
 		const gchar *id = chime_contact_get_profile_id(member);
 		g_hash_table_insert(conv->members, (gpointer)id, member);
 		return TRUE;
-		}
+	}
 	return FALSE;
 }
 

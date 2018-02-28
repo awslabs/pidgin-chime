@@ -165,7 +165,7 @@ static void chime_contact_class_init(ChimeContactClass *klass)
 	GObjectClass *object_class = G_OBJECT_CLASS(klass);
 
 	object_class->finalize = chime_contact_finalize;
-	object_class->finalize = chime_contact_dispose;
+	object_class->dispose = chime_contact_dispose;
 	object_class->get_property = chime_contact_get_property;
 	object_class->set_property = chime_contact_set_property;
 
@@ -383,7 +383,7 @@ ChimeContact *chime_connection_parse_contact(ChimeConnection *cxn, gboolean is_c
 				      display_name, is_contact, error);
 }
 
-/* Returns a ChimeConects which is not necessarily in the contacst list,
+/* Returns a ChimeContact which is not necessarily in the contacts list,
  * and caller owns a ref on it. */
 ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 							  JsonNode *node,

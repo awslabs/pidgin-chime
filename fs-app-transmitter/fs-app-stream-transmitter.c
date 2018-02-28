@@ -25,38 +25,24 @@
 
 /**
  * SECTION:fs-app-stream-transmitter
- * @short_description: A stream transmitter object for Shared Memory
+ * @short_description: A stream transmitter object for application pipelines
  *
  * The name of this transmitter is "app".
  *
- * This transmitter is meant to send and received the data from another process
- * on the same system while minimizing the memory pressure associated with the
- * use of sockets.
+ * This transmitter is meant to send and receive the data via a pipeline
+ * described by the application. The pipelines will typically start/end
+ * in an appsrc/appsink respectively, but a full pipeline description is
+ * required because codec and other conversions may be necessary when
+ * used with #FsRawConference, which does not handle those for itself.
  *
- * Two sockets are used to control the shared memory areas. One is used to
- * send data and one to receive data. The receiver always connects to the
- * sender. The sender socket must exist before the receiver connects to it.
+ * The pipelines for send (e.g. to appsink) and receive (e.g. from appsrc)
+ * are provided in the "ip" and "username" properties of the #FsCandidate,
+ * respectively. These pipelines are instantiated with
+ * gst_parse_bin_from_description().
  *
- * Negotiating the paths of the sockets can happen in two ways. If the
- * create-local-candidates is True then the transmitter will generate the
- * path of the local candidate and us it as the ip filed in #FsCandidate. The
- * transmitter will expect the path of the applications sender socket to be in
- * the "ip" field of the remote candidates #FsCandidate as well.
- *
- * Or alternatively, if create-local-candidates is false then
- * the sender socket can be created by giving the transmitter a candidate
- * with the path of the socket in the "ip" field of the #FsCandidate. This
- * #FsCandidate can be given to the #FsStreamTransmitter in two ways, either
- * by setting the #FsStreamTransmitter:preferred-local-candidates property
- * or by calling the fs_stream_transmitter_force_remote_candidates() function.
- * There can be only one single send socket per stream. When the send socket
- * is ready to be connected to, #FsStreamTransmitter::new-local-candidate signal
- * will be emitted.
- *
- * To connect the receive side to the other application, one must create a
- * #FsCandidate with the path of the sender's socket in the "username" field.
- * If the receiver can not connect to the sender,
- * the fs_stream_transmitter_force_remote_candidates() call will fail.
+ * Typically the application would give a unique name to the appsrc and
+ * appsink elements, so that gst_bin_get_by_name() can be used to find
+ * and interact with them.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -96,8 +82,6 @@ enum
 {
   PROP_0,
   PROP_SENDING,
-  PROP_PREFERRED_LOCAL_CANDIDATES,
-  PROP_CREATE_LOCAL_CANDIDATES,
 };
 
 struct _FsAppStreamTransmitterPrivate
@@ -108,8 +92,6 @@ struct _FsAppStreamTransmitterPrivate
    */
   FsAppTransmitter *transmitter;
 
-  GList *preferred_local_candidates;
-
   GMutex mutex;
 
   /* Protected by the mutex */
@@ -117,13 +99,6 @@ struct _FsAppStreamTransmitterPrivate
 
   /* Protected by the mutex */
   FsCandidate **candidates;
-
-  /* Whether we create the local candidate ourselves or rely on the remote end
-   * to pass them to us as part of the candidate */
-  gboolean create_local_candidates;
-
-  /* temporary socket directy in case we made one */
-  gchar *socket_dir;
 
   AppSrc **app_src;
   AppSink **app_sink;
@@ -154,9 +129,6 @@ static void fs_app_stream_transmitter_set_property (GObject *object,
 
 static gboolean fs_app_stream_transmitter_force_remote_candidates (
     FsStreamTransmitter *streamtransmitter, GList *candidates,
-    GError **error);
-static gboolean fs_app_stream_transmitter_gather_local_candidates (
-    FsStreamTransmitter *streamtransmitter,
     GError **error);
 
 static gboolean
@@ -202,7 +174,6 @@ fs_app_stream_transmitter_class_init (FsAppStreamTransmitterClass *klass)
   GObjectClass *gobject_class = (GObjectClass *) klass;
   FsStreamTransmitterClass *streamtransmitterclass =
     FS_STREAM_TRANSMITTER_CLASS (klass);
-  GParamSpec *pspec;
 
   parent_class = g_type_class_peek_parent (klass);
 
@@ -211,22 +182,8 @@ fs_app_stream_transmitter_class_init (FsAppStreamTransmitterClass *klass)
 
   streamtransmitterclass->force_remote_candidates =
     fs_app_stream_transmitter_force_remote_candidates;
-  streamtransmitterclass->gather_local_candidates =
-    fs_app_stream_transmitter_gather_local_candidates;
 
   g_object_class_override_property (gobject_class, PROP_SENDING, "sending");
-  g_object_class_override_property (gobject_class,
-      PROP_PREFERRED_LOCAL_CANDIDATES, "preferred-local-candidates");
-
-  pspec = g_param_spec_boolean ("create-local-candidates",
-    "CreateLocalCandidates",
-    "Whether the transmitter should automatically create local candidates",
-    TRUE,
-    G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
-  g_object_class_install_property (gobject_class,
-    PROP_CREATE_LOCAL_CANDIDATES,
-    pspec);
-
 
   gobject_class->dispose = fs_app_stream_transmitter_dispose;
   gobject_class->finalize = fs_app_stream_transmitter_finalize;
@@ -268,11 +225,6 @@ fs_app_stream_transmitter_dispose (GObject *object)
     self->priv->app_sink[c] = NULL;
   }
 
-  if (self->priv->socket_dir != NULL)
-    g_rmdir (self->priv->socket_dir);
-  g_free (self->priv->socket_dir);
-  self->priv->socket_dir = NULL;
-
   parent_class->dispose (object);
 }
 
@@ -280,8 +232,6 @@ static void
 fs_app_stream_transmitter_finalize (GObject *object)
 {
   FsAppStreamTransmitter *self = FS_APP_STREAM_TRANSMITTER (object);
-
-  fs_candidate_list_destroy (self->priv->preferred_local_candidates);
 
   g_free (self->priv->app_src);
   g_free (self->priv->app_sink);
@@ -305,12 +255,6 @@ fs_app_stream_transmitter_get_property (GObject *object,
       g_value_set_boolean (value, self->priv->sending);
       FS_APP_STREAM_TRANSMITTER_UNLOCK (self);
       break;
-    case PROP_PREFERRED_LOCAL_CANDIDATES:
-      g_value_set_boxed (value, self->priv->preferred_local_candidates);
-      break;
-    case PROP_CREATE_LOCAL_CANDIDATES:
-      g_value_set_boolean (value, self->priv->create_local_candidates);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -333,12 +277,6 @@ fs_app_stream_transmitter_set_property (GObject *object,
         fs_app_transmitter_sink_set_sending (self->priv->transmitter,
             self->priv->app_sink[1], self->priv->sending);
       FS_APP_STREAM_TRANSMITTER_UNLOCK (self);
-      break;
-    case PROP_PREFERRED_LOCAL_CANDIDATES:
-      self->priv->preferred_local_candidates = g_value_dup_boxed (value);
-      break;
-    case PROP_CREATE_LOCAL_CANDIDATES:
-      self->priv->create_local_candidates = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -367,13 +305,13 @@ got_buffer_func (GstBuffer *buffer, guint component, gpointer data)
       buffer);
 }
 
-static void ready_cb (guint component, gchar *path, gpointer data)
+static void ready_cb (guint component, gchar *pipeline, gpointer data)
 {
   FsAppStreamTransmitter *self = FS_APP_STREAM_TRANSMITTER_CAST (data);
   FsCandidate *candidate = fs_candidate_new (NULL, component,
-      FS_CANDIDATE_TYPE_HOST, FS_NETWORK_PROTOCOL_UDP, path, 0);
+      FS_CANDIDATE_TYPE_HOST, FS_NETWORK_PROTOCOL_UDP, pipeline, 0);
 
-  GST_DEBUG ("Emitting new local candidate with path %s", path);
+  printf ("Emitting new local candidate with pipeline %s", pipeline);
 
   g_signal_emit_by_name (self, "new-local-candidate", candidate);
   g_signal_emit_by_name (self, "local-candidates-prepared");
@@ -381,22 +319,10 @@ static void ready_cb (guint component, gchar *path, gpointer data)
   fs_candidate_destroy (candidate);
 }
 
-static void
-connected_cb (guint component, gint id, gpointer data)
-{
-  FsAppStreamTransmitter *self = data;
-  printf("emit state-changed for %p:%u\n", self, component);
-  g_signal_emit_by_name (self, "state-changed", component,
-      FS_STREAM_STATE_READY);
-}
-
 static gboolean
 fs_app_stream_transmitter_add_sink (FsAppStreamTransmitter *self,
     FsCandidate *candidate, GError **error)
 {
-  if (self->priv->create_local_candidates)
-    return TRUE;
-
   if (!candidate->ip || !candidate->ip[0])
     return TRUE;
 
@@ -410,17 +336,11 @@ fs_app_stream_transmitter_add_sink (FsAppStreamTransmitter *self,
 
   self->priv->app_sink[candidate->component_id] =
     fs_app_transmitter_get_app_sink (self->priv->transmitter,
-        candidate->component_id, candidate->ip, ready_cb, connected_cb,
-        self, error);
+        candidate->component_id, candidate->ip, ready_cb, self, error);
 
   if (self->priv->app_sink[candidate->component_id] == NULL)
     return FALSE;
 
-  if (candidate->component_id == 1) {
-    fs_app_transmitter_sink_set_sending (self->priv->transmitter,
-        self->priv->app_sink[candidate->component_id], self->priv->sending);
-    connected_cb(1, 0, self);
-  }
   return TRUE;
 }
 
@@ -439,28 +359,25 @@ fs_app_stream_transmitter_force_remote_candidate (
     FsAppStreamTransmitter *self, FsCandidate *candidate,
     GError **error)
 {
-  const gchar *path;
+  const gchar *pipeline;
   if (!fs_app_stream_transmitter_add_sink (self, candidate, error))
     return FALSE;
 
-  if (self->priv->create_local_candidates)
-    path = candidate->ip;
-  else
-    path = candidate->username;
+  pipeline = candidate->username;
 
-  if (path && path[0])
+  if (pipeline && pipeline[0])
   {
     if (self->priv->app_src[candidate->component_id])
     {
       if (fs_app_transmitter_check_app_src (self->priv->transmitter,
-              self->priv->app_src[candidate->component_id], path))
+              self->priv->app_src[candidate->component_id], pipeline))
         return TRUE;
       self->priv->app_src[candidate->component_id] = NULL;
     }
 
     self->priv->app_src[candidate->component_id] =
       fs_app_transmitter_get_app_src (self->priv->transmitter,
-          candidate->component_id, path, got_buffer_func, disconnected_cb,
+          candidate->component_id, pipeline, got_buffer_func, disconnected_cb,
           self, error);
 
     if (self->priv->app_src[candidate->component_id] == NULL)
@@ -499,8 +416,8 @@ fs_app_stream_transmitter_force_remote_candidates (
         (!candidate->username || !candidate->username[0]))
     {
       g_set_error (error, FS_ERROR, FS_ERROR_INVALID_ARGUMENTS,
-          "The candidate does not have a SINK app segment in its ip"
-          " or a SRC app segment in its username");
+          "The candidate does not have a SINK pipeline in its ip"
+          " or a SRC pipeline in its username");
       return FALSE;
     }
   }
@@ -538,63 +455,4 @@ fs_app_stream_transmitter_newv (FsAppTransmitter *transmitter,
   }
 
   return streamtransmitter;
-}
-
-
-static gboolean
-fs_app_stream_transmitter_gather_local_candidates (
-    FsStreamTransmitter *streamtransmitter,
-    GError **error)
-{
-  FsAppStreamTransmitter *self =
-    FS_APP_STREAM_TRANSMITTER (streamtransmitter);
-  GList *item;
-
-  if (self->priv->create_local_candidates)
-  {
-    guint c;
-    gchar *socket_dir;
-
-    socket_dir = g_build_filename (g_get_tmp_dir (),
-      "farstream-app-XXXXXX", NULL);
-
-    if (g_mkdtemp (socket_dir) == NULL)
-      return FALSE;
-
-    self->priv->socket_dir = socket_dir;
-
-    for (c = 1; c <= self->priv->transmitter->components; c++)
-    {
-      gchar *path = g_strdup_printf ("%s/app-sink-socket-%d", socket_dir, c);
-
-      self->priv->app_sink[c] =
-        fs_app_transmitter_get_app_sink (self->priv->transmitter,
-          c, path, ready_cb, connected_cb, self, error);
-      g_free (path);
-
-      if (self->priv->app_sink[c] == NULL)
-        return FALSE;
-
-      if (c == 1) {
-        fs_app_transmitter_sink_set_sending (self->priv->transmitter,
-            self->priv->app_sink[c], self->priv->sending);
-	connected_cb(1, 0, self);
-      }
-    }
-
-    return TRUE;
-  }
-
-  for (item = self->priv->preferred_local_candidates;
-       item;
-       item = g_list_next (item))
-  {
-    FsCandidate *candidate = item->data;
-
-    if (candidate->ip && candidate->ip[0])
-      if (!fs_app_stream_transmitter_add_sink (self, candidate, error))
-        return FALSE;
-  }
-
-  return TRUE;
 }

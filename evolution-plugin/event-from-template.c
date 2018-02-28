@@ -112,7 +112,7 @@ set_attendees (ECalComponent *comp,
 	ECalComponentAttendee *ca;
 	gint len, i;
 
-	len = CAMEL_ADDRESS (addresses)->addresses->len;
+	len = camel_address_length (CAMEL_ADDRESS (addresses));
 	for (i = 0; i < len; i++) {
 		const gchar *name, *addr;
 

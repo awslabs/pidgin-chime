@@ -288,8 +288,15 @@ static gboolean parse_call_participation_status(JsonNode *node, const gchar *mem
 	return TRUE;
 }
 
-static void free_participant(void *p)
+static void free_participant(void *_p)
 {
+	ChimeCallParticipant *p = _p;
+
+	free(p->participant_id);
+	free(p->participant_type);
+	free(p->full_name);
+	free(p->email);
+	free(p);
 }
 
 static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNode *p)

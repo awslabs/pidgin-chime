@@ -117,6 +117,7 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 
 	GList *members = chime_conversation_get_members(conv);
 	if (g_list_length(members) != 2) {
+		g_list_free(members);
 		on_chime_new_group_conv(cxn, conv, conn);
 		return;
 	}

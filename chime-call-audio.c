@@ -358,13 +358,14 @@ static gboolean audio_receive_stream_msg(ChimeCallAudio *audio, gconstpointer pk
 }
 static gboolean audio_receive_data_msg(ChimeCallAudio *audio, gconstpointer pkt, gsize len)
 {
+	gboolean ret = FALSE;
 	DataMessage *msg = data_message__unpack(NULL, len, pkt);
 	if (!msg)
 		return FALSE;
 
 	chime_debug("Got DataMessage seq %d msg_id %d offset %d\n", msg->seq, msg->msg_id, msg->offset);
 	if (!msg->has_seq || !msg->has_msg_id || !msg->has_msg_len)
-		return FALSE;
+		goto fail;
 
 	/* First process ACKs */
 
@@ -399,13 +400,12 @@ static gboolean audio_receive_data_msg(ChimeCallAudio *audio, gconstpointer pkt,
 	/* Now process the incoming data packet. First, drop packets
 	   that look like replays and are too old. */
 	if (msg->msg_id < audio->data_next_logical_msg)
-		return TRUE;
+		goto drop;
 
 	struct message_buf *m = find_msgbuf(audio, msg->msg_id, msg->msg_len);
-	if (msg->msg_len != m->len)
-		return FALSE; /* WTF? */
-	if (msg->offset + msg->data.len > m->len)
-		return FALSE;
+	if (msg->msg_len != m->len ||
+	    msg->offset + msg->data.len > m->len)
+		goto fail;
 
 	memcpy(m->buf + msg->offset, msg->data.data, msg->data.len);
 	if (insert_frag(m, msg->offset, msg->offset + msg->data.len)) {
@@ -426,7 +426,11 @@ static gboolean audio_receive_data_msg(ChimeCallAudio *audio, gconstpointer pkt,
 			audio->data_messages = g_slist_remove(audio->data_messages, m);
 		}
 	}
-	return TRUE;
+ drop:
+	ret = TRUE;
+ fail:
+	data_message__free_unpacked(msg, NULL);
+	return ret;
 }
 
 gboolean audio_receive_packet(ChimeCallAudio *audio, gconstpointer pkt, gsize len)

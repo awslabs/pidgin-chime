@@ -33,8 +33,8 @@
 struct _ChimeCallAudio {
 	ChimeCall *call;
 	ChimeAudioState state;
-	gboolean local_mute;
-	gboolean muted;
+	gboolean local_mute; /* Listening but not sending from mic */
+	gboolean silent; /* No audio; only participant data */
 	GMutex transport_lock;
 	SoupWebsocketConnection *ws;
 	guint data_ack_source;
@@ -71,14 +71,15 @@ enum xrp_pkt_type {
 };
 
 /* Called from ChimeMeeting */
-ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gboolean muted);
+ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gboolean silent);
 void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup);
-void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean muted);
+void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean silent);
+gboolean chime_call_audio_get_silent(ChimeCallAudio *audio);
 void chime_call_audio_set_state(ChimeCallAudio *audio, ChimeAudioState state);
 void chime_call_audio_local_mute(ChimeCallAudio *audio, gboolean muted);
 
 /* Called from audio code */
-void chime_call_transport_connect(ChimeCallAudio *audio, gboolean muted);
+void chime_call_transport_connect(ChimeCallAudio *audio, gboolean silent);
 void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup);
 void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type type, const ProtobufCMessage *message);
 

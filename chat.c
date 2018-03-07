@@ -261,7 +261,7 @@ static void call_media_changed(PurpleMedia *media, PurpleMediaState state, const
 	if (state == PURPLE_MEDIA_STATE_END && !id && !participant) {
 		if (chat->media) {
 			chat->media = NULL;
-			chime_call_set_mute(chat->call, TRUE);
+			chime_call_set_silent(chat->call, TRUE);
 		}
 	}
 }
@@ -285,7 +285,7 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 								TRUE);
 		if (!chat->media) {
 			/* XX: Report error, but not with purple_media_error()! */
-			chime_call_set_mute(chat->call, TRUE);
+			chime_call_set_silent(chat->call, TRUE);
 			return;
 		}
 
@@ -296,7 +296,7 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 			purple_media_error(chat->media, _("Error adding media stream\n"));
 			purple_media_end(chat->media, NULL, NULL);
 			chat->media = NULL;
-			chime_call_set_mute(chat->call, TRUE);
+			chime_call_set_silent(chat->call, TRUE);
 			return;
 		}
 
@@ -327,7 +327,7 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 			purple_media_error(chat->media, _("Error setting Chime OPUS codec\n"));
 			purple_media_end(chat->media, NULL, NULL);
 			chat->media = NULL;
-			chime_call_set_mute(chat->call, TRUE);
+			chime_call_set_silent(chat->call, TRUE);
 			return;
 		}
 		purple_media_codec_list_free(codecs);
@@ -775,7 +775,7 @@ static void join_audio(PurpleBuddy *buddy, gpointer _chat)
 {
 	struct chime_chat *chat = _chat;
 	if (chat->call)
-		chime_call_set_mute(chat->call, FALSE);
+		chime_call_set_silent(chat->call, FALSE);
 }
 
 GList *chime_purple_chat_menu(PurpleChat *pchat)

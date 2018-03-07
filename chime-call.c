@@ -505,10 +505,18 @@ void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean 
 	}
 }
 
-void chime_call_set_mute(ChimeCall *call, gboolean muted)
+void chime_call_set_silent(ChimeCall *call, gboolean silent)
 {
 	if (call->audio)
-		chime_call_audio_reopen(call->audio, muted);
+		chime_call_audio_reopen(call->audio, silent);
+}
+
+gboolean chime_call_get_silent(ChimeCall *call)
+{
+	if (call->audio)
+		return chime_call_audio_get_silent(call->audio);
+	else
+		return TRUE;
 }
 
 void chime_call_set_local_mute(ChimeCall *call, gboolean muted)

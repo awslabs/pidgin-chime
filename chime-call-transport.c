@@ -97,7 +97,7 @@ static void audio_send_auth_packet(ChimeCallAudio *audio)
 	msg.has_codec = TRUE;
 
 	msg.flags = FLAGS__FLAG_HAS_PROFILE_TABLE | FLAGS__FLAG_HAS_CLIENT_STATUS;
-	if (audio->muted)
+	if (audio->silent)
 		msg.flags |= FLAGS__FLAG_MUTE;
 	msg.has_flags = TRUE;
 
@@ -136,7 +136,7 @@ static void audio_send_hangup_packet(ChimeCallAudio *audio)
 	msg.has_codec = TRUE;
 
 	msg.flags = FLAGS__FLAG_HAS_PROFILE_TABLE;
-	if (audio->muted)
+	if (audio->silent)
 		msg.flags |= FLAGS__FLAG_MUTE;
 	msg.has_flags = TRUE;
 
@@ -165,14 +165,14 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _audio
 }
 
 
-void chime_call_transport_connect(ChimeCallAudio *audio, gboolean muted)
+void chime_call_transport_connect(ChimeCallAudio *audio, gboolean silent)
 {
 	/* Grrr, GDtlsClientConnection doesn't actually exist yet. Let's stick
 	   with the WebSocket for now... */
 	SoupURI *uri = soup_uri_new_printf(chime_call_get_audio_ws_url(audio->call), "/audio");
 	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
 
-	audio->muted = muted;
+	audio->silent = silent;
 
 	char *protocols[] = { (char *)"opus-med", NULL };
 	gchar *origin = g_strdup_printf("http://%s", soup_uri_get_host(uri));

@@ -213,7 +213,7 @@ static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt,
 	chime_debug("Got AuthMessage authorised %d %d\n", msg->has_authorized, msg->authorized);
 	if (msg->has_authorized && msg->authorized) {
 		do_send_rt_packet(audio, NULL);
-		chime_call_audio_set_state(audio, audio->muted ? CHIME_AUDIO_STATE_AUDIOLESS :
+		chime_call_audio_set_state(audio, audio->silent ? CHIME_AUDIO_STATE_AUDIOLESS :
 					   (audio->local_mute ? CHIME_AUDIO_STATE_AUDIO_MUTED : CHIME_AUDIO_STATE_AUDIO));
 	}
 
@@ -534,7 +534,7 @@ void chime_call_audio_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc
 	gst_app_sink_set_callbacks(appsink, &chime_appsink_callbacks, audio, chime_appsink_destroy);
 }
 
-ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gboolean muted)
+ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gboolean silent)
 {
 	ChimeCallAudio *audio = g_new0(ChimeCallAudio, 1);
 	audio->call = call;
@@ -551,25 +551,30 @@ ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gbo
 	audio->audio_msg.has_sample_time = 1;
 	audio->audio_msg.sample_time = g_random_int();
 
-	chime_call_transport_connect(audio, muted);
+	chime_call_transport_connect(audio, silent);
 	chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING);
 
 	return audio;
 }
 
 /* Reopen the transport with/without audio enabled at all. */
-void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean muted)
+void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean silent)
 {
-	chime_call_audio_local_mute(audio, muted);
-	if (muted != audio->muted) {
+	chime_call_audio_local_mute(audio, silent);
+	if (silent != audio->silent) {
 		if (audio->send_rt_source)
 			g_source_remove(audio->send_rt_source);
 		if (audio->data_ack_source)
 			g_source_remove(audio->data_ack_source);
 		chime_call_transport_disconnect(audio, TRUE);
-		chime_call_transport_connect(audio, muted);
+		chime_call_transport_connect(audio, silent);
 		chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING);
 	}
+}
+
+gboolean chime_call_audio_get_silent(ChimeCallAudio *audio)
+{
+	return audio->silent;
 }
 
 /* Set client-side muting, when the audio is actually connected */

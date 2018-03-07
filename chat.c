@@ -283,60 +283,72 @@ static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct 
 								"fsrtpconference",
 								name,
 								TRUE);
-		if (chat->media) {
-//			const gchar *caps = "application/x-srtp,media=(string)audio,clock-rate=(int)16000,payload=(int)97,encoding-name=(string)CHIME,stereo=(string)0";
-
-			gboolean r = purple_media_add_stream(chat->media, "chime", name,
-							     PURPLE_MEDIA_AUDIO, TRUE,
-							     "app", 0, NULL);
-			gchar *srcname = g_strdup_printf("chime_src_%p", call);
-			gchar *sinkname = g_strdup_printf("chime_sink_%p", call);
-			gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time", srcname);
-			gchar *sinkpipe = g_strdup_printf("appsink name=%s async=false", sinkname);
-
-			PurpleMediaCandidate *cand =
-				purple_media_candidate_new(NULL, 1,
-							   PURPLE_MEDIA_CANDIDATE_TYPE_HOST,
-							   PURPLE_MEDIA_NETWORK_PROTOCOL_UDP,
-							   sinkpipe, 16000);
-			g_object_set(cand, "username", srcpipe, NULL);
-			g_free(sinkpipe);
-			g_free(srcpipe);
-
-			GList *cands = g_list_append (NULL, cand);
-			GList *codecs = g_list_append(NULL,
-						      purple_media_codec_new(97, "CHIME", PURPLE_MEDIA_AUDIO, 0));
-			g_object_set(codecs->data, "channels", 1, NULL);
-
-			purple_media_add_remote_candidates(chat->media, "chime", name, cands);
-			if (!purple_media_set_remote_codecs(chat->media, "chime", name, codecs)) {
-				purple_media_error(chat->media, _("Error setting Chime OPUS codec\n"));
-				purple_media_end(chat->media, NULL, NULL);
-				chat->media = NULL;
-				chime_call_set_mute(chat->call, TRUE);
-				return;
-			}
-
-			GstElement *pipeline = purple_media_manager_get_pipeline(mgr);
-			GstElement *appsrc = gst_bin_get_by_name(GST_BIN(pipeline), srcname);
-			GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipeline), sinkname);
-			g_free(srcname);
-			g_free(sinkname);
-
-			gst_app_src_set_size(GST_APP_SRC(appsrc), -1);
-			gst_app_src_set_max_bytes(GST_APP_SRC(appsrc), 100);
-			gst_app_src_set_stream_type(GST_APP_SRC(appsrc), GST_APP_STREAM_TYPE_STREAM);
-//			gst_base_src_set_live(GST_BASE_SRC(appsrc), TRUE);
-			chime_call_install_gst_app_callbacks(chat->call, GST_APP_SRC(appsrc), GST_APP_SINK(appsink));
-			g_signal_connect(chat->media, "state-changed", G_CALLBACK(call_media_changed), chat);
-			g_signal_connect(chat->media, "stream-info", G_CALLBACK(call_stream_info), chat);
-
-			purple_media_stream_info(chat->media, PURPLE_MEDIA_INFO_ACCEPT, "chime", name, FALSE);
-			GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)), GST_DEBUG_GRAPH_SHOW_ALL, "chime conference graph");
+		if (!chat->media) {
+			/* XX: Report error, but not with purple_media_error()! */
+			chime_call_set_mute(chat->call, TRUE);
+			return;
 		}
+
+		if (!purple_media_add_stream(chat->media, "chime", name,
+					     PURPLE_MEDIA_AUDIO, TRUE,
+					     "app", 0, NULL)) {
+
+			purple_media_error(chat->media, _("Error adding media stream\n"));
+			purple_media_end(chat->media, NULL, NULL);
+			chat->media = NULL;
+			chime_call_set_mute(chat->call, TRUE);
+			return;
+		}
+
+		gchar *srcname = g_strdup_printf("chime_src_%p", call);
+		gchar *sinkname = g_strdup_printf("chime_sink_%p", call);
+		gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time", srcname);
+		gchar *sinkpipe = g_strdup_printf("appsink name=%s async=false", sinkname);
+
+		PurpleMediaCandidate *cand =
+			purple_media_candidate_new(NULL, 1,
+						   PURPLE_MEDIA_CANDIDATE_TYPE_HOST,
+						   PURPLE_MEDIA_NETWORK_PROTOCOL_UDP,
+						   sinkpipe, 16000);
+		g_object_set(cand, "username", srcpipe, NULL);
+		g_free(sinkpipe);
+		g_free(srcpipe);
+
+		GList *cands = g_list_append (NULL, cand);
+		purple_media_add_remote_candidates(chat->media, "chime", name, cands);
+		purple_media_candidate_list_free(cands);
+
+		GList *codecs = g_list_append(NULL,
+					      purple_media_codec_new(97, "CHIME", PURPLE_MEDIA_AUDIO, 0));
+		g_object_set(codecs->data, "channels", 1, NULL);
+
+		if (!purple_media_set_remote_codecs(chat->media, "chime", name, codecs)) {
+			purple_media_codec_list_free(codecs);
+			purple_media_error(chat->media, _("Error setting Chime OPUS codec\n"));
+			purple_media_end(chat->media, NULL, NULL);
+			chat->media = NULL;
+			chime_call_set_mute(chat->call, TRUE);
+			return;
+		}
+		purple_media_codec_list_free(codecs);
+
+		GstElement *pipeline = purple_media_manager_get_pipeline(mgr);
+		GstElement *appsrc = gst_bin_get_by_name(GST_BIN(pipeline), srcname);
+		GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipeline), sinkname);
+		g_free(srcname);
+		g_free(sinkname);
+
+		gst_app_src_set_size(GST_APP_SRC(appsrc), -1);
+		gst_app_src_set_max_bytes(GST_APP_SRC(appsrc), 100);
+		gst_app_src_set_stream_type(GST_APP_SRC(appsrc), GST_APP_STREAM_TYPE_STREAM);
+//		gst_base_src_set_live(GST_BASE_SRC(appsrc), TRUE);
+		chime_call_install_gst_app_callbacks(chat->call, GST_APP_SRC(appsrc), GST_APP_SINK(appsink));
+		g_signal_connect(chat->media, "state-changed", G_CALLBACK(call_media_changed), chat);
+		g_signal_connect(chat->media, "stream-info", G_CALLBACK(call_stream_info), chat);
+
+		purple_media_stream_info(chat->media, PURPLE_MEDIA_INFO_ACCEPT, "chime", name, FALSE);
+		GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)), GST_DEBUG_GRAPH_SHOW_ALL, "chime conference graph");
 	}
-
-
 }
 
 static void on_call_participants(ChimeCall *call, GHashTable *participants, struct chime_chat *chat)

@@ -74,10 +74,10 @@ void chime_call_set_mute(ChimeCall *call, gboolean muted);
 void chime_call_set_local_mute(ChimeCall *call, gboolean muted);
 
 typedef struct {
-	const gchar *participant_id;
-	const gchar *participant_type;
-	const gchar *full_name;
-	const gchar *email;
+	gchar *participant_id;
+	gchar *participant_type;
+	gchar *full_name;
+	gchar *email;
 	ChimeCallParticipationStatus status;
 	ChimeCallSharedScreenStatus shared_screen;
 	gboolean admin;

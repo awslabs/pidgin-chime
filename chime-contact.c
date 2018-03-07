@@ -282,7 +282,8 @@ subscribe_contact(ChimeConnection *cxn, ChimeContact *contact)
 	/* As well as subscribing to the channel, we'll need to fetch the
 	 * initial presence information for this contact */
 	priv->contacts_needed = g_slist_prepend(priv->contacts_needed, contact);
-	g_idle_add(fetch_presences, g_object_ref(cxn));
+	if (!priv->contacts_src_id)
+		priv->contacts_src_id = g_idle_add(fetch_presences, g_object_ref(cxn));
 }
 
 static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *id,
@@ -500,7 +501,6 @@ static gboolean fetch_presences(gpointer _cxn)
 
 		g_ptr_array_add(ids, (gpointer)chime_object_get_id(CHIME_OBJECT(contact)));
 	}
-	/* We don't actually need any */
 	if (ids->len > 0) {
 		g_ptr_array_add(ids, NULL);
 
@@ -514,6 +514,7 @@ static gboolean fetch_presences(gpointer _cxn)
 						    presence_cb, NULL);
 	}
 	g_ptr_array_unref(ids);
+	priv->contacts_src_id = 0;
 	g_object_unref(cxn);
 	return FALSE;
 }
@@ -610,9 +611,8 @@ static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
 	if (contact->cxn) {
 		ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (contact->cxn);
 
-		if (priv->contacts_needed)
-			priv->contacts_needed = g_slist_remove(priv->contacts_needed,
-							       contact);
+		priv->contacts_needed = g_slist_remove(priv->contacts_needed,
+						       contact);
 
 		if (contact->presence_channel)
 			chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence",
@@ -628,6 +628,14 @@ void chime_destroy_contacts(ChimeConnection *cxn)
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
 
+	if (priv->contacts_src_id) {
+		g_source_remove(priv->contacts_src_id);
+		priv->contacts_src_id = 0;
+	}
+	if (priv->contacts_needed) {
+		g_slist_free(priv->contacts_needed);
+		priv->contacts_needed = NULL;
+	}
 	if (priv->contacts.by_id)
 		g_hash_table_foreach(priv->contacts.by_id, unsubscribe_contact, NULL);
 

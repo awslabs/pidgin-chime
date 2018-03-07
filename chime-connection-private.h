@@ -141,6 +141,7 @@ typedef struct {
 	ChimeObjectCollection contacts;
 	ChimeSyncState contacts_sync;
 	GSList *contacts_needed;
+	guint contacts_src_id;
 
 	/* Rooms */
 	ChimeObjectCollection rooms;

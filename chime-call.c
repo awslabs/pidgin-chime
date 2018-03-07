@@ -527,6 +527,8 @@ void chime_call_set_local_mute(ChimeCall *call, gboolean muted)
 
 void chime_call_audio_set_state(ChimeCallAudio *audio, ChimeAudioState state)
 {
+	chime_debug("Audio state %d (was %d)\n", state, audio->state);
+
 	if (audio->state == state)
 		return;
 

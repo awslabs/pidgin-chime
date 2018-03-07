@@ -47,6 +47,7 @@ struct _ChimeCallAudio {
 	GstClockTime next_dts;
 	gint64 last_send_local_time;
 	GstAppSrc *audio_src;
+	GstAppSink *audio_sink;
 	gboolean appsrc_need_data;
 
 	GMutex rt_lock;

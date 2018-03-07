@@ -157,7 +157,7 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 		dur = GST_BUFFER_DURATION(buffer);
 
 		nr_samples = GST_BUFFER_DURATION(buffer) / NS_PER_SAMPLE;
-//		printf("buf dts %ld pts %ld dur %ld samples %d\n", dts, pts, dur, nr_samples);
+		chime_debug("buf dts %ld pts %ld dur %ld samples %d\n", dts, pts, dur, nr_samples);
 
 		if (audio->next_dts && dts > audio->next_dts) {
 			/* We skipped some. */
@@ -187,14 +187,6 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 		gst_rtp_buffer_unmap(&rtp);
 	}
 	audio->audio_msg.sample_time += nr_samples;
-	if (buffer) {
-		/* Set timer to kick in after 100ms if we stop getting data */
-		if (audio->send_rt_source)
-			g_source_remove(audio->send_rt_source);
-		audio->send_rt_source = 0;
-	}
-	if (!audio->send_rt_source)
-		audio->send_rt_source = g_timeout_add(100, (GSourceFunc)timed_send_rt_packet, audio);
 	g_mutex_unlock(&audio->rt_lock);
 }
 
@@ -215,6 +207,8 @@ static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt,
 		do_send_rt_packet(audio, NULL);
 		chime_call_audio_set_state(audio, audio->silent ? CHIME_AUDIO_STATE_AUDIOLESS :
 					   (audio->local_mute ? CHIME_AUDIO_STATE_AUDIO_MUTED : CHIME_AUDIO_STATE_AUDIO));
+		if (audio->silent || audio->local_mute)
+			audio->send_rt_source = g_timeout_add(100, (GSourceFunc)timed_send_rt_packet, audio);
 	}
 
 	auth_message__free_unpacked(msg, NULL);
@@ -457,11 +451,19 @@ gboolean audio_receive_packet(ChimeCallAudio *audio, gconstpointer pkt, gsize le
 	return FALSE;
 }
 
+static GstAppSinkCallbacks no_appsink_callbacks;
+static GstAppSrcCallbacks no_appsrc_callbacks;
+
 void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup)
 {
 	g_signal_handlers_disconnect_matched(G_OBJECT(audio->call), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, audio);
 
 	chime_debug("close audio\n");
+
+	if (audio->audio_src)
+		gst_app_src_set_callbacks(audio->audio_src, &no_appsrc_callbacks, NULL, NULL);
+	if (audio->audio_sink)
+		gst_app_sink_set_callbacks(audio->audio_sink, &no_appsink_callbacks, NULL, NULL);
 
 	if (audio->data_ack_source)
 		g_source_remove(audio->data_ack_source);
@@ -483,9 +485,11 @@ static GstFlowReturn chime_appsink_new_sample(GstAppSink* self, gpointer data)
 	if (!sample)
 		return GST_FLOW_OK;
 
-	GstBuffer *buffer = gst_sample_get_buffer(sample);
+	if (audio->state == CHIME_AUDIO_STATE_AUDIO) {
+		GstBuffer *buffer = gst_sample_get_buffer(sample);
 
-	do_send_rt_packet(audio, buffer);
+		do_send_rt_packet(audio, buffer);
+	}
 	gst_sample_unref(sample);
 
 	return GST_FLOW_OK;
@@ -511,13 +515,14 @@ static void chime_appsrc_destroy(gpointer _audio)
 {
 	ChimeCallAudio *audio = _audio;
 
-	printf("Appsrc destroy\n");
 	audio->audio_src = NULL;
 }
 
 static void chime_appsink_destroy(gpointer _audio)
 {
-	printf("Appsink destroy\n");
+	ChimeCallAudio *audio = _audio;
+
+	audio->audio_sink = NULL;
 }
 
 static GstAppSrcCallbacks chime_appsrc_callbacks = {
@@ -527,6 +532,7 @@ static GstAppSrcCallbacks chime_appsrc_callbacks = {
 
 void chime_call_audio_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc *appsrc, GstAppSink *appsink)
 {
+	audio->audio_sink = appsink;
 	audio->audio_src = appsrc;
 	audio->appsrc_need_data = FALSE;
 
@@ -562,10 +568,14 @@ void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean silent)
 {
 	chime_call_audio_local_mute(audio, silent);
 	if (silent != audio->silent) {
-		if (audio->send_rt_source)
+		if (audio->send_rt_source) {
 			g_source_remove(audio->send_rt_source);
-		if (audio->data_ack_source)
+			audio->send_rt_source = 0;
+		}
+		if (audio->data_ack_source) {
 			g_source_remove(audio->data_ack_source);
+			audio->data_ack_source = 0;
+		}
 		chime_call_transport_disconnect(audio, TRUE);
 		chime_call_transport_connect(audio, silent);
 		chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING);
@@ -582,8 +592,17 @@ void chime_call_audio_local_mute(ChimeCallAudio *audio, gboolean muted)
 {
 	audio->local_mute = muted;
 
-	if (muted && audio->state == CHIME_AUDIO_STATE_AUDIO)
-		chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_AUDIO_MUTED);
-	else if (!muted && audio->state == CHIME_AUDIO_STATE_AUDIO_MUTED)
-		chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_AUDIO);
+	if (muted) {
+		if (audio->state == CHIME_AUDIO_STATE_AUDIO)
+			chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_AUDIO_MUTED);
+		if (!audio->send_rt_source)
+			audio->send_rt_source = g_timeout_add(100, (GSourceFunc)timed_send_rt_packet, audio);
+	} else {
+		if (audio->state == CHIME_AUDIO_STATE_AUDIO_MUTED)
+			chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_AUDIO);
+		if (audio->send_rt_source) {
+			g_source_remove(audio->send_rt_source);
+			audio->send_rt_source = 0;
+		}
+	}
 }

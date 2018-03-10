@@ -5,6 +5,7 @@ if BUILD_EVOPLUGIN
 SUBDIRS += evolution-plugin
 endif
 
+SUBDIRS += amznphoto-plugin
 SUBDIRS += gst-chime
 
 AM_CPPFLAGS = @WFLAGS@

@@ -264,8 +264,7 @@ static void free_msgbuf(struct message_buf *m)
 
 static void do_send_ack(ChimeCallAudio *audio)
 {
-	DataMessage msg;
-	data_message__init(&msg);
+	DataMessage msg = DATA_MESSAGE__INIT;
 
 	msg.ack = audio->data_next_seq - 1;
 	msg.has_ack = TRUE;

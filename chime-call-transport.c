@@ -72,8 +72,7 @@ static void audio_send_auth_packet(ChimeCallAudio *audio)
 		return;
 
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	AuthMessage msg;
-	auth_message__init(&msg);
+	AuthMessage msg = AUTH_MESSAGE__INIT;
 	msg.message_type = AUTH_MESSAGE_TYPE__REQUEST;
 	msg.has_message_type = TRUE;
 
@@ -111,8 +110,7 @@ static void audio_send_hangup_packet(ChimeCallAudio *audio)
 		return;
 
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
-	AuthMessage msg;
-	auth_message__init(&msg);
+	AuthMessage msg = AUTH_MESSAGE__INIT;
 	msg.message_type = AUTH_MESSAGE_TYPE__HANGUP;
 	msg.has_message_type = TRUE;
 

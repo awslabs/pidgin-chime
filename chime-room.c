@@ -83,14 +83,14 @@ struct _ChimeRoom {
 
 G_DEFINE_TYPE(ChimeRoom, chime_room, CHIME_TYPE_OBJECT)
 
-CHIME_DEFINE_ENUM_TYPE(ChimeRoomType, chime_room_type,			\
-       CHIME_ENUM_VALUE(CHIME_ROOM_TYPE_STANDARD,	"standard")	\
-       CHIME_ENUM_VALUE(CHIME_ROOM_TYPE_MEETING,	"meeting")	\
+CHIME_DEFINE_ENUM_TYPE(ChimeRoomType, chime_room_type,
+       CHIME_ENUM_VALUE(CHIME_ROOM_TYPE_STANDARD,	"standard")
+       CHIME_ENUM_VALUE(CHIME_ROOM_TYPE_MEETING,	"meeting")
        CHIME_ENUM_VALUE(CHIME_ROOM_TYPE_ORGANIZATION,	"organization"))
 
-CHIME_DEFINE_ENUM_TYPE(ChimeNotifyPref, chime_notify_pref,		\
-       CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_ALWAYS,	"always")	\
-       CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_DIRECT_ONLY,	"directOnly")	\
+CHIME_DEFINE_ENUM_TYPE(ChimeNotifyPref, chime_notify_pref,
+       CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_ALWAYS,	"always")
+       CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_DIRECT_ONLY,	"directOnly")
        CHIME_ENUM_VALUE(CHIME_NOTIFY_PREF_NEVER,	"never"))
 
 static void close_room(gpointer key, gpointer val, gpointer data);

@@ -81,10 +81,10 @@ struct _ChimeMeeting {
 
 G_DEFINE_TYPE(ChimeMeeting, chime_meeting, CHIME_TYPE_OBJECT)
 
-CHIME_DEFINE_ENUM_TYPE(ChimeMeetingType, chime_meeting_type,				\
-       CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_ADHOC,		"AdHocMeeting")		\
-       CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_GOOGLE_CALENDAR,	"GoogleCalendarMeeting")\
-       CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_CONFERENCE_BRIDGE,	"ConferenceBridgeMeeting") \
+CHIME_DEFINE_ENUM_TYPE(ChimeMeetingType, chime_meeting_type,
+       CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_ADHOC,		"AdHocMeeting")
+       CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_GOOGLE_CALENDAR,	"GoogleCalendarMeeting")
+       CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_CONFERENCE_BRIDGE,	"ConferenceBridgeMeeting")
        CHIME_ENUM_VALUE(CHIME_MEETING_TYPE_WEBINAR,		"Webinar"))
 
 static void close_meeting(gpointer key, gpointer val, gpointer data);

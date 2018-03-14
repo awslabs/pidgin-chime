@@ -40,6 +40,9 @@ struct purple_chime {
 	GHashTable *live_chats;
 	int chat_id;
 
+	void *convlist_handle;
+	guint convlist_refresh_id;
+
 	void *joinable_handle;
 	guint joinable_refresh_id;
 
@@ -101,6 +104,7 @@ void purple_chime_init_conversations(struct purple_chime *pc);
 void purple_chime_destroy_conversations(struct purple_chime *pc);
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags);
 unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleTypingState state);
+void chime_purple_recent_conversations(PurplePluginAction *action);
 
 /* messages.c */
 struct chime_msgs;

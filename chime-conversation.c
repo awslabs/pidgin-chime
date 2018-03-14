@@ -263,6 +263,13 @@ const gchar *chime_conversation_get_last_sent(ChimeConversation *self)
 	return self->last_sent;
 }
 
+const gchar *chime_conversation_get_updated_on(ChimeConversation *self)
+{
+	g_return_val_if_fail(CHIME_IS_CONVERSATION(self), FALSE);
+
+	return self->last_sent;
+}
+
 static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNode *data_node)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);

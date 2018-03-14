@@ -45,6 +45,8 @@ gboolean chime_conversation_has_member(ChimeConversation *conv, const gchar *mem
 
 const gchar *chime_conversation_get_last_sent(ChimeConversation *self);
 
+const gchar *chime_conversation_get_updated_on(ChimeConversation *self);
+
 ChimeConversation *chime_connection_conversation_by_name(ChimeConnection *cxn,
 					 const gchar *name);
 ChimeConversation *chime_connection_conversation_by_id(ChimeConnection *cxn,

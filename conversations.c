@@ -111,26 +111,43 @@ static void on_conv_typing(ChimeConversation *conv, ChimeContact *contact, gbool
 		serv_got_typing_stopped(im->m.conn, email);
 }
 
-void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn)
+/* Return TRUE or set *peer to the one other member */
+static gboolean is_group_conv(ChimeConnection *cxn, ChimeConversation *conv, ChimeContact **peer)
 {
-	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
-
 	GList *members = chime_conversation_get_members(conv);
 	if (g_list_length(members) != 2) {
 		g_list_free(members);
+		return TRUE;
+	}
+
+	/* We want the one that *isn't* the local user */
+	if (!strcmp(chime_connection_get_profile_id(cxn), chime_contact_get_profile_id(members->data)))
+		*peer = g_object_ref(members->next->data);
+	else
+		*peer = g_object_ref(members->data);
+
+	g_list_free(members);
+
+	return FALSE;
+}
+
+static void refresh_convlist(ChimeObject *obj, GParamSpec *pspec, PurpleConnection *conn);
+
+void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+	ChimeContact *peer = NULL;
+
+	/* If we are displaying the Recent Connections dialog, update it. */
+	refresh_convlist(NULL, NULL, conn);
+
+	if (is_group_conv(cxn, conv, &peer)) {
 		on_chime_new_group_conv(cxn, conv, conn);
 		return;
 	}
-	struct chime_im *im = g_new0(struct chime_im, 1);
-	im->peer = members->data;
 
-	const gchar *profile_id = chime_contact_get_profile_id(im->peer);
-	if (!strcmp(chime_connection_get_profile_id(cxn), profile_id)) {
-		im->peer = members->next->data;
-		profile_id = chime_contact_get_profile_id(im->peer);
-	}
-	g_list_free(members);
-	g_object_ref(im->peer);
+	struct chime_im *im = g_new0(struct chime_im, 1);
+	im->peer = peer;
 
 	const gchar *email = chime_contact_get_email(im->peer);
 	/* Where multiple profiles exist with the same email address (yes, it happens!),
@@ -145,7 +162,7 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 	    !g_hash_table_lookup(pc->ims_by_email, email))
 		g_hash_table_insert(pc->ims_by_email, (void *)email, im);
 
-	g_hash_table_insert(pc->ims_by_profile_id, (void *)profile_id, im);
+	g_hash_table_insert(pc->ims_by_profile_id, (void *)chime_contact_get_profile_id(im->peer), im);
 
 	g_signal_connect(conv, "typing", G_CALLBACK(on_conv_typing), im);
 
@@ -355,4 +372,162 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 
 	chime_connection_autocomplete_contact_async(pc->cxn, who, NULL, autocomplete_im_cb, imd);
 	return 0;
+}
+
+static void unsub_conv_object(ChimeConnection *cxn, ChimeObject *obj, PurpleConnection *conn)
+{
+	g_signal_handlers_disconnect_matched(obj, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA, 0, 0, NULL,
+					     G_CALLBACK(refresh_convlist), conn);
+}
+
+static void convlist_closed_cb(gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	if (!pc)
+		return;
+
+	if (pc->convlist_refresh_id) {
+		g_source_remove(pc->convlist_refresh_id);
+		pc->convlist_refresh_id = 0;
+	}
+	pc->convlist_handle = NULL;
+
+	/* Unsubscribe from all the signals that were updating the dialog contents */
+	chime_connection_foreach_conversation(PURPLE_CHIME_CXN(conn), (void *)unsub_conv_object, conn);
+	chime_connection_foreach_contact(PURPLE_CHIME_CXN(conn), (void *)unsub_conv_object, conn);
+
+}
+
+static void open_im_conv(PurpleConnection *conn, GList *row, gpointer _unused)
+{
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
+	ChimeConversation *conv = chime_connection_conversation_by_name(cxn, row->data);
+
+	if (!conv)
+		return;
+
+	ChimeContact *peer = NULL;
+	if (is_group_conv(cxn, conv, &peer)) {
+		do_join_chat(conn, cxn, CHIME_OBJECT(conv), NULL, NULL);
+	} else {
+		PurpleConversation *pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM,
+								   purple_connection_get_account(conn),
+								   chime_contact_get_email(peer));
+		g_object_unref(peer);
+		purple_conversation_present(pconv);
+	}
+}
+
+static gint compare_conv_date(ChimeConversation *a, ChimeConversation *b)
+{
+	return g_strcmp0(chime_conversation_get_updated_on(b),
+			 chime_conversation_get_updated_on(a));
+}
+
+static void insert_conv(ChimeConnection *cxn, ChimeConversation *conv, gpointer _convs)
+{
+	GList **convs = _convs;
+
+	/* We don't ref it as we'll use it immediately before anything else can happen */
+	*convs = g_list_insert_sorted(*convs, conv, (GCompareFunc) compare_conv_date);
+}
+
+static PurpleNotifySearchResults *generate_recent_convs(PurpleConnection *conn)
+{
+	PurpleNotifySearchResults *results = purple_notify_searchresults_new();
+	PurpleNotifySearchColumn *column;
+
+	column = purple_notify_searchresults_column_new(_("Who"));
+	purple_notify_searchresults_column_add(results, column);
+	column = purple_notify_searchresults_column_new(_("Updated"));
+	purple_notify_searchresults_column_add(results, column);
+	column = purple_notify_searchresults_column_new(_("Availability"));
+	purple_notify_searchresults_column_add(results, column);
+
+	purple_notify_searchresults_button_add(results, PURPLE_NOTIFY_BUTTON_IM, open_im_conv);
+
+	GList *convs = NULL;
+	chime_connection_foreach_conversation(PURPLE_CHIME_CXN(conn), insert_conv, &convs);
+
+	gpointer klass = g_type_class_ref(CHIME_TYPE_AVAILABILITY);
+
+	while (convs) {
+		ChimeConversation *conv = convs->data;
+		convs = g_list_delete_link(convs, convs);
+
+		GList *row = NULL;
+		row = g_list_append(row, g_strdup(chime_conversation_get_name(conv)));
+		row = g_list_append(row, g_strdup(chime_conversation_get_updated_on(conv)));
+
+		ChimeContact *peer = NULL;
+		if (is_group_conv(PURPLE_CHIME_CXN(conn), conv, &peer)) {
+			row = g_list_append(row, g_strdup("(N/A)"));
+		} else {
+			GEnumValue *val = g_enum_get_value(klass, chime_contact_get_availability(peer));
+			row = g_list_append(row, g_strdup(_(val->value_nick)));
+			g_signal_handlers_disconnect_matched(peer, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA, 0, 0, NULL,
+						     G_CALLBACK(refresh_convlist), conn);
+			g_signal_connect(peer, "notify::availability", G_CALLBACK(refresh_convlist), conn);
+			g_object_unref(peer);
+		}
+
+		purple_notify_searchresults_row_add(results, row);
+
+		g_signal_handlers_disconnect_matched(conv, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA, 0, 0, NULL,
+						     G_CALLBACK(refresh_convlist), conn);
+		g_signal_connect(conv, "notify::name", G_CALLBACK(refresh_convlist), conn);
+		g_signal_connect(conv, "notify::updated_on", G_CALLBACK(refresh_convlist), conn);
+	}
+
+	g_type_class_unref(klass);
+	return results;
+}
+
+static gboolean update_convlist(gpointer _conn)
+{
+	PurpleConnection *conn = _conn;
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	PurpleNotifySearchResults *results = generate_recent_convs(conn);
+	purple_notify_searchresults_new_rows(conn, results, pc->convlist_handle);
+
+	pc->convlist_refresh_id = 0;
+	return FALSE;
+}
+
+static void refresh_convlist(ChimeObject *obj, GParamSpec *pspec, PurpleConnection *conn)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	if (!pc->convlist_handle || pc->convlist_refresh_id)
+		return;
+
+	pc->convlist_refresh_id = g_idle_add(update_convlist, conn);
+}
+
+void chime_purple_recent_conversations(PurplePluginAction *action)
+{
+	PurpleConnection *conn = (PurpleConnection *) action->context;
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	if (pc->convlist_handle) {
+		if (!pc->convlist_refresh_id)
+			pc->convlist_refresh_id = g_idle_add(update_convlist, conn);
+		return;
+	}
+
+	PurpleNotifySearchResults *results = generate_recent_convs(conn);
+	pc->convlist_handle = purple_notify_searchresults(conn, _("Recent Chime Conversations"),
+							  _("Recent conversations:"),
+							  conn->account->username, results,
+							  convlist_closed_cb, conn);
+	if (!pc->convlist_handle) {
+		purple_notify_error(conn, NULL,
+				    _("Unable to display recent conversations."),
+				    NULL);
+		convlist_closed_cb(conn);
+		return;
+	}
 }

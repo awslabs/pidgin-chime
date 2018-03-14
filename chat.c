@@ -473,8 +473,10 @@ struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, Ch
 
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, obj);
-	if (chat)
+	if (chat) {
+		purple_conversation_present(chat->conv);
 		return chat;
+	}
 
 	chat = g_new0(struct chime_chat, 1);
 

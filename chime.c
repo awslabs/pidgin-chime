@@ -398,6 +398,10 @@ static GList *chime_purple_plugin_actions(PurplePlugin *plugin,
 				       chime_purple_show_about_plugin);
 	acts = g_list_append(acts, act);
 
+	act = purple_plugin_action_new(_("Recent conversations..."),
+				       chime_purple_recent_conversations);
+	acts = g_list_append(acts, act);
+
 	act = purple_plugin_action_new(_("User search..."),
 				       chime_purple_user_search);
 	acts = g_list_append(acts, act);

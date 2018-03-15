@@ -271,13 +271,9 @@ subscribe_contact(ChimeConnection *cxn, ChimeContact *contact)
 
 	contact->cxn = cxn;
 
-	if (contact->profile_channel)
+	if (contact->presence_channel)
 		chime_jugg_subscribe(cxn, contact->presence_channel, "Presence",
 				     contact_presence_jugg_cb, contact);
-
-	if (contact->profile_channel)
-		chime_jugg_subscribe(cxn, contact->profile_channel,
-				     NULL, NULL, NULL);
 
 	/* As well as subscribing to the channel, we'll need to fetch the
 	 * initial presence information for this contact */
@@ -617,8 +613,7 @@ static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
 		if (contact->presence_channel)
 			chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence",
 					       contact_presence_jugg_cb, contact);
-		if (contact->profile_channel)
-			chime_jugg_unsubscribe(contact->cxn, contact->profile_channel, NULL, NULL, NULL);
+
 		contact->cxn = NULL;
 	}
 }

@@ -38,6 +38,7 @@ static GParamSpec *props[LAST_PROP];
 struct _ChimeContact {
 	ChimeObject parent_instance;
 
+	gboolean subscribed;
 	ChimeConnection *cxn; /* For unsubscribing from jugg channels */
 
 	gchar *presence_channel;
@@ -72,6 +73,7 @@ const gchar *chime_availability_name(ChimeAvailability av)
 }
 
 static void unsubscribe_contact(gpointer key, gpointer val, gpointer data);
+static void subscribe_contact(ChimeConnection *cxn, ChimeContact *contact);
 
 static void
 chime_contact_dispose(GObject *object)
@@ -254,6 +256,9 @@ ChimeAvailability chime_contact_get_availability(ChimeContact *contact)
 {
 	g_return_val_if_fail(CHIME_IS_CONTACT(contact), CHIME_AVAILABILITY_UNKNOWN);
 
+	if (!contact->subscribed)
+		subscribe_contact(contact->cxn, contact);
+
 	return contact->availability;
 }
 
@@ -304,7 +309,7 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 				       "profile-channel", profile_channel,
 				       NULL);
 
-		subscribe_contact(cxn, contact);
+		contact->cxn = cxn;
 
 		/* If it's not being hashed, keep it because our caller owns it */
 		if (!is_contact)
@@ -331,19 +336,16 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 		g_object_notify(G_OBJECT(contact), "display-name");
 	}
 
-	gboolean need_resubscribe = FALSE;
 	if (presence_channel && !contact->presence_channel) {
 		contact->presence_channel = g_strdup(presence_channel);
 		g_object_notify(G_OBJECT(contact), "presence-channel");
-		need_resubscribe = TRUE;
+		if (contact->subscribed)
+			subscribe_contact(cxn, contact);
 	}
 	if (profile_channel && !contact->profile_channel) {
 		contact->profile_channel = g_strdup(profile_channel);
 		g_object_notify(G_OBJECT(contact), "profile-channel");
-		need_resubscribe = TRUE;
 	}
-	if (need_resubscribe && contact->cxn)
-		subscribe_contact(cxn, contact);
 
 	if (is_contact)
 		chime_object_collection_hash_object(&priv->contacts,
@@ -610,7 +612,7 @@ static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
 		priv->contacts_needed = g_slist_remove(priv->contacts_needed,
 						       contact);
 
-		if (contact->presence_channel)
+		if (contact->subscribed)
 			chime_jugg_unsubscribe(contact->cxn, contact->presence_channel, "Presence",
 					       contact_presence_jugg_cb, contact);
 

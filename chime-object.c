@@ -53,6 +53,13 @@ static GParamSpec *props[LAST_PROP];
 
 G_DEFINE_TYPE_WITH_PRIVATE(ChimeObject, chime_object, G_TYPE_OBJECT)
 
+enum {
+	DISPOSED,
+	LAST_SIGNAL,
+};
+
+static guint signals[LAST_SIGNAL];
+
 static void
 chime_object_dispose(GObject *object)
 {
@@ -70,6 +77,8 @@ chime_object_dispose(GObject *object)
 
 	if (priv->cxn)
 		g_clear_object(&priv->cxn);
+
+	g_signal_emit(object, signals[DISPOSED], 0);
 
 	G_OBJECT_CLASS(chime_object_parent_class)->dispose(object);
 }
@@ -195,6 +204,11 @@ static void chime_object_class_init(ChimeObjectClass *klass)
 				     G_PARAM_STATIC_STRINGS);
 
 	g_object_class_install_properties(object_class, LAST_PROP, props);
+
+	signals[DISPOSED] =
+		g_signal_new ("disposed",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 }
 
 static void chime_object_init(ChimeObject *self)

@@ -97,6 +97,7 @@ void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, Purp
 void chime_purple_chat_invite(PurpleConnection *conn, int id, const char *message, const char *who);
 struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeObject *obj, JsonNode *first_msg, ChimeMeeting *meeting);
 GList *chime_purple_chat_menu(PurpleChat *chat);
+char *chime_purple_get_cb_alias(PurpleConnection *conn, int id, const gchar *who);
 
 /* conversations.c */
 void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);

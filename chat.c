@@ -825,3 +825,13 @@ GList *chime_purple_chat_menu(PurpleChat *pchat)
 
 	return items;
 }
+
+char *chime_purple_get_cb_alias(PurpleConnection *conn, int id, const gchar *who)
+{
+	ChimeContact *contact = chime_connection_contact_by_email(PURPLE_CHIME_CXN(conn), who);
+
+	if (contact)
+		return g_strdup(chime_contact_get_display_name(contact));
+	else
+		return NULL;
+}

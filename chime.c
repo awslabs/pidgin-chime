@@ -320,7 +320,12 @@ static GList *chime_purple_blist_node_menu(PurpleBlistNode *node)
 	}
 }
 
+#ifdef PURPLE_BLIST_NODE_IS_VISIBLE /* This was added at the same time */
+#define PRPL_HAS_GET_CB_ALIAS
+#endif
+
 static PurplePluginProtocolInfo chime_prpl_info = {
+	.struct_size = sizeof(PurplePluginProtocolInfo),
 	.options = OPT_PROTO_NO_PASSWORD,
 	.list_icon = chime_purple_list_icon,
 	.login = chime_purple_login,
@@ -343,6 +348,9 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.send_typing = chime_send_typing,
 	.set_idle = chime_purple_set_idle,
 	.blist_node_menu = chime_purple_blist_node_menu,
+#ifdef PRPL_HAS_GET_CB_ALIAS
+	.get_cb_alias = chime_purple_get_cb_alias,
+#endif
 };
 
 static void chime_purple_show_about_plugin(PurplePluginAction *action)

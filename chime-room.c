@@ -760,8 +760,10 @@ static void close_room(gpointer key, gpointer val, gpointer data)
 		chime_jugg_unsubscribe(room->cxn, room->channel, "RoomMembership", room_membership_jugg_cb, room);
 		room->cxn = NULL;
 	}
-	if (room->members)
-		g_hash_table_remove_all(room->members);
+	if (room->members) {
+		g_hash_table_destroy(room->members);
+		room->members = NULL;
+	}
 	room->members_done[0] = room->members_done[1] = FALSE;
 }
 

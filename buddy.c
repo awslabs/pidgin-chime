@@ -28,9 +28,6 @@
 
 #include <libsoup/soup.h>
 
-/* Consimes buddies list */
-
-
 static void on_contact_availability(ChimeContact *contact, GParamSpec *ignored, PurpleConnection *conn)
 {
 	ChimeAvailability availability = chime_contact_get_availability(contact);
@@ -50,6 +47,19 @@ static void on_contact_display_name(ChimeContact *contact, GParamSpec *ignored, 
 	}
 }
 
+static void on_contact_disposed(ChimeContact *contact, PurpleConnection *conn)
+{
+	PurpleGroup *group = purple_find_group(_("xx Ignore transient Chime contacts xx"));
+	if (group) {
+		PurpleBuddy *buddy = purple_find_buddy_in_group(conn->account,
+								chime_contact_get_email(contact),
+								group);
+		if (buddy)
+			purple_blist_remove_buddy(buddy);
+	}
+}
+
+
 static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, PurpleConnection *conn)
 {
 	gboolean is_buddy;
@@ -61,10 +71,6 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 	is_buddy = chime_contact_get_contacts_list(contact);
 
 	if (!is_buddy) {
-		g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
-						     0, 0, NULL, on_contact_availability, conn);
-		g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
-						     0, 0, NULL, on_contact_display_name, conn);
 		/* Don't remove from blist until we're fully connected because
 		 * some contacts may appear first from conversations and only
 		 * later from the contacts list. We don't want to delete them
@@ -73,36 +79,26 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 		if (PURPLE_CONNECTION_IS_CONNECTED(conn)) {
 			GSList *buddies = purple_find_buddies(conn->account, email);
 			while (buddies) {
-				purple_blist_remove_buddy(buddies->data);
+				if (PURPLE_BLIST_NODE_SHOULD_SAVE(buddies->data))
+					purple_blist_remove_buddy(buddies->data);
 				buddies = g_slist_remove(buddies, buddies->data);
 			}
 		}
 	} else {
 		const gchar *display_name = chime_contact_get_display_name(contact);
 
-		/* Is there a better way to do this? In the absence of somewhere to
-		 * easily store the handler ID returned from g_signal_connect()?
-		 * We don't want to connect the same handler multiple times. */
-		g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
-						     0, 0, NULL, on_contact_availability, conn);
-		g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
-						     0, 0, NULL, on_contact_display_name, conn);
-		g_signal_connect(contact, "notify::availability",
-				 G_CALLBACK(on_contact_availability), conn);
-		g_signal_connect(contact, "notify::display-name",
-				 G_CALLBACK(on_contact_display_name), conn);
-
+		gboolean found = FALSE;
 		GSList *buddies = purple_find_buddies(conn->account, email);
-		if (buddies) {
-			while (buddies) {
-				PurpleBuddy *buddy = buddies->data;
-				purple_blist_server_alias_buddy(buddy, display_name);
-				buddies = g_slist_remove(buddies, buddy);
-			}
-			if (availability)
-				purple_prpl_got_user_status(conn->account, email,
-							    chime_availability_name(availability), NULL);
-		} else {
+		while (buddies) {
+			PurpleBuddy *buddy = buddies->data;
+			if (PURPLE_BLIST_NODE_SHOULD_SAVE(buddy))
+				found = TRUE;
+			purple_blist_server_alias_buddy(buddy, display_name);
+			buddies = g_slist_remove(buddies, buddy);
+		}
+		/* If this is a known contact on the server and we didn't find it
+		   in Pidgin except as a transient one, add it now. */
+		if (!found) {
 			PurpleGroup *group = purple_find_group(_("Chime Contacts"));
 			if (!group) {
 				group = purple_group_new(_("Chime Contacts"));
@@ -112,13 +108,36 @@ static void on_buddystatus_changed(ChimeContact *contact, GParamSpec *ignored, P
 			purple_blist_server_alias_buddy(buddy, display_name);
 			purple_blist_add_buddy(buddy, NULL, group, NULL);
 		}
+
+		if (availability)
+			purple_prpl_got_user_status(conn->account, email,
+						    chime_availability_name(availability), NULL);
 	}
 }
 
 void on_chime_new_contact(ChimeConnection *cxn, ChimeContact *contact, PurpleConnection *conn)
 {
+	g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, on_buddystatus_changed, conn);
+	g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, on_contact_availability, conn);
+	g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, on_contact_display_name, conn);
+	g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, on_contact_disposed, conn);
+
 	g_signal_connect(contact, "notify::dead",
 			 G_CALLBACK(on_buddystatus_changed), conn);
+	g_signal_connect(contact, "notify::availability",
+			 G_CALLBACK(on_contact_availability), conn);
+	g_signal_connect(contact, "notify::display-name",
+			 G_CALLBACK(on_contact_display_name), conn);
+	g_signal_connect(contact, "disposed",
+			 G_CALLBACK(on_contact_disposed), conn);
+
+	/* Refresh status for transient buddies on reconnect */
+	if (purple_find_buddy(conn->account, chime_contact_get_email(contact)))
+		on_contact_availability(contact, NULL, conn);
 
 	/* When invoked for all contacts on the CONNECTED signal, we don't immediately
 	   get the above signal invoked because they're not actually *new* contacts.
@@ -147,18 +166,27 @@ static void on_buddy_invited(GObject *source, GAsyncResult *result, gpointer use
 void chime_purple_add_buddy(PurpleConnection *conn, PurpleBuddy *buddy, PurpleGroup *group)
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
+
 	ChimeContact *contact = chime_connection_contact_by_email(cxn,
 								  purple_buddy_get_name(buddy));
-	if (contact) {
-		ChimeAvailability availability = chime_contact_get_availability(contact);
 
+	if (contact) {
 		purple_blist_server_alias_buddy(buddy, chime_contact_get_display_name(contact));
-		if (availability)
-			purple_prpl_got_user_status(conn->account, purple_buddy_get_name(buddy),
-						    chime_availability_name(availability), NULL);
+		on_contact_availability(contact, NULL, conn);
+
 		if (chime_contact_get_contacts_list(contact))
 			return;
+
+		/* Ensure we are subscribed to signals */
+		on_chime_new_contact(cxn, contact, conn);
 	}
+
+	if (!PURPLE_BLIST_NODE_SHOULD_SAVE(buddy)) {
+		/* XX: if (!contact) we should probably look it up with an
+		 * autocomplete search */
+		return;
+	}
+
 	chime_connection_invite_contact_async(cxn, purple_buddy_get_name(buddy),
 					      NULL, on_buddy_invited, conn);
 }
@@ -180,7 +208,7 @@ void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, Purpl
 	GSList *buddies = purple_find_buddies(conn->account, buddy->name);
 	while (buddies) {
 		PurpleBuddy *b = buddies->data;
-		if (b != buddy) {
+		if (b != buddy && PURPLE_BLIST_NODE_SHOULD_SAVE(b)) {
 			g_slist_free(buddies);
 			return;
 		}
@@ -189,6 +217,9 @@ void chime_purple_remove_buddy(PurpleConnection *conn, PurpleBuddy *buddy, Purpl
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	ChimeContact *contact = chime_connection_contact_by_email(cxn,
 								  buddy->name);
+	if (!chime_contact_get_contacts_list(contact))
+		return;
+
 	g_signal_handlers_disconnect_matched(contact, G_SIGNAL_MATCH_DATA,
 					     0, 0, NULL, NULL, conn);
 

@@ -89,11 +89,12 @@ static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, 
 	GSList *l = purple_find_buddies(conn->account, NULL);
 	while (l) {
 		PurpleBuddy *buddy = l->data;
-		ChimeContact *contact = chime_connection_contact_by_email(cxn,
-									  purple_buddy_get_name(buddy));
-		if (!contact || !chime_contact_get_contacts_list(contact))
-			purple_blist_remove_buddy(buddy);
-
+		if (PURPLE_BLIST_NODE_SHOULD_SAVE(buddy)) {
+			ChimeContact *contact = chime_connection_contact_by_email(cxn,
+										  purple_buddy_get_name(buddy));
+			if (!contact || !chime_contact_get_contacts_list(contact))
+				purple_blist_remove_buddy(buddy);
+		}
 		l = g_slist_remove(l, buddy);
 	}
 
@@ -322,11 +323,13 @@ static GList *chime_purple_blist_node_menu(PurpleBlistNode *node)
 
 #ifdef PURPLE_BLIST_NODE_IS_VISIBLE /* This was added at the same time */
 #define PRPL_HAS_GET_CB_ALIAS
+#else
+#define OPT_PROTO_TRANSIENT_BUDDIES 0
 #endif
 
 static PurplePluginProtocolInfo chime_prpl_info = {
 	.struct_size = sizeof(PurplePluginProtocolInfo),
-	.options = OPT_PROTO_NO_PASSWORD,
+	.options = OPT_PROTO_NO_PASSWORD | OPT_PROTO_TRANSIENT_BUDDIES,
 	.list_icon = chime_purple_list_icon,
 	.login = chime_purple_login,
 	.close = chime_purple_close,

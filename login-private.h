@@ -59,8 +59,12 @@ void chime_login_warpdrive(SoupSession *sessioin, SoupMessage *msg, gpointer dat
 	(((struct login *) (state))->session)
 #define login_connection(state)			\
 	(((struct login *) (state))->connection)
-#define login_account_email(state)				\
-	(((struct login *) (state))->connection->prpl_conn->account->username)
+#define login_prplconn(state)			\
+	((PurpleConnection *)login_connection(state)->prpl_conn)
+#define login_account(state)			\
+	(login_prplconn(state)->account)
+#define login_account_email(state)		\
+	(login_account(state)->username)
 
 #define login_fail_on_error(msg, state)				\
 	do {								\

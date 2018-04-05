@@ -336,14 +336,14 @@ chime_connection_init(ChimeConnection *self)
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
 
 ChimeConnection *
-chime_connection_new(PurpleConnection *connection, const gchar *server,
+chime_connection_new(void *prpl_conn, const gchar *server,
 		     const gchar *device_token, const gchar *session_token)
 {
 	if (!server || !*server)
 		server = SIGNIN_DEFAULT;
 
 	return g_object_new (CHIME_TYPE_CONNECTION,
-	                     "purple-connection", connection,
+	                     "purple-connection", prpl_conn,
 			     "server", server ? server : SIGNIN_DEFAULT,
 			     "device-token", device_token,
 			     "session-token", session_token,

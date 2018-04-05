@@ -136,8 +136,7 @@ static void request_credentials_with_fields(struct login_amzn *state, gboolean r
 			      PASS_TITLE, text, retry ? PASS_FAIL : NULL, fields,
 			      PASS_OK, G_CALLBACK(gather_credentials_and_send),
 			      PASS_CANCEL, G_CALLBACK(chime_login_cancel_ui),
-			      login_connection(state)->prpl_conn->account,
-			      NULL, NULL, state);
+			      login_account(state), NULL, NULL, state);
 }
 
 static void request_credentials_with_input(struct login_amzn *state, gboolean retry)
@@ -151,8 +150,7 @@ static void request_credentials_with_input(struct login_amzn *state, gboolean re
 			     FALSE, TRUE, (gchar *) "password",
 			     PASS_OK, G_CALLBACK(send_credentials),
 			     PASS_CANCEL, G_CALLBACK(chime_login_cancel_ui),
-			     login_connection(state)->prpl_conn->account,
-			     NULL, NULL, state);
+			     login_account(state), NULL, NULL, state);
 }
 
 static void request_credentials(struct login_amzn *state, gboolean retry)

@@ -20,6 +20,8 @@
 
 #include <glib.h>
 
+#include <prpl.h>
+
 #include <libsoup/soup.h>
 #include <json-glib/json-glib.h>
 

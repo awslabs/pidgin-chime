@@ -342,8 +342,7 @@ static void request_credentials_with_fields(struct login_wd *state, gboolean ret
 			      retry ? AUTH_FAIL : NULL, fields,
 			      AUTH_SEND, G_CALLBACK(gather_credentials_and_send),
 			      AUTH_CANCEL, G_CALLBACK(chime_login_cancel_ui),
-			      login_connection(state)->prpl_conn->account,
-			      NULL, NULL, state);
+			      login_account(state), NULL, NULL, state);
 }
 
 static void request_password_with_input(struct login_wd *state, const gchar *username)
@@ -360,8 +359,7 @@ static void request_password_with_input(struct login_wd *state, const gchar *use
 			     NULL, FALSE, TRUE, (gchar *) "password",
 			     AUTH_SEND, G_CALLBACK(send_credentials),
 			     AUTH_CANCEL, G_CALLBACK(chime_login_cancel_ui),
-			     login_connection(state)->prpl_conn->account,
-			     NULL, NULL, state);
+			     login_account(state), NULL, NULL, state);
 }
 
 static void request_username_with_input(struct login_wd *state, gboolean retry)
@@ -371,8 +369,7 @@ static void request_username_with_input(struct login_wd *state, gboolean retry)
 			     NULL, FALSE, FALSE, NULL,
 			     _("OK"), G_CALLBACK(request_password_with_input),
 			     AUTH_CANCEL, G_CALLBACK(chime_login_cancel_ui),
-			     login_connection(state)->prpl_conn->account,
-			     NULL, NULL, state);
+			     login_account(state), NULL, NULL, state);
 }
 
 static void request_credentials(struct login_wd *state, gboolean retry)

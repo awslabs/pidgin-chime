@@ -19,7 +19,6 @@
 #define __CHIME_CONNECTION_H__
 
 #include <glib-object.h>
-#include <prpl.h>
 #include <libsoup/soup.h>
 #include <json-glib/json-glib.h>
 
@@ -31,7 +30,7 @@ G_DECLARE_FINAL_TYPE (ChimeConnection, chime_connection, CHIME, CONNECTION, GObj
 struct _ChimeConnection {
 	GObject parent_instance;
 
-	PurpleConnection *prpl_conn;
+	void *prpl_conn;
 };
 
 #define CHIME_ERROR (chime_error_quark())
@@ -58,7 +57,7 @@ typedef void (*ChimeSoupMessageCallback)(ChimeConnection *cxn,
 					 JsonNode *node,
 					 gpointer cb_data);
 
-ChimeConnection *chime_connection_new                        (PurpleConnection *connection,
+ChimeConnection *chime_connection_new                        (void *prpl_conn,
 							      const gchar *server,
 							      const gchar *device_token,
 							      const gchar *session_token);

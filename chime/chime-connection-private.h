@@ -28,6 +28,9 @@
 
 #include <libsoup/soup.h>
 
+#include <stdlib.h>
+#include <stdio.h>
+
 #ifndef USE_LIBSOUP_WEBSOCKETS
 #include "chime-websocket-connection.h"
 
@@ -228,7 +231,6 @@ void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel,
 void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel,
 			    const gchar *klass, JuggernautCallback cb,
 			    gpointer cb_data);
-void chime_purple_keepalive(PurpleConnection *conn);
 
 /* chime-rooms.c */
 void chime_init_rooms(ChimeConnection *cxn);

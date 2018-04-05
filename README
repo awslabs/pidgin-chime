@@ -25,8 +25,8 @@ $ make
 $ sudo make install
 
 Given the rate of development, you may find it easier to make a symbolic
-link from the installed plugin (e.g. /usr/lib64/purple-2/libchime.so) to
-.libs/libchime.so in your working tree.
+link from the installed plugin (e.g. /usr/lib64/purple-2/libchimeprpl.so) to
+.libs/libchimeprpl.so in your working tree.
 
 
     ==============

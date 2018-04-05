@@ -9,8 +9,6 @@ AM_CPPFLAGS = @WFLAGS@
 
 plugin_LTLIBRARIES = libchimeprpl.la
 
-WEBSOCKET_SRCS = chime-websocket-connection.c chime-websocket-connection.h chime-websocket.c
-
 PROTOBUF_SRCS = protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
 		protobuf/data_message.pb-c.c protobuf/data_message.pb-c.h \
 		protobuf/rt_message.pb-c.c protobuf/rt_message.pb-c.h
@@ -19,25 +17,27 @@ PRPL_SRCS =	chime.h chime.c buddy.c rooms.c chat.c messages.c conversations.c me
 
 LOGIN_SRCS =	login.c login-amazon.c login-warpdrive.c login-private.h
 
-CHIME_SRCS =	chime-connection.c chime-connection.h \
-		chime-contact.c chime-contact.h \
-		chime-room.c chime-room.h \
-		chime-conversation.c chime-conversation.h \
-		chime-object.c chime-object.h chime-props.h \
-		chime-call.c chime-call.h chime-call-audio.c \
-		chime-call-transport.c \
-		chime-juggernaut.c \
-		chime-meeting.c chime-meeting.h
+WEBSOCKET_SRCS = chime/chime-websocket-connection.c chime/chime-websocket-connection.h chime/chime-websocket.c
+
+CHIME_SRCS =	chime/chime-connection.c chime/chime-connection.h \
+		chime/chime-contact.c chime/chime-contact.h \
+		chime/chime-room.c chime/chime-room.h \
+		chime/chime-conversation.c chime/chime-conversation.h \
+		chime/chime-object.c chime/chime-object.h chime/chime-props.h \
+		chime/chime-call.c chime/chime-call.h chime/chime-call-audio.c \
+		chime/chime-call-transport.c \
+		chime/chime-juggernaut.c \
+		chime/chime-meeting.c chime/chime-meeting.h
 
 noinst_LTLIBRARIES = libchime.la
 
 libchime_la_SOURCES = $(CHIME_SRCS) $(WEBSOCKET_SRCS) $(PROTOBUF_SRCS)
-libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(MARKDOWN_CFLAGS) $(GSTREAMER_CFLAGS)
+libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(MARKDOWN_CFLAGS) $(GSTREAMER_CFLAGS) -Ichime
 libchime_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS) $(MARKDOWN_LIBS) $(GSTREAMER_LIBS)
 libchime_la_LDFLAGS = -module -avoid-version -no-undefined
 
 libchimeprpl_la_SOURCES = $(PRPL_SRCS) $(LOGIN_SRCS)
-libchimeprpl_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(MARKDOWN_CFLAGS) $(GSTREAMER_CFLAGS)
+libchimeprpl_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(MARKDOWN_CFLAGS) $(GSTREAMER_CFLAGS) -Ichime
 libchimeprpl_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(MARKDOWN_LIBS) $(GSTREAMER_LIBS) libchime.la
 libchimeprpl_la_LDFLAGS = -module -avoid-version -no-undefined
 
@@ -51,11 +51,11 @@ po/$(PACKAGE).pot: $(POTFILES)
 	  --msgid-bugs-address=dwmw2@infradead.org \
 	  -o $@ $(POTFILES)
 
-chime-call-transport.h: protobuf/auth_message.pb-c.h
-chime-call-transport.h: protobuf/rt_message.pb-c.h
-chime-call-transport.h: protobuf/data_message.pb-c.h
+chime/chime-call-transport.h: protobuf/auth_message.pb-c.h
+chime/chime-call-transport.h: protobuf/rt_message.pb-c.h
+chime/chime-call-transport.h: protobuf/data_message.pb-c.h
 
-chime-call-transport.c chime-call-audio.c chime-call.c: chime-call-transport.h
+chime/chime-call-transport.c chime/chime-call-audio.c chime/chime-call.c: chime/chime-call-transport.h
 
 %.pb-c.c %.pb-c.h: %.proto
 	$(PROTOC) $< --c_out .

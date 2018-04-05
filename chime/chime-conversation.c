@@ -20,7 +20,6 @@
 
 #include "chime-connection-private.h"
 #include "chime-conversation.h"
-#include "chime.h"
 
 #include <glib/gi18n.h>
 

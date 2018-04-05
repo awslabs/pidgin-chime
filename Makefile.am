@@ -13,7 +13,8 @@ PROTOBUF_SRCS = protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
 		protobuf/data_message.pb-c.c protobuf/data_message.pb-c.h \
 		protobuf/rt_message.pb-c.c protobuf/rt_message.pb-c.h
 
-PRPL_SRCS =	chime.h chime.c buddy.c rooms.c chat.c messages.c conversations.c meeting.c attachments.c
+PRPL_SRCS =	prpl/chime.h prpl/chime.c prpl/buddy.c prpl/rooms.c prpl/chat.c \
+		prpl/messages.c prpl/conversations.c prpl/meeting.c prpl/attachments.c
 
 LOGIN_SRCS =	login.c login-amazon.c login-warpdrive.c login-private.h
 
@@ -37,7 +38,7 @@ libchime_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(P
 libchime_la_LDFLAGS = -module -avoid-version -no-undefined
 
 libchimeprpl_la_SOURCES = $(PRPL_SRCS) $(LOGIN_SRCS)
-libchimeprpl_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(MARKDOWN_CFLAGS) $(GSTREAMER_CFLAGS) -Ichime
+libchimeprpl_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(MARKDOWN_CFLAGS) $(GSTREAMER_CFLAGS) -Ichime -Iprpl
 libchimeprpl_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(MARKDOWN_LIBS) $(GSTREAMER_LIBS) libchime.la
 libchimeprpl_la_LDFLAGS = -module -avoid-version -no-undefined
 

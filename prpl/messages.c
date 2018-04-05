@@ -276,7 +276,7 @@ static void chime_update_last_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 				     chime_object_get_id(msgs->obj));
 	gchar *val = g_strdup_printf("%s|%s", msg_id, msg_time);
 
-	purple_account_set_string(cxn->prpl_conn->account, key, val);
+	purple_account_set_string(msgs->conn->account, key, val);
 	g_free(key);
 	g_free(val);
 

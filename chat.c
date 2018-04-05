@@ -612,8 +612,10 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	return 0;
 }
 
-void purple_chime_init_chats(struct purple_chime *pc)
+void purple_chime_init_chats(PurpleConnection *conn)
 {
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
 	pc->live_chats = g_hash_table_new(g_direct_hash, g_direct_equal);
 	pc->chats_by_room = g_hash_table_new(g_direct_hash, g_direct_equal);
 
@@ -621,8 +623,9 @@ void purple_chime_init_chats(struct purple_chime *pc)
 
 }
 
-void purple_chime_destroy_chats(struct purple_chime *pc)
+void purple_chime_destroy_chats(PurpleConnection *conn)
 {
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	GList *chats = g_hash_table_get_values(pc->live_chats);
 	while (chats) {
 		chime_destroy_chat(chats->data);

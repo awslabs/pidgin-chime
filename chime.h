@@ -86,8 +86,8 @@ gchar *chime_purple_roomlist_room_serialize(PurpleRoomlistRoom *room);
 struct chime_chat;
 
 void purple_chime_init_chats_post(PurpleConnection *conn);
-void purple_chime_init_chats(struct purple_chime *pc);
-void purple_chime_destroy_chats(struct purple_chime *pc);
+void purple_chime_init_chats(PurpleConnection *conn);
+void purple_chime_destroy_chats(PurpleConnection *conn);
 void chime_destroy_chat(struct chime_chat *chat);
 void chime_purple_join_chat(PurpleConnection *conn, GHashTable *data);
 void chime_purple_chat_leave(PurpleConnection *conn, int id);

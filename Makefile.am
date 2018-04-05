@@ -1,28 +1,32 @@
 
-SUBDIRS = po pixmaps fs-app-transmitter
+SUBDIRS = po pixmaps fs-app-transmitter gst-chime
 
 if BUILD_EVOPLUGIN
 SUBDIRS += evolution-plugin
 endif
 
-SUBDIRS += gst-chime
-
 AM_CPPFLAGS = @WFLAGS@
 
 plugin_LTLIBRARIES = libchime.la
 
-libchime_la_SOURCES = chime.c buddy.c rooms.c chat.c messages.c conversations.c \
-	chime-connection.c chime-connection.h chime-contact.c chime-contact.h \
-	chime-room.h chime-room.c chime-conversation.h chime-conversation.c \
-	chime-juggernaut.c chime-object.h chime-object.c chime.h \
-	login.c login-amazon.c login-warpdrive.c login-private.h \
-	chime-websocket-connection.c chime-websocket-connection.h chime-websocket.c \
-	chime-meeting.c chime-meeting.h meeting.c chime-props.h \
-	chime-call.c chime-call.h chime-call-audio.c attachments.c \
-	protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
-	protobuf/data_message.pb-c.c protobuf/data_message.pb-c.h \
-	protobuf/rt_message.pb-c.c protobuf/rt_message.pb-c.h \
-	chime-call-audio.h chime-call-transport.c
+WEBSOCKET_SRCS = chime-websocket-connection.c chime-websocket-connection.h chime-websocket.c
+PROTOBUF_SRCS = protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
+		protobuf/data_message.pb-c.c protobuf/data_message.pb-c.h \
+		protobuf/rt_message.pb-c.c protobuf/rt_message.pb-c.h
+PRPL_SRCS = chime.h chime.c buddy.c rooms.c chat.c messages.c conversations.c meeting.c attachments.c
+LOGIN_SRCS = login.c login-amazon.c login-warpdrive.c login-private.h
+
+libchime_la_SOURCES = \
+	chime-connection.c chime-connection.h \
+	chime-contact.c chime-contact.h \
+	chime-room.c chime-room.h \
+	chime-conversation.c chime-conversation.h \
+	chime-object.c chime-object.h chime-props.h \
+	chime-call.c chime-call.h chime-call-audio.c \
+	chime-call-transport.c \
+	chime-juggernaut.c \
+	chime-meeting.c chime-meeting.h \
+	$(WEBSOCKET_SRCS) $(PROTOBUF_SRCS) $(PRPL_SRCS) $(LOGIN_SRCS)
 
 libchime_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(OPUS_CFLAGS) $(FARSTREAM_CFLAGS) $(MARKDOWN_CFLAGS) $(GSTREAMER_CFLAGS)
 libchime_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS) $(OPUS_LIBS) $(FARSTREAM_LIBS) $(MARKDOWN_LIBS) $(GSTREAMER_LIBS)

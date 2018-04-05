@@ -198,7 +198,7 @@ static void chime_purple_login(PurpleAccount *account)
 	struct purple_chime *pc = g_new0(struct purple_chime, 1);
 	purple_connection_set_protocol_data(conn, pc);
 	purple_chime_init_meetings(conn);
-	purple_chime_init_conversations(pc);
+	purple_chime_init_conversations(conn);
 	purple_chime_init_chats(pc);
 	purple_chime_init_messages(conn);
 
@@ -242,7 +242,7 @@ static void chime_purple_close(PurpleConnection *conn)
 
 	purple_chime_destroy_meetings(conn);
 	purple_chime_destroy_messages(conn);
-	purple_chime_destroy_conversations(pc);
+	purple_chime_destroy_conversations(conn);
 	purple_chime_destroy_chats(pc);
 
 	chime_connection_disconnect(pc->cxn);

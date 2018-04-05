@@ -101,8 +101,8 @@ char *chime_purple_get_cb_alias(PurpleConnection *conn, int id, const gchar *who
 
 /* conversations.c */
 void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);
-void purple_chime_init_conversations(struct purple_chime *pc);
-void purple_chime_destroy_conversations(struct purple_chime *pc);
+void purple_chime_init_conversations(PurpleConnection *conn);
+void purple_chime_destroy_conversations(PurpleConnection *conn);
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags);
 unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleTypingState state);
 void chime_purple_recent_conversations(PurplePluginAction *action);

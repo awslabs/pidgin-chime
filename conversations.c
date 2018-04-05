@@ -173,28 +173,6 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 
 }
 
-static void im_destroy(gpointer _im)
-{
-	struct chime_im *im = _im;
-
-	g_signal_handlers_disconnect_matched(im->m.obj, G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, im);
-	g_object_unref(im->peer);
-	cleanup_msgs(&im->m);
-	g_free(im);
-}
-
-void purple_chime_init_conversations(struct purple_chime *pc)
-{
-	pc->ims_by_email = g_hash_table_new(g_str_hash, g_str_equal);
-	pc->ims_by_profile_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, im_destroy);
-}
-
-void purple_chime_destroy_conversations(struct purple_chime *pc)
-{
-	g_clear_pointer(&pc->ims_by_email, g_hash_table_destroy);
-	g_clear_pointer(&pc->ims_by_profile_id, g_hash_table_destroy);
-}
-
 struct im_send_data {
 	PurpleConnection *conn;
 	struct chime_im *im;
@@ -530,4 +508,33 @@ void chime_purple_recent_conversations(PurplePluginAction *action)
 		convlist_closed_cb(conn);
 		return;
 	}
+}
+
+static void im_destroy(gpointer _im)
+{
+	struct chime_im *im = _im;
+
+	g_signal_handlers_disconnect_matched(im->m.obj, G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, im);
+	g_object_unref(im->peer);
+	cleanup_msgs(&im->m);
+	g_free(im);
+}
+
+void purple_chime_init_conversations(PurpleConnection *conn)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	pc->ims_by_email = g_hash_table_new(g_str_hash, g_str_equal);
+	pc->ims_by_profile_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, im_destroy);
+}
+
+void purple_chime_destroy_conversations(PurpleConnection *conn)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	g_clear_pointer(&pc->ims_by_email, g_hash_table_destroy);
+	g_clear_pointer(&pc->ims_by_profile_id, g_hash_table_destroy);
+
+	if (pc->convlist_handle)
+		convlist_closed_cb(conn);
 }

@@ -1,0 +1,309 @@
+//
+// Video signalling protocol message definitions
+// version 2
+//
+// Copyright (c) 2014 Biba Systems, Inc. All rights reserved.
+//
+
+option optimize_for = LITE_RUNTIME;
+
+message SignalFrame {
+    enum Type {
+        JOIN                 = 1;
+        JOIN_ACK             = 2;
+        SUBSCRIBE            = 3;
+        SUBSCRIBE_ACK        = 4;
+        INDEX                = 5;
+        STATS                = 6;
+        PAUSE                = 7;
+        RESUME               = 8;
+        LEAVE                = 9;
+        LEAVE_ACK            = 10;
+        START_STREAM         = 11;
+        STOP_STREAM          = 12;
+        BITRATES             = 13;
+        CLIENT_INFO          = 14;
+        EXPRESS_STATS        = 15;
+        AUDIO_CONTROL        = 16;
+        AUDIO_METADATA       = 17;
+        AUDIO_STREAM_ID_INFO = 18;
+        PING_PONG            = 19;
+        AUDIO_STATUS         = 20;
+    }
+
+    required uint64                 timestamp_ms         = 1;
+    required Type                   type                 = 2;
+    optional ErrorFrame             error                = 3;
+    optional JoinFrame              join                 = 4;    // client => server
+    optional JoinAckFrame           joinack              = 5;    // client <= server
+    optional SubscribeFrame         sub                  = 6;    // client => server
+    optional SubscribeAckFrame      suback               = 7;    // client <= server
+    optional IndexFrame             index                = 8;
+    optional StatsSampleFrame       stats                = 9;
+    optional PauseResumeFrame       pause                = 10;
+    optional LeaveFrame             leave                = 11;
+    optional LeaveAckFrame          leave_ack            = 12;
+    optional StartStopStreamFrame   startstop            = 13;
+    optional BitrateFrame           bitrates             = 14;
+    optional ClientInfoFrame        client_info          = 15;
+    repeated ExpressStatsFrame      express_stats        = 16;
+    optional AudioControlFrame      audio_control        = 17;
+    optional AudioMetadataFrame     audio_metadata       = 18;
+    optional AudioStreamIdInfoFrame audio_stream_id_info = 19;
+    optional PingPongFrame          ping_pong            = 20;
+    optional AudioStatusFrame       audio_status         = 21;
+}
+
+message ErrorFrame {
+    optional uint32 status      = 1;
+    optional string description = 2;
+}
+
+enum JoinFlags {
+    SEND_BITRATES = 1;
+}
+
+message JoinFrame {
+    optional uint32 protocol_version    = 1 [default=2];
+    optional uint32 max_num_of_videos   = 2 [default=8];
+    optional uint32 flags               = 3;
+}
+
+message JoinAckFrame {}
+
+message LeaveFrame {}
+
+message LeaveAckFrame {}
+
+enum StreamServiceType {
+    RX      = 1;
+    TX      = 2;
+    DUPLEX  = 3;
+}
+
+enum StreamMediaType {
+    AUDIO   = 1;
+    VIDEO   = 2;
+}
+
+message SubscribeFrame {
+    optional StreamServiceType  duplex              = 1 [default=RX];
+    repeated StreamDescriptor   send_streams        = 2;
+    repeated uint32             receive_stream_ids  = 3;
+    optional string             sdp_offer           = 4;
+    optional string             xrp_host            = 5;
+    optional bool               xrp_checkin         = 6;
+    optional bool               xrp_muted           = 7;
+}
+
+message SubscribeAckFrame {
+    optional StreamServiceType  duplex      = 1;
+    repeated StreamAllocation   allocations = 2;
+    optional string             sdp_answer  = 3;
+    repeated TrackMapping       tracks      = 4;
+}
+
+message IndexFrame {
+    optional bool               at_capacity             = 1;
+    repeated StreamDescriptor   sources                 = 2;
+    repeated uint32             paused_at_source_ids    = 3;
+}
+
+message StatsSampleFrame {
+    optional uint64                 bytes_sent              = 1;
+    optional uint64                 bytes_recv              = 2;
+    optional uint64                 actual_enc_bitrate      = 3;
+    optional uint64                 avail_send_bandwidth    = 4;
+    optional uint64                 retransmit_bitrate      = 5;
+    optional uint64                 avail_recv_bandwidth    = 6;
+    optional uint64                 target_enc_bitrate      = 7;
+    optional uint64                 bucket_delay            = 8;
+    optional uint64                 transmit_bitrate        = 9;
+    optional uint64                 recv_bitrate            = 10;
+    optional uint64                 target_recv_bitrate     = 11;
+    optional uint64                 transmit_fps            = 12;
+    optional uint64                 local_render_fps        = 13;
+    optional uint64                 remote_render_fps       = 14;
+    optional uint64                 average_encode_ms       = 15;
+    optional uint64                 firs_recv               = 16;
+    optional uint64                 input_fps               = 17;
+    optional uint64                 nacks_recv              = 18;
+    optional uint64                 plis_recv               = 19;
+    optional uint64                 rtt_ms                  = 20;
+    repeated RecvVideoStatsFrame    recv_video_stats        = 21;
+}
+
+message RecvVideoStatsFrame {
+    required uint32 group_id                = 1;
+    required uint32 stream_id               = 2;
+    optional uint64 decode_ms               = 3;
+    optional uint64 firs_sent               = 4;
+    optional uint64 recv_fps                = 5;
+    optional uint64 decode_fps              = 6;
+    optional uint64 output_fps              = 7;
+    optional uint64 render_fps              = 8;
+    optional uint64 nacks_sent              = 9;
+    optional uint64 plis_sent               = 10;
+    optional uint64 packet_lost             = 11;
+    optional uint64 fraction_packet_lost    = 12;
+}
+
+message PauseResumeFrame {
+    repeated uint32 stream_ids  = 1;
+}
+
+message StartStopStreamFrame {
+    repeated uint32 stream_ids  = 1;
+}
+
+message BitrateFrame {
+    repeated Bitrate bitrates   = 1;
+}
+
+message ClientInfoFrame {
+    optional uint32 group_id            = 1;
+    optional uint32 width               = 2;
+    optional uint32 height              = 3;
+}
+
+message StreamDescriptor {
+    optional uint32 stream_id           = 1;
+    optional uint32 framerate           = 2;
+    optional uint32 max_bitrate_kbps    = 3;
+    optional string track_label         = 4;
+    optional uint32 profile_id          = 5;
+    optional uint32 group_id            = 6;
+    optional uint32 avg_bitrate_bps     = 7;
+    optional string profile_uuid        = 8;
+    optional StreamMediaType media_type = 9;
+}
+
+message StreamAllocation {
+    optional string track_label = 1;
+    optional uint32 stream_id   = 2;
+    optional uint32 group_id    = 3;
+}
+
+message TrackMapping {
+    optional uint32 stream_id   = 1;
+    optional uint32 ssrc        = 2;
+    optional string track_label = 3;
+}
+
+message Subscription {
+    optional uint32 source_stream_id        = 1;
+    optional uint32 subscriber_profile_id   = 2;
+}
+
+message Bitrate {
+    optional uint32 source_stream_id    = 1;
+    optional uint32 avg_bitrate_bps     = 2;
+}
+
+enum ExpressStatsType {
+    SSRC_AUDIO_SEND                     = 1;
+    SSRC_AUDIO_RECV                     = 2;
+    SSRC_VIDEO_SEND                     = 3;
+    SSRC_VIDEO_RECV                     = 4;
+    TRACK_REMOTE_AUDIO                  = 5;
+    TRACK_REMOTE_VIDEO                  = 6;
+    VIDEO_BANDWIDTH_ESTIMATION          = 7;
+    INBOUND_RTP_LOCAL                   = 8;
+    OUTBOUND_RTP_LOCAL                  = 9;
+    INBOUND_RTP_LOCAL_VIDEO             = 10;
+    OUTBOUND_RTP_LOCAL_VIDEO            = 11;
+}
+
+enum ExpressMetricType {
+    AUDIO_INPUT_LEVEL                        = 1;
+    AUDIO_OUTUT_LEVEL                        = 2;
+    RESIDUAL_ECHO_LIKELIHOOD                 = 3;
+    ECHO_RETURN_LOSS_ENHANCEMENT_DB          = 4;
+    PACKETS_SENT                             = 5;
+    PACKETS_RECEIVED                         = 6;
+    PACKETS_LOST                             = 7;
+    JITTER_RECEIVED_MS                       = 8;
+    CURRENT_JITTER_BUFFER_MS                 = 9;
+    CURRENT_DELAY_MS                         = 10;
+    TOTAL_AUDIO_ENERGY                       = 11;
+    TOTAL_SAMPLES_RECEIVED                   = 12;
+    CONCEALED_SAMPLES                        = 13;
+    EXPAND_RATE                              = 14;
+    COUNT_DECODING_CALLS_TO_NETEQ            = 15;
+    COUNT_DECODING_NORMAL                    = 16;
+    COUNT_DECODING_PACKET_LOSS_CONCEALMENT   = 17;
+    COUNT_DECODING_COMFORT_NOISE_GENERATED   = 18;
+    COUNT_DECODING_PLCCNG                    = 19;
+    COUNT_DECODING_SILENCE_GENERATED         = 20;
+    COUNT_DECODING_MUTED                     = 21;
+    SECONDARY_DECODED_RATE                   = 22;
+    SECONDARY_DISCARDED_RATE                 = 23;
+    ACCELERATE_RATE                          = 24;
+    SPEECH_EXPAND_RATE                       = 25;
+    PREEMPTIVE_EXPAND_RATE                   = 26;
+    ACTUAL_ENCODER_BITRATE                   = 27;
+    AVAILABLE_SEND_BANDWIDTH                 = 28;
+    RETRANSMIT_BITRATE                       = 29;
+    AVAILABLE_RECEIVE_BANDWIDTH              = 30;
+    TARGET_ENCODER_BITRATE                   = 31;
+    BUCKET_DELAY_MS                          = 32;
+    TRANSMIT_BITRATE                         = 33;
+    ECHO_RETURN_LOSS_DB                      = 34;
+    AEC_DIVERGENT_FILTER_FRACTION            = 35;
+    NACK_COUNT                               = 36;
+}
+
+message ExpressClientMetric {
+    required ExpressMetricType type = 1;
+    required double value           = 2;
+}
+
+message ExpressStatsFrame {
+    required ExpressStatsType type     = 1;
+    optional string stream_id          = 2;
+    optional string group_id           = 3;
+    optional string call_id            = 4;
+    optional string profile_id         = 5;
+    optional string ssrc_id            = 6;
+    repeated ExpressClientMetric stats = 7;
+}
+
+message AudioControlFrame {
+    optional bool muted = 1;
+}
+
+message AudioMetadataFrame {
+    repeated AudioProfileState profile_states = 1;
+}
+
+message AudioProfileState {
+    // either volume or muted should be set, not both
+    optional uint32  audio_stream_id = 1;
+    optional uint32  volume          = 2;
+    optional bool    muted           = 3;
+    optional uint32  signal_strength = 4;
+    optional fixed64 ntp_timestamp   = 5;
+}
+
+message AudioStreamIdInfoFrame {
+    repeated AudioStreamIdInfo streams = 1;
+}
+
+message AudioStreamIdInfo {
+    optional uint32  audio_stream_id = 1;
+    optional string  profile_id      = 2;
+}
+
+enum PingPongType {
+    PING = 1;
+    PONG = 2;
+}
+
+message PingPongFrame {
+    required PingPongType type    = 1;
+    required uint32       ping_id = 2;
+}
+
+message AudioStatusFrame {
+    optional uint32 xrp_status = 1;
+}

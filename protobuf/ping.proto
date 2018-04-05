@@ -1,0 +1,7 @@
+// Copyright (c) 2014 Biba Systems, Inc. All rights reserved.
+
+message Ping {
+    optional uint64 sent_ms     = 1;
+    optional uint64 recv_ms     = 2;
+}
+

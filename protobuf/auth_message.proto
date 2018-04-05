@@ -119,6 +119,7 @@ message AuthMessage {
     optional            bool authorized    = 5;
     optional          string call_uuid     = 6;  // CCP only
     optional          string profile_uuid  = 7;  // for display only, CCP clients
+    optional         fixed64 session_id    = 8;
     optional          uint32 profile_id    = 16; // for display only, relay clients
     
     // at one point we had the idea that codec would be dynamically

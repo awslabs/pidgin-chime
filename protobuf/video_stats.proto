@@ -1,0 +1,14 @@
+
+message VideoStatsSample {
+  required uint64 timestamp_ms          = 1;
+  optional uint64 bytes_sent            = 2;
+  optional uint64 bytes_recv            = 3;
+  optional uint64 actual_enc_bitrate    = 4;
+  optional uint64 avail_send_bandwidth  = 5;
+  optional uint64 retransmit_bitrate    = 6;
+  optional uint64 avail_recv_bandwidth  = 7;
+  optional uint64 target_enc_bitrate    = 8;
+  optional uint64 bucket_delay          = 9;
+  optional uint64 transmit_bitrate      = 10;
+}
+

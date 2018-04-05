@@ -1,0 +1,43 @@
+
+message ScreenClientControlMessage {
+		optional ScreenClientControlMessageType message_type = 1;
+		optional uint32 profile_id = 2;
+		optional string display_name = 3;
+		optional uint32 keycode = 4;
+		optional uint32 keymodifier = 5;
+		optional uint32 mousemodifier = 6;
+		optional uint32 x = 7;
+		optional uint32 y = 8;
+		optional ScreenClientControlMessageError err = 9;
+		optional string errstr = 10; 
+		optional int32 scroll_delta = 11;
+		optional string profile_uuid = 12;
+}
+
+enum ScreenClientControlMessageType {
+		OPEN              = 1;
+		ACK               = 2;
+		NACK              = 3;
+		KEYUP             = 4;
+		KEYDOWN           = 5;
+		MOUSEUP           = 6;
+		MOUSEDOWN         = 7;
+		MOUSEMOVE         = 8;
+		MOUSECLICK        = 9;
+		MOUSEDCLICK       = 10;
+		PARTCLOSE         = 11;
+		UNEXPARTCLOSE     = 12;
+		CLOSE             = 13;
+		UNEXCLOSE         = 14;
+		ERROR             = 15;
+		HSCROLL           = 16;
+		VSCROLL           = 17;
+		RIGHT_MOUSEDOWN	  = 18;
+		RIGHT_MOUSEUP	  = 19;
+}
+
+enum ScreenClientControlMessageError {
+		ERROR_GENERIC = 1;
+		ERROR_SERVER = 2;
+		ERROR_CLIENT = 3;
+}

@@ -1,15 +1,4 @@
 
-DO NOT RELEASE THIS SOURCE CODE (OR BINARIES) OUTSIDE AMAZON YET.
-
-This is proprietary unpublished source code of Amazon. However, the
-intent is that it should be *possible* to release it under LGPL.
-
-Therefore, do not incorporate any code into this repository which may
-not be licensed under the terms of the GNU LGPL v2.1, as presented
-below:
-
-====================================================================
-
                   GNU LESSER GENERAL PUBLIC LICENSE
 		       Version 2.1, February 1999
 

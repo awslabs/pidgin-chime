@@ -62,28 +62,30 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 			audio->last_server_time_offset = msg->audio->server_time - now;
 			audio->echo_server_time = TRUE;
 		}
-		if (msg->audio->has_audio) {
-			GstClock *clk;
-			if (audio->audio_src && audio->appsrc_need_data &&
-			    /* It'll have a clock if it's PLAYING. */
-			    (clk = gst_element_get_clock(GST_ELEMENT(audio->audio_src)))) {
-				GstBuffer *buffer = gst_rtp_buffer_new_allocate(msg->audio->audio.len, 0, 0);
-				GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
-				if (gst_rtp_buffer_map(buffer, GST_MAP_WRITE, &rtp)) {
+		if (msg->audio->has_audio && audio->audio_src && audio->appsrc_need_data) {
+			GstBuffer *buffer = gst_rtp_buffer_new_allocate(msg->audio->audio.len, 0, 0);
+			GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
+			if (gst_rtp_buffer_map(buffer, GST_MAP_WRITE, &rtp)) {
 
-					gst_rtp_buffer_set_ssrc(&rtp, 0x12345678);
-					gst_rtp_buffer_set_payload_type(&rtp, 97);
-					gst_rtp_buffer_set_seq(&rtp, msg->audio->seq);
-					gst_rtp_buffer_set_timestamp(&rtp, msg->audio->sample_time);
-					gst_rtp_buffer_unmap(&rtp);
+				chime_debug("Audio RX seq %d ts %u\n", msg->audio->seq, msg->audio->sample_time);
 
-					gst_buffer_fill(buffer, gst_rtp_buffer_calc_header_len(0),
-							msg->audio->audio.data, msg->audio->audio.len);
+				gst_rtp_buffer_set_ssrc(&rtp, 0x12345678);
+				gst_rtp_buffer_set_payload_type(&rtp, 97);
+				gst_rtp_buffer_set_seq(&rtp, msg->audio->seq);
+				gst_rtp_buffer_set_timestamp(&rtp, msg->audio->sample_time);
+				gst_rtp_buffer_unmap(&rtp);
 
-					gst_app_src_push_buffer(GST_APP_SRC(audio->audio_src), buffer);
-				}
+				gst_buffer_fill(buffer, gst_rtp_buffer_calc_header_len(0),
+						msg->audio->audio.data, msg->audio->audio.len);
+
+				gst_app_src_push_buffer(GST_APP_SRC(audio->audio_src), buffer);
 			}
+		} else {
+			chime_debug("Audio drop (%p %d) seq %d ts %u\n",
+				    audio->audio_src, audio->appsrc_need_data,
+				    msg->audio->seq, msg->audio->sample_time);
 		}
+
 	}
 	gboolean send_sig = FALSE;
 	int i;
@@ -533,7 +535,8 @@ void chime_call_audio_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc
 {
 	audio->audio_sink = appsink;
 	audio->audio_src = appsrc;
-	audio->appsrc_need_data = FALSE;
+
+	audio->appsrc_need_data = TRUE;
 
 	gst_app_src_set_callbacks(appsrc, &chime_appsrc_callbacks, audio, chime_appsrc_destroy);
 	gst_app_sink_set_callbacks(appsink, &chime_appsink_callbacks, audio, chime_appsink_destroy);

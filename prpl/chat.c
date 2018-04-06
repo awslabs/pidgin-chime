@@ -304,7 +304,7 @@ static void call_media_setup(ChimeCall *call, struct chime_chat *chat)
 
 	gchar *srcname = g_strdup_printf("chime_src_%p", call);
 	gchar *sinkname = g_strdup_printf("chime_sink_%p", call);
-	gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time", srcname);
+	gchar *srcpipe = g_strdup_printf("appsrc name=%s format=time do-timestamp=TRUE is-live=TRUE", srcname);
 	gchar *sinkpipe = g_strdup_printf("appsink name=%s async=false", sinkname);
 
 	PurpleMediaCandidate *cand =
@@ -343,7 +343,6 @@ static void call_media_setup(ChimeCall *call, struct chime_chat *chat)
 	gst_app_src_set_size(GST_APP_SRC(appsrc), -1);
 	gst_app_src_set_max_bytes(GST_APP_SRC(appsrc), 100);
 	gst_app_src_set_stream_type(GST_APP_SRC(appsrc), GST_APP_STREAM_TYPE_STREAM);
-//	gst_base_src_set_live(GST_BASE_SRC(appsrc), TRUE);
 	chime_call_install_gst_app_callbacks(chat->call, GST_APP_SRC(appsrc), GST_APP_SINK(appsink));
 	g_object_unref(appsrc);
 	g_object_unref(appsink);

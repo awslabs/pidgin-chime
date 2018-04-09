@@ -47,6 +47,7 @@ if test "$purple_datadir" = "" ; then
 fi
 AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
 
+PKG_CHECK_MODULES(GNUTLS, [gnutls >= 3.2.0])
 PKG_CHECK_MODULES(FARSTREAM, [farstream-0.2])
 PKG_CHECK_MODULES(GSTREAMER, [gstreamer-1.0 gstreamer-app-1.0 gstreamer-rtp-1.0])
 PKG_CHECK_MODULES(OPUS, [opus])

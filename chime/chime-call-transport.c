@@ -23,6 +23,10 @@
 #include <string.h>
 #include <ctype.h>
 
+#include <gnutls/dtls.h>
+
+#define CHIME_DTLS_MTU 1196
+
 static void hexdump(const void *buf, int len)
 {
 	char linechars[17];
@@ -181,13 +185,272 @@ static void chime_call_transport_connect_ws(ChimeCallAudio *audio)
 	g_free(origin);
 }
 
+static void set_gnutls_error (ChimeCallAudio *audio, GError *error)
+{
+	if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+		gnutls_transport_set_errno (audio->dtls_sess, EINTR);
+	else if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_WOULD_BLOCK))
+		gnutls_transport_set_errno (audio->dtls_sess, EAGAIN);
+	else if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_TIMED_OUT))
+		gnutls_transport_set_errno (audio->dtls_sess, EINTR);
+	else if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_MESSAGE_TOO_LARGE))
+		gnutls_transport_set_errno (audio->dtls_sess, EMSGSIZE);
+	else
+		gnutls_transport_set_errno (audio->dtls_sess, EIO);
+
+	g_error_free(error);
+}
+
+static ssize_t
+g_tls_connection_gnutls_pull_func (gnutls_transport_ptr_t  transport_data,
+                                   void                   *buf,
+                                   size_t                  buflen)
+{
+	ChimeCallAudio *audio = transport_data;
+	GError *error = NULL;
+	ssize_t ret;
+
+	GInputVector vector = { buf, buflen };
+	GInputMessage message = { NULL, &vector, 1, 0, 0, NULL, NULL };
+
+	ret = g_datagram_based_receive_messages(G_DATAGRAM_BASED(audio->dtls_sock),
+						&message, 1, 0, 0, NULL, &error);
+	if (ret > 0)
+		ret = message.bytes_received;
+	else if (ret < 0)
+		set_gnutls_error (audio, error);
+
+	return ret;
+}
+
+static ssize_t
+g_tls_connection_gnutls_push_func (gnutls_transport_ptr_t  transport_data,
+                                   const void             *buf,
+                                   size_t                  buflen)
+{
+	ChimeCallAudio *audio = transport_data;
+	GError *error = NULL;
+	ssize_t ret;
+
+	GOutputVector vector = { buf, buflen };
+	GOutputMessage message = { NULL, &vector, 1, 0, NULL, 0 };
+
+	ret = g_datagram_based_send_messages(G_DATAGRAM_BASED(audio->dtls_sock),
+					     &message, 1, 0, 0, NULL, &error);
+
+	if (ret > 0)
+		ret = message.bytes_sent;
+	else if (ret < 0)
+		set_gnutls_error(audio, error);
+
+	return ret;
+}
+
+static ssize_t
+g_tls_connection_gnutls_vec_push_func (gnutls_transport_ptr_t  transport_data,
+                                       const giovec_t         *iov,
+                                       int                     iovcnt)
+{
+	ChimeCallAudio *audio = transport_data;
+	GError *error = NULL;
+	ssize_t ret;
+	GOutputMessage message = { NULL, };
+	GOutputVector *vectors;
+
+	/* this entire expression will be evaluated at compile time */
+	if (sizeof *iov == sizeof *vectors &&
+	    sizeof iov->iov_base == sizeof vectors->buffer &&
+	    G_STRUCT_OFFSET (giovec_t, iov_base) ==
+	    G_STRUCT_OFFSET (GOutputVector, buffer) &&
+	    sizeof iov->iov_len == sizeof vectors->size &&
+	    G_STRUCT_OFFSET (giovec_t, iov_len) ==
+	    G_STRUCT_OFFSET (GOutputVector, size)) {
+		/* ABI is compatible */
+		message.vectors = (GOutputVector *)iov;
+		message.num_vectors = iovcnt;
+	} else {
+		/* ABI is incompatible */
+		gint i;
+
+		message.vectors = g_newa (GOutputVector, iovcnt);
+		for (i = 0; i < iovcnt; i++) {
+			message.vectors[i].buffer = (void *)iov[i].iov_base;
+			message.vectors[i].size = iov[i].iov_len;
+		}
+		message.num_vectors = iovcnt;
+	}
+
+	ret = g_datagram_based_send_messages(G_DATAGRAM_BASED(audio->dtls_sock),
+					     &message, 1, 0, 0, 0, &error);
+
+	if (ret > 0)
+		ret = message.bytes_sent;
+	else if (ret < 0)
+		set_gnutls_error(audio, error);
+
+	return ret;
+}
+
+static gboolean
+read_datagram_based_cb (GDatagramBased *datagram_based,
+                        GIOCondition    condition,
+                        gpointer        user_data)
+{
+	gboolean *read_done = user_data;
+
+	*read_done = TRUE;
+
+	return G_SOURCE_CONTINUE;
+}
+
+static gboolean
+read_timeout_cb (gpointer user_data)
+{
+  gboolean *timed_out = user_data;
+
+  *timed_out = TRUE;
+
+  return G_SOURCE_REMOVE;
+}
+
+static int
+g_tls_connection_gnutls_pull_timeout_func (gnutls_transport_ptr_t transport_data,
+                                           unsigned int           ms)
+{
+	ChimeCallAudio *audio = transport_data;
+
+	/* Fast path. */
+	if (g_datagram_based_condition_check(G_DATAGRAM_BASED(audio->dtls_sock), G_IO_IN) ||
+	    g_cancellable_is_cancelled (audio->cancel))
+		return 1;
+
+	/* If @ms is 0, GnuTLS wants an instant response, so there’s no need to
+	 * construct and query a #GSource. */
+	if (ms > 0) {
+		GMainContext *ctx = NULL;
+		GSource *read_source = NULL, *timeout_source = NULL;
+		gboolean read_done = FALSE, timed_out = FALSE;
+
+		ctx = g_main_context_new ();
+
+		/* Create a timeout source. */
+		timeout_source = g_timeout_source_new (ms);
+		g_source_set_callback (timeout_source, (GSourceFunc) read_timeout_cb,
+				       &timed_out, NULL);
+
+		/* Create a read source. We cannot use g_source_set_ready_time() on this
+		 * to combine it with the @timeout_source, as that could mess with the
+		 * internals of the #GDatagramBased’s #GSource implementation. */
+		read_source = g_datagram_based_create_source (G_DATAGRAM_BASED(audio->dtls_sock),
+							      G_IO_IN, NULL);
+		g_source_set_callback (read_source, (GSourceFunc) read_datagram_based_cb,
+				       &read_done, NULL);
+
+		g_source_attach (read_source, ctx);
+		g_source_attach (timeout_source, ctx);
+
+		while (!read_done && !timed_out)
+			g_main_context_iteration (ctx, TRUE);
+
+		g_source_destroy (read_source);
+		g_source_destroy (timeout_source);
+
+		g_main_context_unref (ctx);
+		g_source_unref (read_source);
+		g_source_unref (timeout_source);
+
+		/* If @read_source was dispatched due to cancellation, the resulting error
+		 * will be handled in g_tls_connection_gnutls_pull_func(). */
+		if (g_datagram_based_condition_check(G_DATAGRAM_BASED(audio->dtls_sock), G_IO_IN) ||
+		    g_cancellable_is_cancelled (audio->cancel))
+			return 1;
+	}
+
+	return 0;
+}
+
+
+static gboolean dtls_src_cb(GDatagramBased *dgram, GIOCondition condition, ChimeCallAudio *audio)
+{
+	if (!audio->dtls_handshaked) {
+		int ret = gnutls_handshake(audio->dtls_sess);
+
+		if (ret == GNUTLS_E_AGAIN)
+			return G_SOURCE_CONTINUE;
+
+		if (ret) {
+			gnutls_deinit(audio->dtls_sess);
+			audio->dtls_sess = NULL;
+			g_source_destroy(audio->dtls_source);
+			audio->dtls_source = NULL;
+			g_object_unref(audio->dtls_sock);
+			audio->dtls_sock = NULL;
+
+			chime_call_transport_connect_ws(audio);
+			return G_SOURCE_REMOVE;
+		}
+
+		chime_debug("DTLS established\n");
+		audio->dtls_handshaked = TRUE;
+		audio_send_auth_packet(audio);
+		/* Fall through and receive data, not that it should be there */
+	}
+
+	unsigned char pkt[CHIME_DTLS_MTU];
+	ssize_t len = gnutls_record_recv(audio->dtls_sess, pkt, sizeof(pkt));
+	if (len > 0)
+		audio_receive_packet(audio, pkt, len);
+
+	return G_SOURCE_CONTINUE;
+}
+
 static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 {
 	/* Not that "connected" means anything except that we think we can route to it. */
 	chime_debug("UDP socket connected\n");
 
-	/* Baby steps... */
+	audio->dtls_source = g_datagram_based_create_source(G_DATAGRAM_BASED(s), G_IO_IN, audio->cancel);
+	audio->dtls_sock = s;
+	g_source_set_callback(audio->dtls_source, (GSourceFunc)dtls_src_cb, audio, NULL);
+	g_source_attach(audio->dtls_source, NULL);
+
+	gnutls_init(&audio->dtls_sess, GNUTLS_CLIENT|GNUTLS_DATAGRAM|GNUTLS_NONBLOCK);
+	gnutls_set_default_priority(audio->dtls_sess);
+	gnutls_session_set_ptr(audio->dtls_sess, audio);
+
+	gchar *hostname = g_strdup(chime_call_get_media_host(audio->call));
+	if (!hostname)
+		goto err;
+	char *colon = strrchr(hostname, ':');
+	if (!colon) {
+		g_free(hostname);
+		goto err;
+	}
+	*colon = 0;
+	gnutls_server_name_set(audio->dtls_sess, GNUTLS_NAME_DNS, hostname, colon - hostname);
+	g_free(hostname);
+	if (!audio->dtls_cred) {
+		gnutls_certificate_allocate_credentials(&audio->dtls_cred);
+		gnutls_certificate_set_x509_system_trust(audio->dtls_cred);
+	}
+	gnutls_credentials_set(audio->dtls_sess, GNUTLS_CRD_CERTIFICATE, audio->dtls_cred);
+	gnutls_transport_set_ptr(audio->dtls_sess, audio);
+	gnutls_transport_set_push_function (audio->dtls_sess,
+					    g_tls_connection_gnutls_push_func);
+	gnutls_transport_set_pull_function (audio->dtls_sess,
+					    g_tls_connection_gnutls_pull_func);
+	gnutls_transport_set_pull_timeout_function (audio->dtls_sess,
+						    g_tls_connection_gnutls_pull_timeout_func);
+	gnutls_transport_set_vec_push_function (audio->dtls_sess,
+						g_tls_connection_gnutls_vec_push_func);
+	gnutls_dtls_set_mtu(audio->dtls_sess, CHIME_DTLS_MTU);
+	gnutls_handshake(audio->dtls_sess);
+
+	return;
+
+ err:
 	g_object_unref(s);
+	audio->dtls_sock = NULL;
 	chime_call_transport_connect_ws(audio);
 }
 
@@ -218,6 +481,8 @@ static void audio_dtls_one(GObject *obj, GAsyncResult *res, gpointer user_data)
 	if (!s)
 		goto err;
 
+	g_socket_set_blocking(s, FALSE);
+
 	/* This doesn't block as it's a UDP connect */
 	if (g_socket_connect(s, addr, NULL, NULL)) {
 		/* Ideally, we should keep the enumerator around and try the next
@@ -243,6 +508,7 @@ void chime_call_transport_connect(ChimeCallAudio *audio, gboolean silent)
 
 	audio->silent = silent;
 	audio->cancel = g_cancellable_new();
+	audio->dtls_handshaked = FALSE;
 
 	GSocketConnectable *addr = g_network_address_parse(chime_call_get_media_host(audio->call),
 							   0, NULL);
@@ -282,7 +548,17 @@ void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup)
 		g_signal_handlers_disconnect_matched(G_OBJECT(audio->ws), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, audio);
 		g_signal_connect(G_OBJECT(audio->ws), "closed", G_CALLBACK(on_final_audiows_close), NULL);
 		audio->ws = NULL;
+	} else if (audio->dtls_sess) {
+		gnutls_deinit(audio->dtls_sess);
+		audio->dtls_sess = NULL;
+
+		if (audio->dtls_source) {
+			g_source_destroy(audio->dtls_source);
+			audio->dtls_source = NULL;
+		}
+		g_clear_object(&audio->dtls_sock);
 	}
+
 	g_mutex_unlock(&audio->transport_lock);
 }
 
@@ -290,7 +566,7 @@ void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup)
 
 void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type type, const ProtobufCMessage *message)
 {
-	if (!audio->ws)
+	if (!audio->ws && !audio->dtls_sess)
 		return;
 
 	size_t len = protobuf_c_message_get_packed_size(message);
@@ -305,7 +581,10 @@ void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type t
 		hexdump(hdr, len);
 	}
 	g_mutex_lock(&audio->transport_lock);
-	soup_websocket_connection_send_binary(audio->ws, hdr, len);
+	if (audio->dtls_sess)
+		gnutls_record_send(audio->dtls_sess, hdr, len);
+	else
+		soup_websocket_connection_send_binary(audio->ws, hdr, len);
 	g_mutex_unlock(&audio->transport_lock);
 	g_free(hdr);
 }

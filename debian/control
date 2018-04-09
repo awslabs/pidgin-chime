@@ -23,7 +23,9 @@ Build-Depends: debhelper (>= 9),
 	       libebook1.2-dev,
 	       libecal1.2-dev,
 	       evolution-data-server-dev,
-	       graphicsmagick-imagemagick-compat
+	       graphicsmagick-imagemagick-compat,
+	       imagemagick,
+	       libgnutls-dev
 
 Package: pidgin-chime
 Architecture: any

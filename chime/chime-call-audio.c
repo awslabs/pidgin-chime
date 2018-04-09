@@ -80,7 +80,7 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 
 				gst_app_src_push_buffer(GST_APP_SRC(audio->audio_src), buffer);
 			}
-		} else {
+		} else if (msg->audio->has_audio && msg->audio->audio.len) {
 			chime_debug("Audio drop (%p %d) seq %d ts %u\n",
 				    audio->audio_src, audio->appsrc_need_data,
 				    msg->audio->seq, msg->audio->sample_time);

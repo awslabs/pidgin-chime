@@ -28,6 +28,9 @@
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
 
+#include <gnutls/gnutls.h>
+#include <gnutls/x509.h>
+
 #define NS_PER_SAMPLE (1000000000 / 16000)
 
 struct _ChimeCallAudio {
@@ -38,6 +41,11 @@ struct _ChimeCallAudio {
 	GMutex transport_lock;
 	SoupWebsocketConnection *ws;
 
+	gboolean dtls_handshaked;
+	GSocket *dtls_sock;
+	GSource *dtls_source;
+	gnutls_session_t dtls_sess;
+	gnutls_certificate_credentials_t dtls_cred;
 	GCancellable *cancel;
 
 	guint data_ack_source;

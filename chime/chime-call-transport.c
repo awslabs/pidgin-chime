@@ -181,6 +181,16 @@ static void chime_call_transport_connect_ws(ChimeCallAudio *audio)
 	g_free(origin);
 }
 
+static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
+{
+	/* Not that "connected" means anything except that we think we can route to it. */
+	chime_debug("UDP socket connected\n");
+
+	/* Baby steps... */
+	g_object_unref(s);
+	chime_call_transport_connect_ws(audio);
+}
+
 static void audio_dtls_one(GObject *obj, GAsyncResult *res, gpointer user_data)
 {
 	GSocketAddressEnumerator *enumerator = G_SOCKET_ADDRESS_ENUMERATOR(obj);
@@ -199,11 +209,35 @@ static void audio_dtls_one(GObject *obj, GAsyncResult *res, gpointer user_data)
 	GInetAddress *inet = g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(addr));
 	guint16 port = g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(addr));
 	gchar *addr_str = g_inet_address_to_string(inet);
-	chime_debug("DTLS address %s:%d\n", addr_str, port);
 
+	chime_debug("DTLS address %s:%d\n", addr_str, port);
+	g_free(addr_str);
+
+	GSocket *s = g_socket_new(g_socket_address_get_family(addr), G_SOCKET_TYPE_DATAGRAM,
+				  G_SOCKET_PROTOCOL_UDP, NULL);
+	if (!s)
+		goto err;
+
+	/* This doesn't block as it's a UDP connect */
+	if (g_socket_connect(s, addr, NULL, NULL)) {
+		/* Ideally, we should keep the enumerator around and try the next
+		   address if the actual DTLS connection fails. */
+		g_object_unref(addr);
+		g_object_unref(enumerator);
+
+		connect_dtls(audio, s);
+		return;
+	}
+
+	/* Failed to connect (i.e. we can't route to it. Try next addresses... */
+	g_object_unref(s);
+
+ err:
+	g_object_unref(addr);
 	g_socket_address_enumerator_next_async(enumerator, audio->cancel,
 					       (GAsyncReadyCallback)audio_dtls_one, audio);
 }
+
 void chime_call_transport_connect(ChimeCallAudio *audio, gboolean silent)
 {
 

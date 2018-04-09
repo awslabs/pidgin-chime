@@ -37,6 +37,9 @@ struct _ChimeCallAudio {
 	gboolean silent; /* No audio; only participant data */
 	GMutex transport_lock;
 	SoupWebsocketConnection *ws;
+
+	GCancellable *cancel;
+
 	guint data_ack_source;
 	guint32 data_next_seq;
 	guint64 data_ack_mask;

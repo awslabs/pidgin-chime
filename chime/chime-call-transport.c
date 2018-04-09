@@ -148,8 +148,11 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _audio
 	GError *error = NULL;
 	SoupWebsocketConnection *ws = chime_connection_websocket_connect_finish(cxn, res, &error);
 	if (!ws) {
-		chime_debug("audio ws error %s\n", error->message);
-		audio->state = CHIME_AUDIO_STATE_FAILED;
+		if (!g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
+			chime_debug("audio ws error %s\n", error->message);
+			audio->state = CHIME_AUDIO_STATE_FAILED;
+		}
+		g_clear_error(&error);
 		g_object_unref(cxn);
 		return;
 	}
@@ -163,24 +166,63 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _audio
 }
 
 
-void chime_call_transport_connect(ChimeCallAudio *audio, gboolean silent)
+static void chime_call_transport_connect_ws(ChimeCallAudio *audio)
 {
-	/* Grrr, GDtlsClientConnection doesn't actually exist yet. Let's stick
-	   with the WebSocket for now... */
 	SoupURI *uri = soup_uri_new_printf(chime_call_get_audio_ws_url(audio->call), "/audio");
 	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
-
-	audio->silent = silent;
 
 	char *protocols[] = { (char *)"opus-med", NULL };
 	gchar *origin = g_strdup_printf("http://%s", soup_uri_get_host(uri));
 	soup_uri_free(uri);
 
 	ChimeConnection *cxn = chime_call_get_connection(audio->call);
-	chime_connection_websocket_connect_async(g_object_ref(cxn), msg, origin, protocols, NULL,
-						 audio_ws_connect_cb, audio);
+	chime_connection_websocket_connect_async(g_object_ref(cxn), msg, origin, protocols,
+						 audio->cancel, audio_ws_connect_cb, audio);
 	g_free(origin);
 }
+
+static void audio_dtls_one(GObject *obj, GAsyncResult *res, gpointer user_data)
+{
+	GSocketAddressEnumerator *enumerator = G_SOCKET_ADDRESS_ENUMERATOR(obj);
+	ChimeCallAudio *audio = user_data;
+	GError *error = NULL;
+
+	GSocketAddress *addr = g_socket_address_enumerator_next_finish(enumerator, res, &error);
+	if (!addr) {
+		if (!g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+			chime_call_transport_connect_ws(audio);
+		g_clear_error(&error);
+		g_object_unref(obj);
+		return;
+	}
+
+	GInetAddress *inet = g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(addr));
+	guint16 port = g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(addr));
+	gchar *addr_str = g_inet_address_to_string(inet);
+	chime_debug("DTLS address %s:%d\n", addr_str, port);
+
+	g_socket_address_enumerator_next_async(enumerator, audio->cancel,
+					       (GAsyncReadyCallback)audio_dtls_one, audio);
+}
+void chime_call_transport_connect(ChimeCallAudio *audio, gboolean silent)
+{
+
+	audio->silent = silent;
+	audio->cancel = g_cancellable_new();
+
+	GSocketConnectable *addr = g_network_address_parse(chime_call_get_media_host(audio->call),
+							   0, NULL);
+	if (!addr) {
+		chime_call_transport_connect_ws(audio);
+		return;
+	}
+	GSocketAddressEnumerator *enumerator = g_socket_connectable_enumerate(addr);
+	g_object_unref(addr);
+
+	g_socket_address_enumerator_next_async(enumerator, audio->cancel,
+					       (GAsyncReadyCallback)audio_dtls_one, audio);
+}
+
 
 static void on_final_audiows_close(SoupWebsocketConnection *ws, gpointer _unused)
 {
@@ -193,12 +235,21 @@ void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup)
 {
 	if (hangup)
 		audio_send_hangup_packet(audio);
+
 	g_mutex_lock(&audio->transport_lock);
-	soup_websocket_connection_close(audio->ws, 0, NULL);
-	g_signal_handlers_disconnect_matched(G_OBJECT(audio->ws), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, audio);
-	g_signal_connect(G_OBJECT(audio->ws), "closed", G_CALLBACK(on_final_audiows_close), NULL);
+
+	if (audio->cancel) {
+		g_cancellable_cancel(audio->cancel);
+		g_object_unref(audio->cancel);
+		audio->cancel = NULL;
+	}
+	if (audio->ws) {
+		soup_websocket_connection_close(audio->ws, 0, NULL);
+		g_signal_handlers_disconnect_matched(G_OBJECT(audio->ws), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, audio);
+		g_signal_connect(G_OBJECT(audio->ws), "closed", G_CALLBACK(on_final_audiows_close), NULL);
+		audio->ws = NULL;
+	}
 	g_mutex_unlock(&audio->transport_lock);
-	audio->ws = NULL;
 }
 
 

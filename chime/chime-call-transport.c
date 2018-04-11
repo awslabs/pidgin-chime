@@ -561,6 +561,7 @@ void chime_call_transport_connect(ChimeCallAudio *audio, gboolean silent)
 	audio->silent = silent;
 	audio->cancel = g_cancellable_new();
 	audio->dtls_handshaked = FALSE;
+	audio->recv_ssrc = g_random_int();
 
 	chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING);
 

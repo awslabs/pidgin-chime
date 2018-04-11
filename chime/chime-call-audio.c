@@ -69,7 +69,7 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 
 				chime_debug("Audio RX seq %d ts %u\n", msg->audio->seq, msg->audio->sample_time);
 
-				gst_rtp_buffer_set_ssrc(&rtp, 0x12345678);
+				gst_rtp_buffer_set_ssrc(&rtp, audio->recv_ssrc);
 				gst_rtp_buffer_set_payload_type(&rtp, 97);
 				gst_rtp_buffer_set_seq(&rtp, msg->audio->seq);
 				gst_rtp_buffer_set_timestamp(&rtp, msg->audio->sample_time);

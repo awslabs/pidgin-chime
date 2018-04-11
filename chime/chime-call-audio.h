@@ -42,6 +42,8 @@ struct _ChimeCallAudio {
 	SoupWebsocketConnection *ws;
 	guint64 session_id;
 
+	guint recv_ssrc;	/* Fake SSRC on incoming generated RTP */
+
 	time_t last_rx;
 	guint timeout_source;
 	gboolean dtls_handshaked;

@@ -655,7 +655,7 @@ void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type t
 	g_mutex_lock(&audio->transport_lock);
 	if (audio->dtls_sess)
 		gnutls_record_send(audio->dtls_sess, hdr, len);
-	else
+	else if (audio->ws)
 		soup_websocket_connection_send_binary(audio->ws, hdr, len);
 	g_mutex_unlock(&audio->transport_lock);
 	g_free(hdr);

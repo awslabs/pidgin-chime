@@ -95,8 +95,11 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 
 		const gchar *profile_id = g_hash_table_lookup(audio->profiles,
 							      GUINT_TO_POINTER(msg->profiles[i]->stream_id));
-		if (!profile_id)
+		if (!profile_id) {
+			chime_debug("no profile for stream id %d\n",
+			       msg->profiles[i]->stream_id);
 			continue;
+		}
 
 		int vol;
 		if (msg->profiles[i]->has_muted && msg->profiles[i]->muted)
@@ -120,6 +123,18 @@ static gboolean audio_receive_rt_msg(ChimeCallAudio *audio, gconstpointer pkt, g
 	return TRUE;
 }
 
+static gboolean audio_reconnect(gpointer _audio)
+{
+	ChimeCallAudio *audio = _audio;
+
+	audio->timeout_source = 0;
+
+	chime_call_transport_disconnect(audio, TRUE);
+	chime_call_transport_connect(audio, audio->silent);
+
+	return G_SOURCE_REMOVE;
+}
+
 static gboolean timed_send_rt_packet(ChimeCallAudio *audio);
 static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 {
@@ -128,6 +143,10 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 
 	g_mutex_lock(&audio->rt_lock);
 	gint64 now = g_get_monotonic_time();
+	if (!audio->timeout_source && audio->last_rx + 10000000 < now) {
+		chime_debug("RX timeout, reconnect audio\n");
+		audio->timeout_source = g_timeout_add(0, audio_reconnect, audio);
+	}
 	audio->audio_msg.seq = (audio->audio_msg.seq + 1) & 0xffff;
 
 	if (audio->last_server_time_offset) {
@@ -194,7 +213,8 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 
 static gboolean timed_send_rt_packet(ChimeCallAudio *audio)
 {
-	do_send_rt_packet(audio, NULL);
+	if (audio->state >= CHIME_AUDIO_STATE_AUDIOLESS)
+		do_send_rt_packet(audio, NULL);
 	return TRUE;
 }
 
@@ -209,7 +229,8 @@ static gboolean audio_receive_auth_msg(ChimeCallAudio *audio, gconstpointer pkt,
 		do_send_rt_packet(audio, NULL);
 		chime_call_audio_set_state(audio, audio->silent ? CHIME_AUDIO_STATE_AUDIOLESS :
 					   (audio->local_mute ? CHIME_AUDIO_STATE_AUDIO_MUTED : CHIME_AUDIO_STATE_AUDIO));
-		if (audio->silent || audio->local_mute)
+		if ((audio->silent || audio->local_mute) &&
+		    !audio->send_rt_source)
 			audio->send_rt_source = g_timeout_add(100, (GSourceFunc)timed_send_rt_packet, audio);
 	}
 
@@ -262,6 +283,21 @@ static void free_msgbuf(struct message_buf *m)
 	}
 	g_free(m->buf);
 	g_free(m);
+}
+
+void chime_call_audio_cleanup_datamsgs(ChimeCallAudio *audio)
+{
+	if (audio->data_ack_source) {
+		g_source_remove(audio->data_ack_source);
+		audio->data_ack_source = 0;
+	}
+
+	g_slist_free_full(audio->data_messages, (GDestroyNotify) free_msgbuf);
+	audio->data_messages = NULL;
+
+	audio->data_next_seq = 0;
+	audio->data_ack_mask = 0;
+	audio->data_next_logical_msg = 0;
 }
 
 static void do_send_ack(ChimeCallAudio *audio)
@@ -391,7 +427,6 @@ static gboolean audio_receive_data_msg(ChimeCallAudio *audio, gconstpointer pkt,
 	if (!audio->data_ack_source)
 		audio->data_ack_source = g_idle_add(idle_send_ack, audio);
 
-
 	/* Now process the incoming data packet. First, drop packets
 	   that look like replays and are too old. */
 	if (msg->msg_id < audio->data_next_logical_msg)
@@ -437,6 +472,8 @@ gboolean audio_receive_packet(ChimeCallAudio *audio, gconstpointer pkt, gsize le
 	if (len != ntohs(hdr->len))
 		return FALSE;
 
+	audio->last_rx = g_get_monotonic_time();
+
 	/* Point to the payload, without (void *) arithmetic */
 	pkt = hdr + 1;
 	len -= 4;
@@ -466,15 +503,10 @@ void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup)
 	if (audio->audio_sink)
 		gst_app_sink_set_callbacks(audio->audio_sink, &no_appsink_callbacks, NULL, NULL);
 
-	if (audio->data_ack_source)
-		g_source_remove(audio->data_ack_source);
-	if (audio->send_rt_source)
-		g_source_remove(audio->send_rt_source);
-
-	g_hash_table_destroy(audio->profiles);
-	g_slist_free_full(audio->data_messages, (GDestroyNotify) free_msgbuf);
 	chime_call_transport_disconnect(audio, hangup);
 	chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_HANGUP);
+
+	g_hash_table_destroy(audio->profiles);
 	g_free(audio);
 }
 
@@ -545,10 +577,13 @@ void chime_call_audio_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc
 ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gboolean silent)
 {
 	ChimeCallAudio *audio = g_new0(ChimeCallAudio, 1);
+
 	audio->call = call;
 	audio->profiles = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
 	g_mutex_init(&audio->transport_lock);
 	g_mutex_init(&audio->rt_lock);
+
+	audio->session_id = ((guint64)g_random_int() << 32) | g_random_int();
 
 	rtmessage__init(&audio->rt_msg);
 	audio_message__init(&audio->audio_msg);
@@ -560,7 +595,6 @@ ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gbo
 	audio->audio_msg.sample_time = g_random_int();
 
 	chime_call_transport_connect(audio, silent);
-	chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING);
 
 	return audio;
 }
@@ -570,17 +604,8 @@ void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean silent)
 {
 	chime_call_audio_local_mute(audio, silent);
 	if (silent != audio->silent) {
-		if (audio->send_rt_source) {
-			g_source_remove(audio->send_rt_source);
-			audio->send_rt_source = 0;
-		}
-		if (audio->data_ack_source) {
-			g_source_remove(audio->data_ack_source);
-			audio->data_ack_source = 0;
-		}
 		chime_call_transport_disconnect(audio, TRUE);
 		chime_call_transport_connect(audio, silent);
-		chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING);
 	}
 }
 

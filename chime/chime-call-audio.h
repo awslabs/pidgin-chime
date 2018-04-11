@@ -40,7 +40,10 @@ struct _ChimeCallAudio {
 	gboolean silent; /* No audio; only participant data */
 	GMutex transport_lock;
 	SoupWebsocketConnection *ws;
+	guint64 session_id;
 
+	time_t last_rx;
+	guint timeout_source;
 	gboolean dtls_handshaked;
 	GSocket *dtls_sock;
 	GSource *dtls_source;
@@ -99,3 +102,4 @@ void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type t
 gboolean audio_receive_packet(ChimeCallAudio *audio, gconstpointer pkt, gsize len);
 
 void chime_call_audio_install_gst_app_callbacks(ChimeCallAudio *audio, GstAppSrc *appsrc, GstAppSink *appsink);
+void chime_call_audio_cleanup_datamsgs(ChimeCallAudio *audio);

@@ -100,11 +100,10 @@ void chime_call_emit_participants(ChimeCall *call);
 typedef enum {
 	CHIME_AUDIO_STATE_CONNECTING = 0,
 	CHIME_AUDIO_STATE_FAILED,
+	CHIME_AUDIO_STATE_HANGUP,
 	CHIME_AUDIO_STATE_AUDIOLESS,
 	CHIME_AUDIO_STATE_AUDIO,
 	CHIME_AUDIO_STATE_AUDIO_MUTED,
-	CHIME_AUDIO_STATE_HANGUP,
-	CHIME_AUDIO_STATE_DISCONNECTED,
 } ChimeAudioState;
 
 void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, GstAppSink *appsink);

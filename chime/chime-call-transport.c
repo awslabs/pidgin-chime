@@ -52,7 +52,10 @@ static void hexdump(const void *buf, int len)
 
 static void on_audiows_closed(SoupWebsocketConnection *ws, gpointer _audio)
 {
-	/* XXX: Reconnect it */
+	ChimeCallAudio *audio = _audio;
+
+	chime_call_transport_disconnect(audio, FALSE);
+	chime_call_transport_connect(audio, audio->silent);
 }
 
 static void on_audiows_message(SoupWebsocketConnection *ws, gint type,
@@ -90,6 +93,9 @@ static void audio_send_auth_packet(ChimeCallAudio *audio)
 
 	msg.profile_id = 0;
 	msg.has_profile_id = TRUE;
+
+	msg.session_id = audio->session_id;
+	msg.has_session_id = TRUE;
 
 	msg.profile_uuid = (char *)chime_connection_get_profile_id(cxn);
 
@@ -152,6 +158,7 @@ static void audio_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _audio
 	GError *error = NULL;
 	SoupWebsocketConnection *ws = chime_connection_websocket_connect_finish(cxn, res, &error);
 	if (!ws) {
+		/* If it was cancelled, 'audio' may have been freed. */
 		if (!g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
 			chime_debug("audio ws error %s\n", error->message);
 			audio->state = CHIME_AUDIO_STATE_FAILED;
@@ -306,11 +313,11 @@ read_datagram_based_cb (GDatagramBased *datagram_based,
 static gboolean
 read_timeout_cb (gpointer user_data)
 {
-  gboolean *timed_out = user_data;
+	gboolean *timed_out = user_data;
 
-  *timed_out = TRUE;
+	*timed_out = TRUE;
 
-  return G_SOURCE_REMOVE;
+	return G_SOURCE_REMOVE;
 }
 
 static int
@@ -369,14 +376,22 @@ g_tls_connection_gnutls_pull_timeout_func (gnutls_transport_ptr_t transport_data
 	return 0;
 }
 
+static gboolean dtls_timeout(ChimeCallAudio *audio);
 
 static gboolean dtls_src_cb(GDatagramBased *dgram, GIOCondition condition, ChimeCallAudio *audio)
 {
 	if (!audio->dtls_handshaked) {
 		int ret = gnutls_handshake(audio->dtls_sess);
 
-		if (ret == GNUTLS_E_AGAIN)
+		if (ret == GNUTLS_E_AGAIN) {
+			if (audio->timeout_source)
+				g_source_remove(audio->timeout_source);
+
+			int timeo = gnutls_dtls_get_timeout(audio->dtls_sess);
+			audio->timeout_source = g_timeout_add(timeo, (GSourceFunc)dtls_timeout, audio);
+
 			return G_SOURCE_CONTINUE;
+		}
 
 		if (ret) {
 			gnutls_deinit(audio->dtls_sess);
@@ -385,12 +400,17 @@ static gboolean dtls_src_cb(GDatagramBased *dgram, GIOCondition condition, Chime
 			audio->dtls_source = NULL;
 			g_object_unref(audio->dtls_sock);
 			audio->dtls_sock = NULL;
+			if (audio->timeout_source)
+				g_source_remove(audio->timeout_source);
+			audio->timeout_source = 0;
 
 			chime_call_transport_connect_ws(audio);
 			return G_SOURCE_REMOVE;
 		}
 
 		chime_debug("DTLS established\n");
+		g_source_remove(audio->timeout_source);
+		audio->timeout_source = 0;
 		audio->dtls_handshaked = TRUE;
 		audio_send_auth_packet(audio);
 		/* Fall through and receive data, not that it should be there */
@@ -398,10 +418,24 @@ static gboolean dtls_src_cb(GDatagramBased *dgram, GIOCondition condition, Chime
 
 	unsigned char pkt[CHIME_DTLS_MTU];
 	ssize_t len = gnutls_record_recv(audio->dtls_sess, pkt, sizeof(pkt));
-	if (len > 0)
+	if (len > 0) {
+		if (getenv("CHIME_AUDIO_DEBUG")) {
+			printf("incoming:\n");
+			hexdump(pkt, len);
+		}
 		audio_receive_packet(audio, pkt, len);
+	}
 
 	return G_SOURCE_CONTINUE;
+}
+
+static gboolean dtls_timeout(ChimeCallAudio *audio)
+{
+	audio->timeout_source = 0;
+
+	dtls_src_cb(NULL, 0, audio);
+
+	return G_SOURCE_REMOVE;
 }
 
 static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
@@ -418,6 +452,8 @@ static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 	gnutls_set_default_priority(audio->dtls_sess);
 	gnutls_session_set_ptr(audio->dtls_sess, audio);
 
+	/* We can't rely on the length argument to gnutls_server_name_set().
+	   https://bugs.launchpad.net/ubuntu/+bug/1762710 */
 	gchar *hostname = g_strdup(chime_call_get_media_host(audio->call));
 	if (!hostname)
 		goto err;
@@ -429,6 +465,7 @@ static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 	*colon = 0;
 	gnutls_server_name_set(audio->dtls_sess, GNUTLS_NAME_DNS, hostname, colon - hostname);
 	g_free(hostname);
+
 	if (!audio->dtls_cred) {
 		gnutls_certificate_allocate_credentials(&audio->dtls_cred);
 		gnutls_certificate_set_x509_system_trust(audio->dtls_cred);
@@ -443,14 +480,29 @@ static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 						    g_tls_connection_gnutls_pull_timeout_func);
 	gnutls_transport_set_vec_push_function (audio->dtls_sess,
 						g_tls_connection_gnutls_vec_push_func);
+	gnutls_dtls_set_timeouts(audio->dtls_sess, 250, 2500);
 	gnutls_dtls_set_mtu(audio->dtls_sess, CHIME_DTLS_MTU);
-	gnutls_handshake(audio->dtls_sess);
+
+	if (gnutls_handshake(audio->dtls_sess) != GNUTLS_E_AGAIN) {
+		chime_debug("Initial DTLS handshake failed\n");
+
+		gnutls_deinit(audio->dtls_sess);
+		audio->dtls_sess = NULL;
+
+		if (audio->dtls_source) {
+			g_source_destroy(audio->dtls_source);
+			audio->dtls_source = NULL;
+		}
+		goto err;
+	}
+
+	int timeo = gnutls_dtls_get_timeout(audio->dtls_sess);
+	audio->timeout_source = g_timeout_add(timeo, (GSourceFunc)dtls_timeout, audio);
 
 	return;
 
  err:
-	g_object_unref(s);
-	audio->dtls_sock = NULL;
+	g_clear_object(&audio->dtls_sock);
 	chime_call_transport_connect_ws(audio);
 }
 
@@ -462,6 +514,7 @@ static void audio_dtls_one(GObject *obj, GAsyncResult *res, gpointer user_data)
 
 	GSocketAddress *addr = g_socket_address_enumerator_next_finish(enumerator, res, &error);
 	if (!addr) {
+		/* If it was cancelled, 'audio' may have been freed. */
 		if (!g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
 			chime_call_transport_connect_ws(audio);
 		g_clear_error(&error);
@@ -505,10 +558,11 @@ static void audio_dtls_one(GObject *obj, GAsyncResult *res, gpointer user_data)
 
 void chime_call_transport_connect(ChimeCallAudio *audio, gboolean silent)
 {
-
 	audio->silent = silent;
 	audio->cancel = g_cancellable_new();
 	audio->dtls_handshaked = FALSE;
+
+	chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING);
 
 	GSocketConnectable *addr = g_network_address_parse(chime_call_get_media_host(audio->call),
 							   0, NULL);
@@ -533,7 +587,16 @@ static void on_final_audiows_close(SoupWebsocketConnection *ws, gpointer _unused
 
 void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup)
 {
-	if (hangup)
+	if (audio->send_rt_source) {
+		g_source_remove(audio->send_rt_source);
+		audio->send_rt_source = 0;
+	}
+
+	g_hash_table_remove_all(audio->profiles);
+
+	chime_call_audio_cleanup_datamsgs(audio);
+
+	if (hangup && audio->state >= CHIME_AUDIO_STATE_AUDIOLESS)
 		audio_send_hangup_packet(audio);
 
 	g_mutex_lock(&audio->transport_lock);
@@ -544,9 +607,9 @@ void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup)
 		audio->cancel = NULL;
 	}
 	if (audio->ws) {
-		soup_websocket_connection_close(audio->ws, 0, NULL);
 		g_signal_handlers_disconnect_matched(G_OBJECT(audio->ws), G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, audio);
 		g_signal_connect(G_OBJECT(audio->ws), "closed", G_CALLBACK(on_final_audiows_close), NULL);
+		soup_websocket_connection_close(audio->ws, 0, NULL);
 		audio->ws = NULL;
 	} else if (audio->dtls_sess) {
 		gnutls_deinit(audio->dtls_sess);
@@ -559,10 +622,18 @@ void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup)
 		g_clear_object(&audio->dtls_sock);
 	}
 
+	if (audio->timeout_source) {
+		g_source_remove(audio->timeout_source);
+		audio->timeout_source = 0;
+	}
+
+	if (hangup && audio->dtls_cred) {
+		gnutls_certificate_free_credentials(audio->dtls_cred);
+		audio->dtls_cred = NULL;
+	}
+
 	g_mutex_unlock(&audio->transport_lock);
 }
-
-
 
 void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type type, const ProtobufCMessage *message)
 {

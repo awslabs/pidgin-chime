@@ -525,11 +525,12 @@ struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, Ch
 		if (chat->call) {
 			g_signal_connect(chat->call, "audio-state", G_CALLBACK(on_audio_state), chat);
 			g_signal_connect(chat->call, "participants-changed", G_CALLBACK(on_call_participants), chat);
+
+			/* We'll probably miss the first audio-state signal when it
+			 * starts connecting. Set up the call media now if needed. */
+			if (!chime_call_get_silent(chat->call))
+				call_media_setup(chat->call, chat);
 		}
-		/* We'll probably miss the first audio-state signal when it
-		 * starts connecting. Set up the call media now if needed. */
-		if (!chime_call_get_silent(chat->call))
-			call_media_setup(chat->call, chat);
 	}
 
 	return chat;

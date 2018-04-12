@@ -195,7 +195,9 @@ static PurpleNotifySearchResults *generate_sr_participants(GHashTable *participa
 	purple_notify_searchresults_column_add(results, column);
 	column = purple_notify_searchresults_column_new(_("Status"));
 	purple_notify_searchresults_column_add(results, column);
-	column = purple_notify_searchresults_column_new("");
+	column = purple_notify_searchresults_column_new("🗔");
+	purple_notify_searchresults_column_add(results, column);
+	column = purple_notify_searchresults_column_new("🔊");
 	purple_notify_searchresults_column_add(results, column);
 
 	gpointer klass = g_type_class_ref(CHIME_TYPE_CALL_PARTICIPATION_STATUS);
@@ -208,6 +210,15 @@ static PurpleNotifySearchResults *generate_sr_participants(GHashTable *participa
 		row = g_list_append(row, g_strdup(p->full_name));
 		GEnumValue *val = g_enum_get_value(klass, p->status);
 		row = g_list_append(row, g_strdup(_(val->value_nick)));
+
+		const gchar *screen_icon;
+		if (p->shared_screen == CHIME_SHARED_SCREEN_VIEWING)
+			screen_icon = "👁";
+		else if (p->shared_screen == CHIME_SHARED_SCREEN_PRESENTING)
+			screen_icon = "🗔";
+		else
+			screen_icon = "";
+		row = g_list_append(row, g_strdup(screen_icon));
 
 		const gchar *vol_icon;
 		if (p->status != CHIME_PARTICIPATION_PRESENT)

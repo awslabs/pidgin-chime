@@ -54,6 +54,9 @@ typedef enum {
 	CHIME_SHARED_SCREEN_PRESENTING,
 } ChimeCallSharedScreenStatus;
 
+#define CHIME_TYPE_CALL_SHARED_SCREEN_STATUS (chime_call_shared_screen_status_get_type ())
+GType chime_call_shared_screen_status_get_type (void) G_GNUC_CONST;
+
 gboolean chime_call_get_ongoing(ChimeCall *self);
 const gchar *chime_call_get_uuid(ChimeCall *self);
 const gchar *chime_call_get_channel(ChimeCall *self);

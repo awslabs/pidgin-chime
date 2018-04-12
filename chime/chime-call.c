@@ -74,15 +74,26 @@ struct _ChimeCall {
 
 G_DEFINE_TYPE(ChimeCall, chime_call, CHIME_TYPE_OBJECT)
 
+#define CHIME_PARTICIPATION_VALUES					  \
+	{ CHIME_PARTICIPATION_PRESENT,		"present",	N_("present") }, \
+	{ CHIME_PARTICIPATION_CHECKED_IN,	"checked_in",	N_("checked in") }, \
+	{ CHIME_PARTICIPATION_HUNG_UP,		"hung_up",	N_("hung up") }, \
+	{ CHIME_PARTICIPATION_DROPPED,		"dropped",	N_("dropped") }, \
+	{ CHIME_PARTICIPATION_RUNNING_LATE,	"running_late",	N_("running late") }, \
+	{ CHIME_PARTICIPATION_INVITED,		"invited",	N_("invited") }, \
+	{ CHIME_PARTICIPATION_DECLINED,		"declined",	N_("declined") }, \
+	{ CHIME_PARTICIPATION_INACTIVE,		"inactive",	N_("inactive") },
+
 CHIME_DEFINE_ENUM_TYPE(ChimeCallParticipationStatus, chime_call_participation_status,
-	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_PRESENT,		"present")
-	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_CHECKED_IN,	"checked_in")
-	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_HUNG_UP,		"hung_up")
-	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_DROPPED,		"dropped")
-	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_RUNNING_LATE,	"running_late")
-	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_INVITED,		"invited")
-	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_DECLINED,		"declined")
-	CHIME_ENUM_VALUE(CHIME_PARTICIPATION_INACTIVE,		"inactive"))
+		       CHIME_PARTICIPATION_VALUES)
+
+#define CHIME_SHARED_SCREEN_STATUS_VALUES				\
+	{ CHIME_SHARED_SCREEN_NONE,	"none",		"" },		\
+	{ CHIME_SHARED_SCREEN_VIEWING,	"viewing",	N_("viewing") },\
+	{ CHIME_SHARED_SCREEN_PRESENTING,"presenting",	N_("presenting") },
+
+CHIME_DEFINE_ENUM_TYPE(ChimeCallSharedScreenStatus, chime_call_shared_screen_status,
+		       CHIME_SHARED_SCREEN_STATUS_VALUES)
 
 static void unsub_call(gpointer key, gpointer val, gpointer data);
 static void free_participant(void *p);
@@ -279,7 +290,25 @@ static gboolean parse_call_participation_status(JsonNode *node, const gchar *mem
 		return FALSE;
 
 	gpointer klass = g_type_class_ref(CHIME_TYPE_CALL_PARTICIPATION_STATUS);
-	GEnumValue *val = g_enum_get_value_by_nick(klass, str);
+	GEnumValue *val = g_enum_get_value_by_name(klass, str);
+	g_type_class_unref(klass);
+
+	if (!val)
+		return FALSE;
+	*type = val->value;
+	return TRUE;
+}
+
+static gboolean parse_call_shared_screen_status(JsonNode *node, const gchar *member,
+						ChimeCallSharedScreenStatus *type)
+{
+	const gchar *str;
+
+	if (!parse_string(node, member, &str))
+		return FALSE;
+
+	gpointer klass = g_type_class_ref(CHIME_TYPE_CALL_SHARED_SCREEN_STATUS);
+	GEnumValue *val = g_enum_get_value_by_name(klass, str);
 	g_type_class_unref(klass);
 
 	if (!val)
@@ -316,6 +345,9 @@ static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNod
 	const gchar *email = NULL;
 	parse_string(p, "email", &email);
 
+	ChimeCallSharedScreenStatus screen = CHIME_SHARED_SCREEN_NONE;
+	parse_call_shared_screen_status(p, "shared_screen_indicator", &screen);
+
 	ChimeCallParticipant *cp = g_hash_table_lookup(call->participants, (void *)participant_id);
 	if (!cp) {
 		cp = g_new0(ChimeCallParticipant, 1);
@@ -330,6 +362,7 @@ static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNod
 	cp->pots = pots;
 	cp->speaker = speaker;
 	cp->status = status;
+	cp->shared_screen = screen;
 
 	if (!strcmp(participant_id, chime_connection_get_profile_id(cxn))) {
 		JsonObject *obj = json_node_get_object(p);

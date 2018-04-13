@@ -31,6 +31,34 @@ struct screen_pkt {
 	unsigned char dest;
 };
 
+enum screen_pkt_type {
+	SCREEN_PKT_TYPE_UNKNOWN = 0,
+	SCREEN_PKT_TYPE_CAPTURE = 1,
+	SCREEN_PKT_TYPE_KEY_REQUEST = 2,
+	SCREEN_PKT_TYPE_PRESENTER_BEGIN = 3,
+	SCREEN_PKT_TYPE_PRESENTER_END = 4,
+	SCREEN_PKT_TYPE_STREAM_STOP = 5,
+	SCREEN_PKT_TYPE_HEARTBEAT_REQUEST = 6,
+	SCREEN_PKT_TYPE_HEARTBEAT_RESPONSE = 7,
+	SCREEN_PKT_TYPE_VIEWER_BEGIN = 8,
+	SCREEN_PKT_TYPE_VIEWER_END = 9,
+	SCREEN_PKT_TYPE_RR = 10,
+	SCREEN_PKT_TYPE_PING_REQUEST = 11,
+	SCREEN_PKT_TYPE_PING_RESPONSE = 12,
+	SCREEN_PKT_TYPE_PRESENTER_SWITCH = 16,
+	SCREEN_PKT_TYPE_CONTROL = 17,
+	SCREEN_PKT_TYPE_PRESENTER_ACK = 18,
+	SCREEN_PKT_TYPE_PRESENTER_UPLINK_PROBE = 19,
+	SCREEN_PKT_TYPE_EXIT = 20,
+};
+
+enum screen_pkt_flag {
+	SCREEN_PKT_FLAG_BROADCAST = 1,
+	SCREEN_PKT_FLAG_LOCAL = 2,
+	SCREEN_PKT_FLAG_SYNTHESISED = 4,
+	SCREEN_PKT_FLAG_UNICAST = 8,
+};
+
 static void hexdump(const void *buf, int len)
 {
 	char linechars[17];
@@ -54,6 +82,33 @@ static void hexdump(const void *buf, int len)
 	printf("\n");
 }
 
+static void screen_send_packet(ChimeCallScreen *screen, enum screen_pkt_type type, void *data, size_t dlen)
+{
+	unsigned char source = 0;
+	unsigned char dest = 0;
+	enum screen_pkt_flag flag = SCREEN_PKT_FLAG_LOCAL;
+
+	if (dlen) {
+		/* Ick, we need to fix websockets to take iovecs */
+		struct screen_pkt *buf = g_malloc0(sizeof(*buf) + dlen);
+		buf->type = type;
+		buf->source = source;
+		buf->dest = dest;
+		buf->flag = flag;
+		memcpy(&buf[1], data, dlen);
+
+		soup_websocket_connection_send_binary(screen->ws, buf, sizeof(*buf) + dlen);
+	} else {
+		struct screen_pkt pkt;
+		pkt.type = type;
+		pkt.source = source;
+		pkt.dest = dest;
+		pkt.flag = flag;
+
+		soup_websocket_connection_send_binary(screen->ws, &pkt, sizeof(pkt));
+	}
+}
+
 static void on_screenws_closed(SoupWebsocketConnection *ws, gpointer _screen)
 {
 	//	ChimeCallScreen *screen = _screen;
@@ -74,16 +129,22 @@ static void on_screenws_message(SoupWebsocketConnection *ws, gint type,
 		hexdump(d, s);
 	}
 
-	const struct screen_pkt *pkt = d;
-	if (s == 4 && pkt->type == 6) {
-		struct screen_pkt r = { 7, 0, 0, 2 };
-		soup_websocket_connection_send_binary(ws, &r, sizeof(r));
-	}
-	if (screen->screen_src && pkt->type == 1 && s > 4) {
-		GstBuffer *buffer = gst_rtp_buffer_new_allocate(s - 4, 0, 0);
-		gst_buffer_fill(buffer, 0, d + 4, s - 4);
-		gst_app_src_push_buffer(GST_APP_SRC(screen->screen_src), buffer);
+	if (s < 4)
+		return;
 
+	const struct screen_pkt *pkt = d;
+	switch(pkt->type) {
+	case SCREEN_PKT_TYPE_HEARTBEAT_REQUEST:
+		screen_send_packet(screen, SCREEN_PKT_TYPE_HEARTBEAT_RESPONSE, NULL, 0);
+		break;
+
+	case SCREEN_PKT_TYPE_CAPTURE:
+		if (screen->screen_src) {
+			GstBuffer *buffer = gst_rtp_buffer_new_allocate(s - 4, 0, 0);
+			gst_buffer_fill(buffer, 0, &pkt[1], s - sizeof(*pkt));
+			gst_app_src_push_buffer(GST_APP_SRC(screen->screen_src), buffer);
+		}
+		break;
 	}
 }
 
@@ -110,14 +171,6 @@ static void screen_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _scre
 	screen->ws = ws;
 	screen->state = CHIME_SCREEN_STATE_CONNECTED;
 
-#if 0
-	struct screen_pkt p;
-	p.type = 8;
-	p.source = 0;
-	p.dest = 0;
-	p.flag = 2;
-	soup_websocket_connection_send_binary(screen->ws, &p, sizeof(p));
-#endif
 	g_object_unref(cxn);
 }
 
@@ -204,14 +257,8 @@ static GstAppSrcCallbacks screen_appsrc_callbacks = {
 
 void chime_call_screen_install_app_callbacks(ChimeCallScreen *screen, GstAppSrc *appsrc)
 {
-	struct screen_pkt p;
-	p.type = 8;
-	p.source = 0;
-	p.dest = 0;
-	p.flag = 2;
-
 	printf("Send viewer start...\n");
-	soup_websocket_connection_send_binary(screen->ws, &p, sizeof(p));
+	screen_send_packet(screen, SCREEN_PKT_TYPE_VIEWER_BEGIN, NULL, 0);
 
 	screen->screen_src = appsrc;
 	gst_app_src_set_callbacks(appsrc, &screen_appsrc_callbacks, screen, screen_appsrc_destroy);

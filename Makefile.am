@@ -25,8 +25,10 @@ CHIME_SRCS =	chime/chime-connection.c chime/chime-connection.h \
 		chime/chime-room.c chime/chime-room.h \
 		chime/chime-conversation.c chime/chime-conversation.h \
 		chime/chime-object.c chime/chime-object.h chime/chime-props.h \
-		chime/chime-call.c chime/chime-call.h chime/chime-call-audio.c \
+		chime/chime-call.c chime/chime-call.h \
+		chime/chime-call-audio.c chime/chime-call-audio.h \
 		chime/chime-call-transport.c \
+		chime/chime-call-screen.c chime/chime-call-screen.h \
 		chime/chime-juggernaut.c \
 		chime/chime-meeting.c chime/chime-meeting.h
 

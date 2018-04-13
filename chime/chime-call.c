@@ -19,6 +19,7 @@
 #include "chime-connection-private.h"
 #include "chime-call.h"
 #include "chime-call-audio.h"
+#include "chime-call-screen.h"
 
 #include <glib/gi18n.h>
 
@@ -56,6 +57,7 @@ enum {
 	ENDED,
 	AUDIO_STATE,
 	PARTICIPANTS_CHANGED,
+	NEW_PRESENTER,
 	LAST_SIGNAL,
 };
 
@@ -67,8 +69,10 @@ struct _ChimeCall {
 	CHIME_PROPS_VARS
 
 	GHashTable *participants;
+	ChimeCallParticipant *presenter;
 
 	ChimeCallAudio *audio;
+	ChimeCallScreen *screen;
 	guint opens;
 };
 
@@ -182,6 +186,11 @@ static void chime_call_class_init(ChimeCallClass *klass)
 		g_signal_new ("participants-changed",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_HASH_TABLE);
+
+	signals[NEW_PRESENTER] =
+		g_signal_new ("new_presenter",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_POINTER);
 }
 
 static void chime_call_init(ChimeCall *self)
@@ -328,7 +337,8 @@ static void free_participant(void *_p)
 	free(p);
 }
 
-static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNode *p)
+static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNode *p,
+				  ChimeCallParticipant **presenter)
 {
 	const gchar *participant_id, *full_name, *participant_type;
 	gboolean pots, speaker;
@@ -364,6 +374,9 @@ static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNod
 	cp->status = status;
 	cp->shared_screen = screen;
 
+	if (screen == CHIME_SHARED_SCREEN_PRESENTING)
+		*presenter = cp;
+
 	if (!strcmp(participant_id, chime_connection_get_profile_id(cxn))) {
 		JsonObject *obj = json_node_get_object(p);
 		JsonNode *muter = json_object_get_member(obj, "muter");
@@ -393,10 +406,15 @@ static gboolean call_roster_cb(ChimeConnection *cxn, gpointer _call, JsonNode *d
 
 	gboolean ret = TRUE;
 
+	ChimeCallParticipant *presenter = NULL;
 	for (i = 0; i < len; i++) {
 		JsonNode *p = json_array_get_element(participants_arr, i);
-		if (!parse_participant(cxn, call, p))
+		if (!parse_participant(cxn, call, p, &presenter))
 			ret = FALSE;
+	}
+	if (call->presenter != presenter) {
+		call->presenter = presenter;
+		g_signal_emit(call, signals[NEW_PRESENTER], 0, presenter);
 	}
 
 	g_signal_emit(call, signals[PARTICIPANTS_CHANGED], 0, call->participants);
@@ -512,6 +530,10 @@ static void unsub_call(gpointer key, gpointer val, gpointer data)
 		chime_call_audio_close(call->audio, TRUE);
 		call->audio = NULL;
 	}
+	if (call->screen) {
+		chime_call_screen_close(call->screen);
+		call->screen = NULL;
+	}
 }
 
 void chime_connection_close_call(ChimeConnection *cxn, ChimeCall *call)
@@ -535,6 +557,7 @@ void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean 
 		chime_jugg_subscribe(cxn, call->channel, "Call", call_jugg_cb, NULL);
 		chime_jugg_subscribe(cxn, call->roster_channel, "Roster", call_roster_cb, call);
 		call->audio = chime_call_audio_open(cxn, call, muted);
+		call->screen = chime_call_screen_open(cxn, call);
 	}
 }
 
@@ -573,5 +596,13 @@ void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, Gs
 {
 	if (call->audio)
 		chime_call_audio_install_gst_app_callbacks(call->audio, appsrc, appsink);
+}
+
+void chime_call_view_screen(ChimeConnection *cxn, ChimeCall *call, GstAppSrc *appsrc)
+{
+	if (!call->screen)
+		call->screen = chime_call_screen_open(cxn, call);
+
+	chime_call_screen_install_app_callbacks(call->screen, appsrc);
 }
 

@@ -97,6 +97,9 @@ GList *chime_call_get_participants(ChimeCall *self);
 struct _ChimeCallAudio;
 typedef struct _ChimeCallAudio ChimeCallAudio;
 
+struct _ChimeCallScreen;
+typedef struct _ChimeCallScreen ChimeCallScreen;
+
 
 void chime_call_emit_participants(ChimeCall *call);
 
@@ -109,8 +112,16 @@ typedef enum {
 	CHIME_AUDIO_STATE_AUDIO_MUTED,
 } ChimeAudioState;
 
-void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, GstAppSink *appsink);
+typedef enum {
+	CHIME_SCREEN_STATE_CONNECTING = 0,
+	CHIME_SCREEN_STATE_FAILED,
+	CHIME_SCREEN_STATE_HANGUP,
+	CHIME_SCREEN_STATE_CONNECTED,
+	CHIME_SCREEN_STATE_VIEWING,
+} ChimeScreenState;
 
+void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, GstAppSink *appsink);
+void chime_call_view_screen(ChimeConnection *cxn, ChimeCall *call, GstAppSrc *appsrc);
 
 G_END_DECLS
 

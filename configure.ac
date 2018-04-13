@@ -73,16 +73,22 @@ if test "$PROTOC" = ""; then
    AC_MSG_ERROR([protoc-c could not be found. Try installing protobuf-c-compiler])
 fi
 
-build_evoplugin=
-PKG_CHECK_MODULES(EVOLUTION, [evolution-calendar-3.0 evolution-shell-3.0 evolution-data-server-1.2 libebook-1.2 libecal-1.2],
-		  [build_evoplugin=yes
-		   if $PKG_CONFIG --atleast-version 3.20 evolution-shell-3.0; then
-		      AC_DEFINE(EVO_HAS_E_COMP_EDITOR, 1, [Since 3.20])
-		   fi
-		   evomoddir="$($PKG_CONFIG --variable=moduledir evolution-shell-3.0)"
-		   AC_SUBST(evomoddir, ${evomoddir})],
-		  [:]);
-AM_CONDITIONAL(BUILD_EVOPLUGIN, [ test "$build_evoplugin" = "yes" ])
+AC_ARG_WITH([evolution],
+            [AS_HELP_STRING([--without-evolution],
+              [Disable evolution plugin])],
+            [with_evolution=no])
+
+AS_IF([test "x$with_evolution" != xno],
+      [PKG_CHECK_MODULES(EVOLUTION, [evolution-calendar-3.0 evolution-shell-3.0 evolution-data-server-1.2 libebook-1.2 libecal-1.2],
+	[with_evolution=yes
+	 if $PKG_CONFIG --atleast-version 3.20 evolution-shell-3.0; then
+	    AC_DEFINE(EVO_HAS_E_COMP_EDITOR, 1, [Since 3.20])
+	 fi
+	 evomoddir="$($PKG_CONFIG --variable=moduledir evolution-shell-3.0)"
+	 AC_SUBST(evomoddir, ${evomoddir})],
+	[:])])
+
+AM_CONDITIONAL(BUILD_EVOPLUGIN, [ test "$with_evolution" = "yes" ])
 
 fsplugindir="$($PKG_CONFIG --variable=pluginsdir farstream-0.2)"
 AC_SUBST(fsplugindir, ${fsplugindir})

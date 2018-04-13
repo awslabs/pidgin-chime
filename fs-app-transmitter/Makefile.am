@@ -8,6 +8,3 @@ libapp_transmitter_la_SOURCES = fs-app-stream-transmitter.c fs-app-stream-transm
 					fs-app-transmitter.c  fs-app-transmitter.h
 
 libapp_transmitter_la_LDFLAGS = -module -avoid-version -no-undefined
-
-libapp_transmitter_la_LIBADD = $(EVOLUTION_LIBS)
-

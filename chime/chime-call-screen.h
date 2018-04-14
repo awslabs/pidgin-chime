@@ -28,9 +28,12 @@ struct _ChimeCallScreen {
 	ChimeCall *call;
 	GCancellable *cancel;
 	ChimeScreenState state;
+	GMutex transport_lock;
 
 	GstAppSrc *screen_src;
 	gboolean appsrc_need_data;
+
+	GstAppSink *screen_sink;
 
 	SoupWebsocketConnection *ws;
 };
@@ -41,5 +44,5 @@ void chime_call_screen_close(ChimeCallScreen *screen);
 void chime_call_screen_view(ChimeCallScreen *screen);
 void chime_call_screen_unview(ChimeCallScreen *screen);
 
-void chime_call_screen_install_app_callbacks(ChimeCallScreen *screen, GstAppSrc *appsrc);
-
+void chime_call_screen_install_appsrc(ChimeCallScreen *screen, GstAppSrc *appsrc);
+void chime_call_screen_install_appsink(ChimeCallScreen *screen, GstAppSink *appsink);

@@ -118,10 +118,12 @@ typedef enum {
 	CHIME_SCREEN_STATE_HANGUP,
 	CHIME_SCREEN_STATE_CONNECTED,
 	CHIME_SCREEN_STATE_VIEWING,
+	CHIME_SCREEN_STATE_SENDING,
 } ChimeScreenState;
 
 void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, GstAppSink *appsink);
 void chime_call_view_screen(ChimeConnection *cxn, ChimeCall *call, GstAppSrc *appsrc);
+void chime_call_send_screen(ChimeConnection *cxn, ChimeCall *call, GstAppSink *appsink);
 
 G_END_DECLS
 

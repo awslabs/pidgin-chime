@@ -23,6 +23,10 @@
 #include <ctype.h>
 
 #include <gst/rtp/gstrtpbuffer.h>
+#include <gst/video/video.h>
+
+static GstAppSrcCallbacks no_appsrc_callbacks;
+static GstAppSinkCallbacks no_appsink_callbacks;
 
 struct screen_pkt {
 	unsigned char type;
@@ -88,6 +92,7 @@ static void screen_send_packet(ChimeCallScreen *screen, enum screen_pkt_type typ
 	unsigned char dest = 0;
 	enum screen_pkt_flag flag = SCREEN_PKT_FLAG_LOCAL;
 
+	g_mutex_lock(&screen->transport_lock);
 	if (dlen) {
 		/* Ick, we need to fix websockets to take iovecs */
 		struct screen_pkt *buf = g_malloc0(sizeof(*buf) + dlen);
@@ -107,6 +112,7 @@ static void screen_send_packet(ChimeCallScreen *screen, enum screen_pkt_type typ
 
 		soup_websocket_connection_send_binary(screen->ws, &pkt, sizeof(pkt));
 	}
+	g_mutex_unlock(&screen->transport_lock);
 }
 
 static void on_screenws_closed(SoupWebsocketConnection *ws, gpointer _screen)
@@ -136,6 +142,24 @@ static void on_screenws_message(SoupWebsocketConnection *ws, gint type,
 	switch(pkt->type) {
 	case SCREEN_PKT_TYPE_HEARTBEAT_REQUEST:
 		screen_send_packet(screen, SCREEN_PKT_TYPE_HEARTBEAT_RESPONSE, NULL, 0);
+		break;
+
+	case SCREEN_PKT_TYPE_KEY_REQUEST:
+		if (screen->screen_sink) {
+			GstEvent *ev = gst_video_event_new_upstream_force_key_unit(GST_CLOCK_TIME_NONE, FALSE, 0);
+			GstPad *pad = gst_element_get_static_pad(GST_ELEMENT(screen->screen_sink), "sink");
+			GstPad *peer = gst_pad_get_peer(pad);
+			gst_pad_send_event(peer, ev);
+		}
+		break;
+
+	case SCREEN_PKT_TYPE_STREAM_STOP:
+		if (screen->screen_sink) {
+			screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_END, NULL, 0);
+
+			gst_app_sink_set_callbacks(screen->screen_sink, &no_appsink_callbacks, NULL, NULL);
+			screen->screen_sink = NULL;
+		}
 		break;
 
 	case SCREEN_PKT_TYPE_CAPTURE:
@@ -179,6 +203,8 @@ ChimeCallScreen *chime_call_screen_open(ChimeConnection *cxn, ChimeCall *call)
 {
 	ChimeCallScreen *screen = g_new0(ChimeCallScreen, 1);
 
+	g_mutex_init(&screen->transport_lock);
+
 	screen->state = CHIME_SCREEN_STATE_CONNECTING;
 	screen->call = call;
 	screen->cancel = g_cancellable_new();
@@ -211,7 +237,6 @@ static void on_final_screenws_close(SoupWebsocketConnection *ws, gpointer _unuse
 	g_object_unref(ws);
 }
 
-static GstAppSrcCallbacks no_appsrc_callbacks;
 void chime_call_screen_close(ChimeCallScreen *screen)
 {
 	if (screen->cancel) {
@@ -225,8 +250,14 @@ void chime_call_screen_close(ChimeCallScreen *screen)
 		soup_websocket_connection_close(screen->ws, 0, NULL);
 		screen->ws = NULL;
 	}
-	if (screen->screen_src)
+	if (screen->screen_src) {
 		gst_app_src_set_callbacks(screen->screen_src, &no_appsrc_callbacks, NULL, NULL);
+		screen->screen_src = NULL;
+	}
+	if (screen->screen_sink) {
+		gst_app_sink_set_callbacks(screen->screen_sink, &no_appsink_callbacks, NULL, NULL);
+		screen->screen_sink = NULL;
+	}
 	g_free(screen);
 }
 
@@ -246,7 +277,9 @@ static void screen_appsrc_destroy(gpointer _screen)
 {
 	ChimeCallScreen *screen = _screen;
 
+	screen_send_packet(screen, SCREEN_PKT_TYPE_VIEWER_END, NULL, 0);
 	screen->screen_src = NULL;
+	screen->state = CHIME_SCREEN_STATE_CONNECTED;
 }
 
 static GstAppSrcCallbacks screen_appsrc_callbacks = {
@@ -255,11 +288,77 @@ static GstAppSrcCallbacks screen_appsrc_callbacks = {
 };
 
 
-void chime_call_screen_install_app_callbacks(ChimeCallScreen *screen, GstAppSrc *appsrc)
+void chime_call_screen_install_appsrc(ChimeCallScreen *screen, GstAppSrc *appsrc)
 {
-	printf("Send viewer start...\n");
+	if (screen->screen_sink) {
+		screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_END, NULL, 0);
+
+		gst_app_sink_set_callbacks(screen->screen_sink, &no_appsink_callbacks, NULL, NULL);
+		screen->screen_sink = NULL;
+	}
+
 	screen_send_packet(screen, SCREEN_PKT_TYPE_VIEWER_BEGIN, NULL, 0);
 
 	screen->screen_src = appsrc;
 	gst_app_src_set_callbacks(appsrc, &screen_appsrc_callbacks, screen, screen_appsrc_destroy);
+	screen->state = CHIME_SCREEN_STATE_VIEWING;
+}
+
+static GstFlowReturn screen_appsink_new_sample(GstAppSink* self, gpointer data)
+{
+	ChimeCallScreen *screen = (ChimeCallScreen*)data;
+	GstSample *sample = gst_app_sink_pull_sample(self);
+
+	if (!sample)
+		return GST_FLOW_OK;
+
+	if (screen->state == CHIME_SCREEN_STATE_SENDING) {
+		GstBuffer *buffer = gst_sample_get_buffer(sample);
+		gsize len = gst_buffer_get_size(buffer);
+
+		/* Ick, we need to fix websockets to take iovecs */
+		struct screen_pkt *buf = g_malloc0(sizeof(*buf) + len);
+		buf->type = SCREEN_PKT_TYPE_CAPTURE;
+		buf->source = 0;
+		buf->dest = 0;
+		buf->flag = SCREEN_PKT_FLAG_BROADCAST;
+		gst_buffer_extract(buffer, 0, &buf[1], len);
+		g_mutex_lock(&screen->transport_lock);
+		if (screen->ws && screen->state == CHIME_SCREEN_STATE_SENDING)
+			soup_websocket_connection_send_binary(screen->ws, buf, sizeof(*buf) + len);
+		g_mutex_unlock(&screen->transport_lock);
+		g_free(buf);
+	}
+	gst_sample_unref(sample);
+
+	return GST_FLOW_OK;
+}
+
+static GstAppSinkCallbacks screen_appsink_callbacks = {
+	.new_sample = screen_appsink_new_sample,
+};
+
+static void screen_appsink_destroy(gpointer _screen)
+{
+	ChimeCallScreen *screen = _screen;
+
+	screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_END, NULL, 0);
+	screen->screen_sink = NULL;
+	screen->state = CHIME_SCREEN_STATE_CONNECTED;
+}
+
+void chime_call_screen_install_appsink(ChimeCallScreen *screen, GstAppSink *appsink)
+{
+	if (screen->screen_src) {
+		screen_send_packet(screen, SCREEN_PKT_TYPE_VIEWER_END, NULL, 0);
+
+		gst_app_src_set_callbacks(screen->screen_src, &no_appsrc_callbacks, NULL, NULL);
+		screen->screen_src = NULL;
+	}
+
+	screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_BEGIN, NULL, 0);
+
+	screen->screen_sink = appsink;
+	gst_app_sink_set_callbacks(appsink, &screen_appsink_callbacks, screen, screen_appsink_destroy);
+	screen->state = CHIME_SCREEN_STATE_SENDING;
 }

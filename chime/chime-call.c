@@ -554,6 +554,7 @@ void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean 
 	g_return_if_fail(CHIME_IS_CALL(call));
 
 	if (!call->opens++) {
+		call->presenter = NULL;
 		chime_jugg_subscribe(cxn, call->channel, "Call", call_jugg_cb, NULL);
 		chime_jugg_subscribe(cxn, call->roster_channel, "Roster", call_roster_cb, call);
 		call->audio = chime_call_audio_open(cxn, call, muted);
@@ -603,6 +604,13 @@ void chime_call_view_screen(ChimeConnection *cxn, ChimeCall *call, GstAppSrc *ap
 	if (!call->screen)
 		call->screen = chime_call_screen_open(cxn, call);
 
-	chime_call_screen_install_app_callbacks(call->screen, appsrc);
+	chime_call_screen_install_appsrc(call->screen, appsrc);
 }
 
+void chime_call_send_screen(ChimeConnection *cxn, ChimeCall *call, GstAppSink *appsink)
+{
+	if (!call->screen)
+		call->screen = chime_call_screen_open(cxn, call);
+
+	chime_call_screen_install_appsink(call->screen, appsink);
+}

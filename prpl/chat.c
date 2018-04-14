@@ -55,6 +55,7 @@ struct chime_chat {
 	void *screen_ask_ui;
 	gchar *screen_title;
 	PurpleMedia *screen_media;
+	PurpleMedia *share_media;
 };
 
 /*
@@ -430,6 +431,108 @@ static void on_room_membership(ChimeRoom *room, ChimeRoomMember *member, struct 
 	}
 }
 
+static void share_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)
+{
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Share media state %d\n", state);
+
+	if (state == PURPLE_MEDIA_STATE_CONNECTED) {
+		PurpleMediaManager *mgr = purple_media_manager_get();
+		GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)), GST_DEBUG_GRAPH_SHOW_ALL, "share connected");
+	}
+
+	if (state == PURPLE_MEDIA_STATE_END && !id && !participant) {
+		if (chat->share_media) {
+			chat->share_media = NULL;
+		}
+	}
+}
+
+static void share_screen(PurpleBuddy *buddy, gpointer _chat)
+{
+	struct chime_chat *chat = _chat;
+
+	if (chat->share_media)
+		return;
+
+	const gchar *name = "Sharing screen";
+
+	PurpleMediaManager *mgr = purple_media_manager_get();
+	chat->share_media = purple_media_manager_create_media(purple_media_manager_get(),
+							chat->conv->account,
+							"fsrawconference",
+							name,
+							TRUE);
+	if (!chat->share_media) {
+		/* XX: Report error, but not with purple_media_error()! */
+		return;
+	}
+
+	g_signal_connect(chat->share_media, "state-changed", G_CALLBACK(share_media_changed), chat);
+
+	if (!purple_media_add_stream(chat->share_media, "chime", name,
+				     PURPLE_MEDIA_SEND_VIDEO, TRUE,
+				     "app", 0, NULL)) {
+
+		purple_media_error(chat->share_media, _("Error adding media stream\n"));
+		purple_media_end(chat->share_media, NULL, NULL);
+		chat->share_media = NULL;
+		return;
+	}
+
+	gchar *sinkname = g_strdup_printf("chime_screen_sink_%p", chat->call);
+	gchar *sinkpipe = g_strdup_printf("videorate ! video/x-raw,framerate=3/1 ! videoconvert ! vp8enc ! appsink name=%s async=false", sinkname);
+	PurpleMediaCandidate *cand =
+		purple_media_candidate_new(NULL, 1,
+					   PURPLE_MEDIA_CANDIDATE_TYPE_HOST,
+					   PURPLE_MEDIA_NETWORK_PROTOCOL_UDP,
+					   sinkpipe, 16000);
+	g_free(sinkpipe);
+
+	GList *cands = g_list_append (NULL, cand);
+	purple_media_add_remote_candidates(chat->share_media, "chime", name, cands);
+	purple_media_candidate_list_free(cands);
+
+	GList *codecs = g_list_append(NULL,
+				      purple_media_codec_new(97, "video/x-raw", PURPLE_MEDIA_VIDEO, 0));
+
+	if (!purple_media_set_remote_codecs(chat->share_media, "chime", name, codecs)) {
+		purple_media_codec_list_free(codecs);
+		purple_media_error(chat->share_media, _("Error setting video codec\n"));
+		purple_media_end(chat->share_media, NULL, NULL);
+		chat->share_media = NULL;
+		return;
+	}
+	purple_media_codec_list_free(codecs);
+
+	GstElement *pipeline = purple_media_manager_get_pipeline(mgr);
+	GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipeline), sinkname);
+	g_free(sinkname);
+
+	chime_call_send_screen(PURPLE_CHIME_CXN(chat->conv->account->gc), chat->call, GST_APP_SINK(appsink));
+	g_object_unref(appsink);
+
+	purple_media_stream_info(chat->share_media, PURPLE_MEDIA_INFO_ACCEPT, "chime", name, FALSE);
+	GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)),
+				  GST_DEBUG_GRAPH_SHOW_ALL, "chime share graph");
+}
+
+
+static void screen_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)
+{
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Share media state %d\n", state);
+
+	if (state == PURPLE_MEDIA_STATE_CONNECTED) {
+		PurpleMediaManager *mgr = purple_media_manager_get();
+		GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)), GST_DEBUG_GRAPH_SHOW_ALL, "share connected");
+	}
+
+	if (state == PURPLE_MEDIA_STATE_END && !id && !participant) {
+		if (chat->screen_media) {
+			chat->screen_media = NULL;
+		}
+	}
+}
+
 static void screen_ask_cb(gpointer _chat, int choice)
 {
 	struct chime_chat *chat = _chat;
@@ -448,12 +551,10 @@ static void screen_ask_cb(gpointer _chat, int choice)
 							TRUE);
 	if (!chat->screen_media) {
 		/* XX: Report error, but not with purple_media_error()! */
-		chime_call_set_silent(chat->call, TRUE);
 		return;
 	}
 
-	g_signal_connect(chat->screen_media, "state-changed", G_CALLBACK(call_media_changed), chat);
-	g_signal_connect(chat->screen_media, "stream-info", G_CALLBACK(call_stream_info), chat);
+	g_signal_connect(chat->screen_media, "state-changed", G_CALLBACK(screen_media_changed), chat);
 
 	if (!purple_media_add_stream(chat->screen_media, "chime", name,
 				     PURPLE_MEDIA_RECV_VIDEO, TRUE,
@@ -490,7 +591,7 @@ static void screen_ask_cb(gpointer _chat, int choice)
 		return;
 	}
 	purple_media_codec_list_free(codecs);
-#if 1
+
 	GstElement *pipeline = purple_media_manager_get_pipeline(mgr);
 	GstElement *appsrc = gst_bin_get_by_name(GST_BIN(pipeline), srcname);
 	g_free(srcname);
@@ -500,7 +601,7 @@ static void screen_ask_cb(gpointer _chat, int choice)
 	gst_app_src_set_stream_type(GST_APP_SRC(appsrc), GST_APP_STREAM_TYPE_STREAM);
 	chime_call_view_screen(PURPLE_CHIME_CXN(chat->conv->account->gc), chat->call, GST_APP_SRC(appsrc));
 	g_object_unref(appsrc);
-#endif
+
 	purple_media_stream_info(chat->screen_media, PURPLE_MEDIA_INFO_ACCEPT, "chime", name, FALSE);
 	GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)),
 				  GST_DEBUG_GRAPH_SHOW_ALL, "chime screen graph");
@@ -530,8 +631,8 @@ static void on_call_presenter(ChimeCall *call, ChimeCallParticipant *presenter, 
 		chat->screen_title = g_strdup_printf(_("%s's screen"), presenter->full_name);
 
 		gchar *primary = g_strdup_printf(_("%s is now sharing a screen."), presenter->full_name);
-		chat->screen_ask_ui = purple_request_action(chat, _("Screenshare available"), primary, "foo",
-							    1,
+		chat->screen_ask_ui = purple_request_action(chat, _("Screenshare available"), primary,
+							    chat->conv->account->username, 1,
 							    chat->conv->account, presenter->email, chat->conv,
 							    chat, 2,
 							    _("Ignore"), screen_ask_cb,
@@ -573,6 +674,14 @@ void chime_destroy_chat(struct chime_chat *chat)
 			chat->media = NULL;
 
 			purple_media_end(media, "chime", chime_call_get_alert_body(chat->call));
+			purple_media_manager_remove_media(purple_media_manager_get(), media);
+		}
+
+		if (chat->share_media) {
+			PurpleMedia *media = chat->share_media;
+			chat->share_media = NULL;
+
+			purple_media_end(media, "chime", "Sharing screen");
 			purple_media_manager_remove_media(purple_media_manager_get(), media);
 		}
 
@@ -956,6 +1065,9 @@ GList *chime_purple_chat_menu(PurpleChat *pchat)
 		items = g_list_append(items,
 				      purple_menu_action_new(_("Join audio call"),
 							     PURPLE_CALLBACK(join_audio), chat, NULL));
+		items = g_list_append(items,
+				      purple_menu_action_new(_("Share screen (well, camera)"),
+							     PURPLE_CALLBACK(share_screen), chat, NULL));
 	}
 
 	return items;

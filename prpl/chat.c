@@ -431,6 +431,32 @@ static void on_room_membership(ChimeRoom *room, ChimeRoomMember *member, struct 
 	}
 }
 
+static void on_screen_state(ChimeCall *call, ChimeScreenState screen_state, struct chime_chat *chat)
+{
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Screen state %d\n", screen_state);
+
+	if (screen_state == CHIME_SCREEN_STATE_CONNECTING)
+		return;
+
+	if (chat->share_media) {
+		if (screen_state == CHIME_SCREEN_STATE_SENDING) {
+			purple_media_stream_info(chat->share_media, PURPLE_MEDIA_INFO_ACCEPT, "chime", _("Sharing screen"), FALSE);
+		} else {
+			purple_debug(PURPLE_DEBUG_INFO, "chime", "Screen presentation ends\n");
+			purple_media_end(chat->share_media, NULL, NULL);
+			chat->share_media = NULL;
+		}
+	} else if (chat->screen_media) {
+		if (screen_state == CHIME_SCREEN_STATE_VIEWING) {
+			purple_media_stream_info(chat->screen_media, PURPLE_MEDIA_INFO_ACCEPT, "chime", chat->screen_title, FALSE);
+		} else {
+			purple_debug(PURPLE_DEBUG_INFO, "chime", "Screen viewing ends\n");
+			purple_media_end(chat->screen_media, NULL, NULL);
+			chat->screen_media = NULL;
+		}
+	}
+}
+
 static void share_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)
 {
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Share media state %d\n", state);
@@ -446,7 +472,7 @@ static void share_media_changed(PurpleMedia *media, PurpleMediaState state, cons
 		}
 	}
 }
-
+static void on_call_presenter(ChimeCall *call, ChimeCallParticipant *presenter, struct chime_chat *chat);
 static void share_screen(PurpleBuddy *buddy, gpointer _chat)
 {
 	struct chime_chat *chat = _chat;
@@ -454,7 +480,10 @@ static void share_screen(PurpleBuddy *buddy, gpointer _chat)
 	if (chat->share_media)
 		return;
 
-	const gchar *name = "Sharing screen";
+	/* Stop receiving so we can send */
+	on_call_presenter(chat->call, NULL, chat);
+
+	const gchar *name = _("Sharing screen");
 
 	PurpleMediaManager *mgr = purple_media_manager_get();
 	chat->share_media = purple_media_manager_create_media(purple_media_manager_get(),
@@ -480,7 +509,7 @@ static void share_screen(PurpleBuddy *buddy, gpointer _chat)
 	}
 
 	gchar *sinkname = g_strdup_printf("chime_screen_sink_%p", chat->call);
-	gchar *sinkpipe = g_strdup_printf("videorate ! video/x-raw,framerate=3/1 ! videoconvert ! vp8enc ! appsink name=%s async=false", sinkname);
+	gchar *sinkpipe = g_strdup_printf("videorate ! video/x-raw,format=YUY2,framerate=3/1 ! videoconvert ! vp8enc ! appsink name=%s async=false", sinkname);
 	PurpleMediaCandidate *cand =
 		purple_media_candidate_new(NULL, 1,
 					   PURPLE_MEDIA_CANDIDATE_TYPE_HOST,
@@ -511,7 +540,6 @@ static void share_screen(PurpleBuddy *buddy, gpointer _chat)
 	chime_call_send_screen(PURPLE_CHIME_CXN(chat->conv->account->gc), chat->call, GST_APP_SINK(appsink));
 	g_object_unref(appsink);
 
-	purple_media_stream_info(chat->share_media, PURPLE_MEDIA_INFO_ACCEPT, "chime", name, FALSE);
 	GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)),
 				  GST_DEBUG_GRAPH_SHOW_ALL, "chime share graph");
 }
@@ -602,13 +630,28 @@ static void screen_ask_cb(gpointer _chat, int choice)
 	chime_call_view_screen(PURPLE_CHIME_CXN(chat->conv->account->gc), chat->call, GST_APP_SRC(appsrc));
 	g_object_unref(appsrc);
 
-	purple_media_stream_info(chat->screen_media, PURPLE_MEDIA_INFO_ACCEPT, "chime", name, FALSE);
 	GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)),
 				  GST_DEBUG_GRAPH_SHOW_ALL, "chime screen graph");
 }
 
+static void view_screen(PurpleBuddy *buddy, gpointer _chat)
+{
+	struct chime_chat *chat = _chat;
+
+	if (chat->screen_ask_ui) {
+		purple_request_close(PURPLE_REQUEST_ACTION, chat->screen_ask_ui);
+		chat->screen_ask_ui = NULL;
+	}
+	screen_ask_cb(chat, 0);
+}
+
 static void on_call_presenter(ChimeCall *call, ChimeCallParticipant *presenter, struct chime_chat *chat)
 {
+	/* If we are the sender, don't offer to receive... */
+	if (chat->share_media && presenter &&
+	    !g_strcmp0(presenter->participant_id, chime_connection_get_profile_id(PURPLE_CHIME_CXN(chat->conv->account->gc))))
+		presenter = NULL;
+
 	if (!presenter || g_strcmp0(chat->presenter_id, presenter->participant_id)) {
 		if (chat->screen_ask_ui) {
 			purple_request_close(PURPLE_REQUEST_ACTION, chat->screen_ask_ui);
@@ -632,7 +675,7 @@ static void on_call_presenter(ChimeCall *call, ChimeCallParticipant *presenter, 
 
 		gchar *primary = g_strdup_printf(_("%s is now sharing a screen."), presenter->full_name);
 		chat->screen_ask_ui = purple_request_action(chat, _("Screenshare available"), primary,
-							    chat->conv->account->username, 1,
+							    chime_call_get_alert_body(chat->call), 1,
 							    chat->conv->account, presenter->email, chat->conv,
 							    chat, 2,
 							    _("Ignore"), screen_ask_cb,
@@ -681,7 +724,7 @@ void chime_destroy_chat(struct chime_chat *chat)
 			PurpleMedia *media = chat->share_media;
 			chat->share_media = NULL;
 
-			purple_media_end(media, "chime", "Sharing screen");
+			purple_media_end(media, "chime", _("Sharing screen"));
 			purple_media_manager_remove_media(purple_media_manager_get(), media);
 		}
 
@@ -752,6 +795,7 @@ struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, Ch
 		chat->meeting = g_object_ref(meeting);
 		chat->call = chime_meeting_get_call(meeting);
 		if (chat->call) {
+			g_signal_connect(chat->call, "screen-state", G_CALLBACK(on_screen_state), chat);
 			g_signal_connect(chat->call, "audio-state", G_CALLBACK(on_audio_state), chat);
 			g_signal_connect(chat->call, "participants-changed", G_CALLBACK(on_call_participants), chat);
 			g_signal_connect(chat->call, "new-presenter", G_CALLBACK(on_call_presenter), chat);
@@ -1065,6 +1109,10 @@ GList *chime_purple_chat_menu(PurpleChat *pchat)
 		items = g_list_append(items,
 				      purple_menu_action_new(_("Join audio call"),
 							     PURPLE_CALLBACK(join_audio), chat, NULL));
+		if (chat->screen_title)
+			items = g_list_append(items,
+					      purple_menu_action_new(chat->screen_title,
+								     PURPLE_CALLBACK(view_screen), chat, NULL));
 		items = g_list_append(items,
 				      purple_menu_action_new(_("Share screen (well, camera)"),
 							     PURPLE_CALLBACK(share_screen), chat, NULL));

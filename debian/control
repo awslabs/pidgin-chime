@@ -24,7 +24,6 @@ Build-Depends: debhelper (>= 9),
 	       libecal1.2-dev,
 	       evolution-data-server-dev,
 	       graphicsmagick-imagemagick-compat,
-	       imagemagick,
 	       libgnutls-dev
 
 Package: pidgin-chime

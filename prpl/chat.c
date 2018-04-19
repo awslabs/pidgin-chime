@@ -193,6 +193,33 @@ static gint participant_sort(gconstpointer a, gconstpointer b)
 		return pa->status - pb->status;
 }
 
+struct ccb {
+	ChimeContact *contact;
+	const gchar *name;
+};
+
+static void match_contact_cb(ChimeConnection *cxn, ChimeContact *contact, gpointer _d)
+{
+	struct ccb *d = _d;
+
+	if (!strcmp(chime_contact_get_full_name(contact), d->name))
+		d->contact = contact;
+}
+
+static void open_participant_im(PurpleConnection *conn, GList *row, gpointer _chat)
+{
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
+	struct ccb ccb = { NULL, row->data };
+
+	chime_connection_foreach_contact(cxn, match_contact_cb, &ccb);
+	if (ccb.contact) {
+		PurpleConversation *pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM,
+								    purple_connection_get_account(conn),
+								    chime_contact_get_email(ccb.contact));
+		purple_conversation_present(pconv);
+	}
+}
+
 static PurpleNotifySearchResults *generate_sr_participants(GHashTable *participants)
 {
 	PurpleNotifySearchResults *results = purple_notify_searchresults_new();
@@ -206,6 +233,8 @@ static PurpleNotifySearchResults *generate_sr_participants(GHashTable *participa
 	purple_notify_searchresults_column_add(results, column);
 	column = purple_notify_searchresults_column_new("🔊");
 	purple_notify_searchresults_column_add(results, column);
+
+	purple_notify_searchresults_button_add(results, PURPLE_NOTIFY_BUTTON_IM, open_participant_im);
 
 	gpointer klass = g_type_class_ref(CHIME_TYPE_CALL_PARTICIPATION_STATUS);
 

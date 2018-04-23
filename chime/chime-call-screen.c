@@ -192,6 +192,9 @@ static void screen_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _scre
 	chime_debug("screen ws connected!\n");
 	g_signal_connect(G_OBJECT(ws), "closed", G_CALLBACK(on_screenws_closed), screen);
 	g_signal_connect(G_OBJECT(ws), "message", G_CALLBACK(on_screenws_message), screen);
+
+	g_object_set(G_OBJECT(ws), "max-incoming-payload-size", 0, NULL);
+
 	screen->ws = ws;
 
 	if (screen->screen_src)

@@ -55,6 +55,8 @@ struct chime_chat {
 	void *screen_ask_ui;
 	gchar *screen_title;
 	PurpleMedia *screen_media;
+
+	void *share_select_ui;
 	PurpleMedia *share_media;
 	PurpleMediaElementInfo *screen_src_info;
 };
@@ -503,43 +505,20 @@ static void share_media_changed(PurpleMedia *media, PurpleMediaState state, cons
 	}
 }
 
-
-static GstElement *create_screen_src(PurpleMedia *media, const gchar *session_id, const gchar *participant)
-{
-	/* When we fix this not to just unconditionally do full-screen, we
-	   could abuse the session_id or participant to pass in the desired
-	   xid or range, or we could use g_object_set_data() on the media.
-	   For now though, just full screen. In fact the whole window-selection
-	   thing wants to live in Pidgin in the fullness of time, and the
-	   PRPL shouldn't do anything UI-related at all. */
-#if 0
-	extern void XInitThreads(void);
-	XInitThreads();
-	GstElement *ret = gst_element_factory_make("ximagesrc", "chime-screen-src");
-	g_object_set(ret, "use-damage", 0, NULL);
-	g_object_set(ret, "xid", 0x1800438, NULL);
-//	g_object_set(ret, "endx", 1000, "endy", 500, NULL);
-#else
-	GstElement *ret = gst_element_factory_make("videotestsrc", "chime-screen-src");
-#endif
-	return ret;
-}
-
 static void on_call_presenter(ChimeCall *call, ChimeCallParticipant *presenter, struct chime_chat *chat);
-static void share_screen(PurpleBuddy *buddy, gpointer _chat)
+
+
+static void share_screen(gpointer _chat, PurpleMediaElementInfo *info)
 {
 	struct chime_chat *chat = _chat;
 
-	if (chat->share_media)
+	chat->share_select_ui = NULL;
+
+	if (!info)
 		return;
 
-	if (!chat->screen_src_info)
-		chat->screen_src_info = g_object_new(PURPLE_TYPE_MEDIA_ELEMENT_INFO,
-						     "id", "screen-share-src",
-						     "name", "Screen share video source",
-						     "type", PURPLE_MEDIA_ELEMENT_VIDEO | PURPLE_MEDIA_ELEMENT_SRC |
-						     PURPLE_MEDIA_ELEMENT_ONE_SRC,
-						     "create-cb", create_screen_src, NULL);
+	g_clear_object(&chat->screen_src_info);
+	chat->screen_src_info = info;
 
 	/* Stop receiving so we can send */
 	on_call_presenter(chat->call, NULL, chat);
@@ -572,7 +551,7 @@ static void share_screen(PurpleBuddy *buddy, gpointer _chat)
 	}
 
 	gchar *sinkname = g_strdup_printf("chime_screen_sink_%p", chat->call);
-	gchar *sinkpipe = g_strdup_printf("videorate ! video/x-raw,framerate=3/1 ! videoconvert ! vp8enc min-quantizer=15 max-quantizer=25 target-bitrate=512000 ! appsink name=%s async=false", sinkname);
+	gchar *sinkpipe = g_strdup_printf("videorate ! video/x-raw,framerate=3/1 ! videoconvert ! vp8enc min-quantizer=15 max-quantizer=25 target-bitrate=256000 deadline=1 ! appsink name=%s async=false", sinkname);
 	PurpleMediaCandidate *cand =
 		purple_media_candidate_new(NULL, 1,
 					   PURPLE_MEDIA_CANDIDATE_TYPE_HOST,
@@ -608,6 +587,19 @@ static void share_screen(PurpleBuddy *buddy, gpointer _chat)
 				  GST_DEBUG_GRAPH_SHOW_ALL, "chime share graph");
 }
 
+static void select_screen_share(PurpleBuddy *buddy, gpointer _chat)
+{
+	struct chime_chat *chat = _chat;
+
+	if (chat->share_media || chat->share_select_ui)
+		return;
+
+	char *secondary = g_strdup_printf(_("Select the window to share to %s"),
+					  chat->conv->name);
+	chat->share_select_ui = purple_request_screenshare_media(chat->conv->account->gc, _("Select screenshare"),
+								 NULL, secondary, chat->conv->account,
+								 (GCallback)share_screen, chat);
+}
 
 static void screen_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)
 {
@@ -1180,7 +1172,7 @@ GList *chime_purple_chat_menu(PurpleChat *pchat)
 								     PURPLE_CALLBACK(view_screen), chat, NULL));
 		items = g_list_append(items,
 				      purple_menu_action_new(_("Share screen (well, camera)"),
-							     PURPLE_CALLBACK(share_screen), chat, NULL));
+							     PURPLE_CALLBACK(select_screen_share), chat, NULL));
 	}
 
 	return items;

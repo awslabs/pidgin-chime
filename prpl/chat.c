@@ -489,6 +489,7 @@ static void on_screen_state(ChimeCall *call, ChimeScreenState screen_state, stru
 	}
 }
 
+#ifdef HAVE_SCREENSHARE
 static void share_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)
 {
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Share media state %d\n", state);
@@ -506,7 +507,6 @@ static void share_media_changed(PurpleMedia *media, PurpleMediaState state, cons
 }
 
 static void on_call_presenter(ChimeCall *call, ChimeCallParticipant *presenter, struct chime_chat *chat);
-
 
 static void share_screen(gpointer _chat, PurpleMediaElementInfo *info)
 {
@@ -586,6 +586,7 @@ static void share_screen(gpointer _chat, PurpleMediaElementInfo *info)
 	GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)),
 				  GST_DEBUG_GRAPH_SHOW_ALL, "chime share graph");
 }
+#endif /* HAVE_SCREENSHARE */
 
 static void select_screen_share(PurpleBuddy *buddy, gpointer _chat)
 {
@@ -594,11 +595,23 @@ static void select_screen_share(PurpleBuddy *buddy, gpointer _chat)
 	if (chat->share_media || chat->share_select_ui)
 		return;
 
-	char *secondary = g_strdup_printf(_("Select the window to share to %s"),
-					  chat->conv->name);
-	chat->share_select_ui = purple_request_screenshare_media(chat->conv->account->gc, _("Select screenshare"),
-								 NULL, secondary, chat->conv->account,
-								 (GCallback)share_screen, chat);
+#ifdef HAVE_SCREENSHARE
+	if (purple_request_get_ui_ops()->request_screenshare_media) {
+		char *secondary = g_strdup_printf(_("Select the window to share to %s"),
+						  chat->conv->name);
+		chat->share_select_ui = purple_request_screenshare_media(chat->conv->account->gc, _("Select screenshare"),
+									 NULL, secondary, chat->conv->account,
+									 (GCallback)share_screen, chat);
+		return;
+	}
+	purple_notify_error(chat->conv->account->gc, _("Please upgrade Pidgin"),
+			    _("Your version of Pidgin does not support screenshare selection."),
+			    _("Please upgrade."));
+#else
+	purple_notify_error(chat->conv->account->gc, _("Please upgrade Pidgin"),
+			    _("This version of purple-chime was built against a libpurple without screenshare selection support."),
+			    _("Please upgrade and rebuild the plugin."));
+#endif
 }
 
 static void screen_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)
@@ -1171,7 +1184,7 @@ GList *chime_purple_chat_menu(PurpleChat *pchat)
 					      purple_menu_action_new(chat->screen_title,
 								     PURPLE_CALLBACK(view_screen), chat, NULL));
 		items = g_list_append(items,
-				      purple_menu_action_new(_("Share screen (well, camera)"),
+				      purple_menu_action_new(_("Share screen..."),
 							     PURPLE_CALLBACK(select_screen_share), chat, NULL));
 	}
 

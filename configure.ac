@@ -70,6 +70,10 @@ PKG_CHECK_MODULES(MARKDOWN, [libmarkdown], [],
 				   AC_ERROR([Could not build against libmarkdown])])
 		   LIBS="$oldLIBS"])
 
+LIBS="$LIBS $PURPLE_LIBS"
+AC_CHECK_FUNC(purple_request_screenshare_media, [AC_DEFINE(HAVE_SCREENSHARE, 1, [Have purple_request_screenshare_media()])], [])
+LIBS="$oldLIBS"
+
 gstplugindir="$($PKG_CONFIG --variable=pluginsdir gstreamer-1.0)"
 AC_SUBST(gstplugindir, ${gstplugindir})
 

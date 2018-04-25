@@ -372,13 +372,30 @@ static gboolean update_joinable(gpointer _conn)
 	return FALSE;
 }
 
+static void count_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _count)
+{
+	int *count = _count;
+
+	(*count)++;
+}
 
 static void on_joinable_changed(ChimeMeeting *mtg, GParamSpec *ignored, PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 
-	if (pc->joinable_handle && !pc->joinable_refresh_id)
-		pc->joinable_refresh_id = g_idle_add(update_joinable, conn);
+	if (pc->joinable_handle) {
+		int count = 0;
+
+		chime_connection_foreach_meeting(PURPLE_CHIME_CXN(conn), count_mtg, &count);
+		if (!count) {
+			if (pc->joinable_refresh_id)
+				g_source_remove(pc->joinable_refresh_id);
+			pc->joinable_refresh_id = 0;
+			purple_notify_close(PURPLE_NOTIFY_SEARCHRESULTS, pc->joinable_handle);
+			pc->joinable_handle = NULL;
+		} else if (!pc->joinable_refresh_id)
+			pc->joinable_refresh_id = g_idle_add(update_joinable, conn);
+	}
 }
 
 static void unsub_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _conn)

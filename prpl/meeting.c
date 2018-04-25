@@ -470,3 +470,44 @@ void purple_chime_destroy_meetings(PurpleConnection *conn)
 	if (pc->joinable_handle)
 		joinable_closed_cb(conn);
 }
+
+static void media_initiated_cb(GObject *source, GAsyncResult *result, gpointer _conn)
+{
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	PurpleConnection *conn = _conn;
+	GError *error = NULL;
+
+	ChimeMeeting *mtg = chime_connection_create_meeting_finish(cxn, result, &error);
+	if (!mtg) {
+		purple_notify_error(conn, NULL,
+				    _("Unable to create conference"),
+				    error->message);
+		g_clear_error(&error);
+		return;
+	}
+
+	chime_connection_join_meeting_async(cxn, mtg, FALSE, NULL, join_mtg_done, conn);
+	g_object_unref(mtg);
+}
+
+gboolean chime_purple_initiate_media(PurpleAccount *account, const char *who,
+				     PurpleMediaSessionType type)
+{
+	if (type != PURPLE_MEDIA_AUDIO)
+		return FALSE;
+
+	if (!account->gc)
+		return FALSE;
+
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(account->gc);
+
+	ChimeContact *contact = chime_connection_contact_by_email(cxn, who);
+	if (!contact)
+		return FALSE;
+
+	GSList *cl = g_slist_append(NULL, contact);
+	chime_connection_create_meeting_async(cxn, cl, FALSE, TRUE, TRUE, NULL,
+					      media_initiated_cb, account->gc);
+	g_slist_free(cl);
+	return TRUE;
+}

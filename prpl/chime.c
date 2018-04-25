@@ -321,6 +321,11 @@ static GList *chime_purple_blist_node_menu(PurpleBlistNode *node)
 	}
 }
 
+static PurpleMediaCaps chime_purple_get_media_caps(PurpleAccount *account, const char *who)
+{
+	return PURPLE_MEDIA_CAPS_AUDIO;
+}
+
 #ifdef PURPLE_BLIST_NODE_IS_VISIBLE /* This was added at the same time */
 #define PRPL_HAS_GET_CB_ALIAS
 #else
@@ -351,6 +356,8 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.send_typing = chime_send_typing,
 	.set_idle = chime_purple_set_idle,
 	.blist_node_menu = chime_purple_blist_node_menu,
+	.get_media_caps = chime_purple_get_media_caps,
+	.initiate_media = chime_purple_initiate_media,
 #ifdef PRPL_HAS_GET_CB_ALIAS
 	.get_cb_alias = chime_purple_get_cb_alias,
 #endif

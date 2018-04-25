@@ -141,6 +141,18 @@ ChimeMeeting *chime_connection_join_meeting_finish(ChimeConnection *self,
 						   GAsyncResult *result,
 						   GError **error);
 
+void chime_connection_create_meeting_async(ChimeConnection *cxn,
+					   GSList *contacts,
+					   gboolean bridge_locked,
+					   gboolean create_bridge_passcode,
+					   gboolean p2p,
+					   GCancellable *cancellable,
+					   GAsyncReadyCallback callback,
+					   gpointer user_data);
+ChimeMeeting *chime_connection_create_meeting_finish(ChimeConnection *self,
+						     GAsyncResult *result,
+						     GError **error);
+
 G_END_DECLS
 
 #endif /* __CHIME_MEETING_H__ */

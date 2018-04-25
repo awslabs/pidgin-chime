@@ -76,6 +76,8 @@ void chime_purple_show_joinable(PurplePluginAction *action);
 void on_chime_new_meeting(ChimeConnection *cxn, ChimeMeeting *mtg, PurpleConnection *conn);
 void purple_chime_init_meetings(PurpleConnection *conn);
 void purple_chime_destroy_meetings(PurpleConnection *conn);
+gboolean chime_purple_initiate_media(PurpleAccount *account, const char *who,
+				     PurpleMediaSessionType type);
 
 /* rooms.c */
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);

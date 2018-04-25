@@ -843,3 +843,79 @@ ChimeMeeting *chime_connection_join_meeting_finish(ChimeConnection *self,
 	return g_task_propagate_pointer(G_TASK(result), error);
 }
 
+static void add_new_meeting_member(gpointer _contact, gpointer _jb)
+{
+	JsonBuilder **jb = _jb;
+	ChimeContact *contact = CHIME_CONTACT(_contact);
+
+	*jb = json_builder_add_string_value(*jb, chime_contact_get_profile_id(contact));
+}
+
+static void meet_created_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
+			    gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
+		ChimeMeeting *mtg = chime_connection_parse_meeting(cxn, node, NULL);
+		if (mtg)
+			g_task_return_pointer(task, g_object_ref(mtg), g_object_unref);
+		else
+			g_task_return_new_error(task, CHIME_ERROR, CHIME_ERROR_NETWORK,
+						_("Failed to create/parse AdHoc meeting"));
+	} else {
+		const gchar *reason = msg->reason_phrase;
+
+		parse_string(node, "Message", &reason);
+
+		g_task_return_new_error(task, CHIME_ERROR, CHIME_ERROR_NETWORK,
+				      _("Failed to create AdHoc meeting (%d): %s\n"),
+				      msg->status_code, reason);
+	}
+	g_object_unref(task);
+}
+
+void chime_connection_create_meeting_async(ChimeConnection *cxn,
+					   GSList *contacts,
+					   gboolean bridge_locked,
+					   gboolean create_bridge_passcode,
+					   gboolean p2p,
+					   GCancellable *cancellable,
+					   GAsyncReadyCallback callback,
+					   gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "attendee_ids");
+	jb = json_builder_begin_array(jb);
+	g_slist_foreach(contacts, add_new_meeting_member, &jb);
+	jb = json_builder_end_array(jb);
+	jb = json_builder_set_member_name(jb, "bridge_locked");
+	jb = json_builder_add_boolean_value(jb, bridge_locked);
+	jb = json_builder_set_member_name(jb, "create_bridge_passcode");
+	jb = json_builder_add_boolean_value(jb, create_bridge_passcode);
+	jb = json_builder_set_member_name(jb, "p2p");
+	jb = json_builder_add_boolean_value(jb, p2p);
+	jb = json_builder_end_object(jb);
+
+	SoupURI *uri = soup_uri_new_printf(priv->conference_url, "/ad_hoc_meetings");
+	JsonNode *node = json_builder_get_root(jb);
+	chime_connection_queue_http_request(cxn, node, uri, "POST", meet_created_cb, task);
+
+	json_node_unref(node);
+	g_object_unref(jb);
+}
+
+ChimeMeeting *chime_connection_create_meeting_finish(ChimeConnection *self,
+						     GAsyncResult *result,
+						     GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_pointer(G_TASK(result), error);
+}

@@ -311,8 +311,6 @@ static void ready_cb (guint component, gchar *pipeline, gpointer data)
   FsCandidate *candidate = fs_candidate_new (NULL, component,
       FS_CANDIDATE_TYPE_HOST, FS_NETWORK_PROTOCOL_UDP, pipeline, 0);
 
-  printf ("Emitting new local candidate with pipeline %s", pipeline);
-
   g_signal_emit_by_name (self, "new-local-candidate", candidate);
   g_signal_emit_by_name (self, "local-candidates-prepared");
 

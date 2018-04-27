@@ -553,7 +553,6 @@ fs_app_transmitter_new_stream_transmitter (FsTransmitter *transmitter,
 {
   FsAppTransmitter *self = FS_APP_TRANSMITTER (transmitter);
 
-  printf("New App transmitter\n");
   return FS_STREAM_TRANSMITTER (fs_app_stream_transmitter_newv (
         self, n_parameters, parameters, error));
 }

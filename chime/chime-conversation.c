@@ -52,6 +52,7 @@ static GParamSpec *props[LAST_PROP];
 enum {
 	TYPING,
 	MESSAGE,
+	MEMBERSHIP,
 	LAST_SIGNAL
 };
 
@@ -200,6 +201,11 @@ static void chime_conversation_class_init(ChimeConversationClass *klass)
 		g_signal_new ("message",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
 			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, JSON_TYPE_NODE);
+
+	signals[MEMBERSHIP] =
+		g_signal_new ("membership",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, JSON_TYPE_NODE);
 }
 
 static void unref_member(gpointer obj)
@@ -310,6 +316,8 @@ static gboolean conv_membership_jugg_cb(ChimeConnection *cxn, gpointer _conv, Js
 	JsonNode *member_node = json_object_get_member(obj, "Member");
 	if (!member_node)
 		return FALSE;
+
+	g_signal_emit(conv, signals[MEMBERSHIP], 0, member_node);
 
 	ChimeContact *member = chime_connection_parse_conversation_contact(cxn, member_node, NULL);
 	if (member) {

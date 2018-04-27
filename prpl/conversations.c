@@ -86,6 +86,8 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 			}
 		}
 		purple_conversation_write(pconv, NULL, escaped, flags | PURPLE_MESSAGE_SEND, msg_time);
+		purple_signal_emit(purple_connection_get_prpl(account->gc), "chime-got-convmsg",
+				   pconv, TRUE, record);
 	} else {
 		serv_got_im(im->m.conn, email, escaped, flags | PURPLE_MESSAGE_RECV, msg_time);
 
@@ -94,11 +96,37 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		   (still) zero and tell the server it's read. */
 		PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
 										  email, im->m.conn->account);
-		if (pconv)
+		if (pconv) {
 			purple_conversation_update(pconv, PURPLE_CONV_UPDATE_UNSEEN);
+			purple_signal_emit(purple_connection_get_prpl(im->m.conn),
+					   "chime-got-convmsg", pconv, FALSE, record);
+		}
+
 	}
 	g_free(escaped);
 	return TRUE;
+}
+
+static void on_conv_membership(ChimeConversation *conv, JsonNode *member, struct chime_im *im)
+{
+
+	const gchar *profile_id;
+	if (!parse_string(member, "ProfileId", &profile_id))
+		return;
+
+	/* We only care about the peer, not our own status */
+	if (!strcmp(profile_id, chime_connection_get_profile_id(PURPLE_CHIME_CXN(im->m.conn))))
+		return;
+
+	PurpleConversation *pconv;
+	pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
+						      chime_contact_get_email(im->peer),
+						      im->m.conn->account);
+	if (!pconv)
+		return;
+
+	purple_signal_emit(purple_connection_get_prpl(im->m.conn),
+			   "chime-conv-membership", pconv, member);
 }
 
 static void on_conv_typing(ChimeConversation *conv, ChimeContact *contact, gboolean state, struct chime_im *im)
@@ -165,6 +193,7 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 	g_hash_table_insert(pc->ims_by_profile_id, (void *)chime_contact_get_profile_id(im->peer), im);
 
 	g_signal_connect(conv, "typing", G_CALLBACK(on_conv_typing), im);
+	g_signal_connect(conv, "membership", G_CALLBACK(on_conv_membership), im);
 
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "New conversation %s with %s\n", chime_object_get_id(CHIME_OBJECT(im->peer)),
 		     chime_contact_get_email(im->peer));

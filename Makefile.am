@@ -1,5 +1,5 @@
 
-SUBDIRS = po pixmaps fs-app-transmitter gst-chime
+SUBDIRS = po pixmaps fs-app-transmitter gst-chime chimeseen
 
 if BUILD_EVOPLUGIN
 SUBDIRS += evolution-plugin
@@ -7,7 +7,7 @@ endif
 
 AM_CPPFLAGS = @WFLAGS@
 
-plugin_LTLIBRARIES = libchimeprpl.la
+purple_plugin_LTLIBRARIES = libchimeprpl.la
 
 PROTOBUF_SRCS = protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
 		protobuf/data_message.pb-c.c protobuf/data_message.pb-c.h \

@@ -31,21 +31,25 @@ AS_COMPILER_FLAGS(WFLAGS,
 	 -Wno-declaration-after-statement")
 AC_SUBST(WFLAGS, [$WFLAGS])
 
-plugindir=
+purple_plugindir=
 PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0],
 			  [purple_pkg=purple],
 			  [PKG_CHECK_MODULES(PURPLE, purple-3,
 					    [AC_MSG_ERROR([Pidgin 3.0 is not yet released. Do not use it. It has nothing you need for Lync support that I didn't already backport to Pidgin 2.11.])])])
 
 
-plugindir="$($PKG_CONFIG --variable=plugindir $purple_pkg)"
-purple_datadir="$($PKG_CONFIG --variable=datadir $purple_pkg)"
+purple_plugindir="$($PKG_CONFIG --variable=plugindir $purple_pkg)"
+AC_SUBST(purple_plugindir, $purple_plugindir)
 
-AC_SUBST(plugindir, $plugindir)
+PKG_CHECK_MODULES(PIDGIN, [pidgin], [pidgin_pkg=pidgin])
+
+pidgin_datadir="$($PKG_CONFIG --variable=datadir $pidgin_pkg)"
+pidgin_plugindir="$($PKG_CONFIG --variable=plugindir $pidgin_pkg)"
 if test "$purple_datadir" = "" ; then
    purple_datadir="$datadir"
 fi
-AC_SUBST(pixmapdir, ${purple_datadir}/pixmaps/pidgin/protocols)
+AC_SUBST(pixmapdir, ${pidgin_datadir}/pixmaps/pidgin/protocols)
+AC_SUBST(pidgin_plugindir, $pidgin_plugindir)
 
 PKG_CHECK_MODULES(GNUTLS, [gnutls >= 3.2.0])
 PKG_CHECK_MODULES(FARSTREAM, [farstream-0.2])
@@ -123,5 +127,6 @@ AC_CONFIG_FILES([
 	evolution-plugin/Makefile
 	fs-app-transmitter/Makefile
 	gst-chime/Makefile
+	chimeseen/Makefile
 	])
 AC_OUTPUT

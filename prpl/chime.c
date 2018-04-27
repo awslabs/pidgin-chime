@@ -37,11 +37,25 @@
 static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
 {
 	setvbuf(stdout, NULL, _IONBF, 0);
+
+	purple_signal_register(plugin, "chime-got-convmsg",
+			       purple_marshal_VOID__POINTER_POINTER_POINTER, NULL, 3,
+	/* conv */	       purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_CONVERSATION),
+	/* outbound? */	       purple_value_new(PURPLE_TYPE_BOOLEAN),
+	/* Message node */     purple_value_new(PURPLE_TYPE_POINTER));
+
+	purple_signal_register(plugin, "chime-conv-membership",
+			       purple_marshal_VOID__POINTER_POINTER, NULL, 2,
+	/* conv */	       purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_CONVERSATION),
+	/* Member node */      purple_value_new(PURPLE_TYPE_POINTER));
+
 	return TRUE;
 }
 
 static gboolean chime_purple_plugin_unload(PurplePlugin *plugin)
 {
+	purple_signals_unregister_by_instance(plugin);
+
 	return TRUE;
 }
 

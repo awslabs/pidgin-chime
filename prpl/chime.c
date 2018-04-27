@@ -182,9 +182,18 @@ static void get_machine_id(unsigned char *id, int len)
 		id[i] = g_random_int_range(0, 256);
 }
 
+static void load_seen_plugin(void)
+{
+	PurplePlugin *seenplug = purple_plugins_find_with_basename("chimeseen");
+	if (seenplug)
+		purple_plugin_load(seenplug);
+}
+
 static void chime_purple_login(PurpleAccount *account)
 {
 	PurpleConnection *conn = purple_account_get_connection(account);
+
+	load_seen_plugin();
 
 	const gchar *devtoken = purple_account_get_string(account, "devtoken", NULL);
 	/* Generate a stable device-id based on on the host identity and account name.

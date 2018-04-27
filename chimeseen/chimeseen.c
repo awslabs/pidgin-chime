@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include "gtkplugin.h"
 #include "gtkutils.h"
 #include "gtkimhtml.h"
 
@@ -189,6 +190,7 @@ static PurplePluginInfo info =
 	.major_version = PURPLE_MAJOR_VERSION,
 	.minor_version = PURPLE_MINOR_VERSION,
 	.type = PURPLE_PLUGIN_STANDARD,
+	.ui_requirement = PIDGIN_PLUGIN_TYPE,
 	.priority = PURPLE_PRIORITY_DEFAULT,
 	.id = (char *)"chimeseen",
 	.name = (char *)"Chime Seen",

@@ -18,9 +18,11 @@ PRPL_SRCS =	prpl/chime.h prpl/chime.c prpl/buddy.c prpl/rooms.c prpl/chat.c \
 
 LOGIN_SRCS =	login.c login-amazon.c login-warpdrive.c login-private.h
 
-WEBSOCKET_SRCS = chime/chime-websocket-connection.c chime/chime-websocket-connection.h chime/chime-websocket.c
+WEBSOCKET_SRCS = chime/chime-websocket-connection.c chime/chime-websocket-connection.h \
+		chime/chime-websocket.c
 
 CHIME_SRCS =	chime/chime-connection.c chime/chime-connection.h \
+		chime/chime-connection-private.h \
 		chime/chime-contact.c chime/chime-contact.h \
 		chime/chime-room.c chime/chime-room.h \
 		chime/chime-conversation.c chime/chime-conversation.h \
@@ -63,7 +65,7 @@ chime/chime-call-transport.c chime/chime-call-audio.c chime/chime-call.c: chime/
 %.pb-c.c %.pb-c.h: %.proto
 	$(PROTOC) $< --c_out .
 
-EXTRA_DIST = COPYING.LGPL README
+EXTRA_DIST = LICENSE README
 
 deb-%: debian/changelog
 	fakeroot debian/rules $(patsubst deb-%,%,$@)

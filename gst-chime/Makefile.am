@@ -12,3 +12,5 @@ libgstchime_la_SOURCES =	\
 noinst_HEADERS =		\
 	gstrtpchimepay.h	\
 	gstrtpchimedepay.h
+
+EXTRA_DIST = README

@@ -1,0 +1,17 @@
+This is fairly much a straight copy of the Opus payloader from
+gst-plugins-good, with two trivial modifications that weren't
+acceptable upstream:
+
+ • Change RTP clock rate to 16000 (#793765)
+ • Force mono encoding because the 'stereo' property doesn't work (#793763)
+
+I think the latter is a bug which should be fixed upstream, but
+the former is undesirable there because 16000 is not a standard
+clock rate and we don't really want people to use it by accident.
+
+So we end up with our own copy, and thus it's easier just to use
+the brute force answer to the second bug because we never want stereo
+in our version anyway.
+
+The licence header has been updated to LGPLv2.1 for uniformity
+with the rest of the purple-chime code base.

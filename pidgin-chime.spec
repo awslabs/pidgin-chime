@@ -57,7 +57,7 @@ A plugin for Evolution that allows you to create meetings in Amazon Chime.
 %setup -q
 #%%setup -q -n %{name}-%{commit}
 #%%setup -q -n %{name}-%{gittag}
-autoreconf -f -i -Wnone
+#autoreconf -f -i -Wnone
 
 %build
 %configure \
@@ -78,11 +78,12 @@ make %{?_smp_mflags} check
 %files -f %{name}.lang
 %defattr(-,root,root,-)
 %doc README TODO
-%license COPYING.LGPL
-%{_datadir}/pixmaps/pidgin/protocols/*/chime.*
+%license LICENSE
+%{_datadir}/pixmaps/pidgin/protocols/*/chime*
 %{_libdir}/farstream-0.2/libapp-transmitter.so
 %{_libdir}/gstreamer-1.0/libgstchime.so
 %{_libdir}/purple-2/libchimeprpl.so
+%{_libdir}/pidgin/chimeseen.so
 
 %if %{with evolution}
 %files -n evolution-chime

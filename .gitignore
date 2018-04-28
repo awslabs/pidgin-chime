@@ -22,4 +22,7 @@ ltmain.sh
 missing
 .deps
 .libs
+.dirstamp
+protobuf/*.pb-c.c
+protobuf/*.pb-c.h
 /m4/

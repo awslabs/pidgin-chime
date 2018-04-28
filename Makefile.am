@@ -35,13 +35,13 @@ CHIME_SRCS =	chime/chime-connection.c chime/chime-connection.h \
 noinst_LTLIBRARIES = libchime.la
 
 libchime_la_SOURCES = $(CHIME_SRCS) $(WEBSOCKET_SRCS) $(PROTOBUF_SRCS)
-libchime_la_CFLAGS = $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(MARKDOWN_CFLAGS) $(GSTREAMER_CFLAGS) $(GNUTLS_CFLAGS) -Ichime
-libchime_la_LIBADD = $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS) $(MARKDOWN_LIBS) $(GSTREAMER_LIBS) $(GNUTLS_LIBS)
+libchime_la_CFLAGS = $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(GSTREAMER_CFLAGS) $(GNUTLS_CFLAGS) -Ichime
+libchime_la_LIBADD = $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS) $(GSTREAMER_LIBS) $(GNUTLS_LIBS)
 libchime_la_LDFLAGS = -module -avoid-version -no-undefined
 
 libchimeprpl_la_SOURCES = $(PRPL_SRCS) $(LOGIN_SRCS)
-libchimeprpl_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(MARKDOWN_CFLAGS) $(GSTREAMER_CFLAGS) -Ichime -Iprpl
-libchimeprpl_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(MARKDOWN_LIBS) $(GSTREAMER_LIBS) libchime.la
+libchimeprpl_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(GSTREAMER_CFLAGS) -Ichime -Iprpl
+libchimeprpl_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(GSTREAMER_LIBS) libchime.la
 libchimeprpl_la_LDFLAGS = -module -avoid-version -no-undefined
 
 POTFILES = $(libchime_la_SOURCES) $(libchimeprpl_la_SOURCES)

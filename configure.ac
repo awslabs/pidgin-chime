@@ -62,17 +62,6 @@ PKG_CHECK_MODULES(SOUP, [libsoup-2.4 >= 2.50])
 if $PKG_CONFIG --atleast-version 2.59 libsoup-2.4; then
    AC_DEFINE(USE_LIBSOUP_WEBSOCKETS, 1, [Use libsoup websockets])
 fi
-PKG_CHECK_MODULES(MARKDOWN, [libmarkdown], [],
-		  [oldLIBS="$LIBS"
-		   LIBS="$LIBS -lmarkdown"
-		   AC_MSG_CHECKING([for libmarkdown without pkg-config])
-		   AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <mkdio.h>],[mkd_initialize();])],
-				  [AC_MSG_RESULT(yes)
-				   AC_SUBST([MARKDOWN_LIBS], ["-lmarkdown"])
-				   AC_SUBST([MARKDOWN_CFLAGS], [])],
-				  [AC_MSG_RESULT(no)
-				   AC_ERROR([Could not build against libmarkdown])])
-		   LIBS="$oldLIBS"])
 
 LIBS="$LIBS $PURPLE_LIBS"
 AC_CHECK_FUNC(purple_request_screenshare_media, [AC_DEFINE(HAVE_SCREENSHARE, 1, [Have purple_request_screenshare_media()])], [])
@@ -92,16 +81,22 @@ if test "$PROTOC" = ""; then
    AC_MSG_ERROR([protoc-c could not be found. Try installing protobuf-c-compiler])
 fi
 
-build_evoplugin=
-PKG_CHECK_MODULES(EVOLUTION, [evolution-calendar-3.0 evolution-shell-3.0 evolution-data-server-1.2 libebook-1.2 libecal-1.2],
-		  [build_evoplugin=yes
-		   if $PKG_CONFIG --atleast-version 3.20 evolution-shell-3.0; then
-		      AC_DEFINE(EVO_HAS_E_COMP_EDITOR, 1, [Since 3.20])
-		   fi
-		   evomoddir="$($PKG_CONFIG --variable=moduledir evolution-shell-3.0)"
-		   AC_SUBST(evomoddir, ${evomoddir})],
-		  [:]);
-AM_CONDITIONAL(BUILD_EVOPLUGIN, [ test "$build_evoplugin" = "yes" ])
+AC_ARG_WITH([evolution],
+            [AS_HELP_STRING([--without-evolution],
+              [Disable evolution plugin])],
+            [with_evolution=no])
+
+AS_IF([test "x$with_evolution" != xno],
+      [PKG_CHECK_MODULES(EVOLUTION, [evolution-calendar-3.0 evolution-shell-3.0 evolution-data-server-1.2 libebook-1.2 libecal-1.2],
+	[with_evolution=yes
+	 if $PKG_CONFIG --atleast-version 3.20 evolution-shell-3.0; then
+	    AC_DEFINE(EVO_HAS_E_COMP_EDITOR, 1, [Since 3.20])
+	 fi
+	 evomoddir="$($PKG_CONFIG --variable=moduledir evolution-shell-3.0)"
+	 AC_SUBST(evomoddir, ${evomoddir})],
+	[:])])
+
+AM_CONDITIONAL(BUILD_EVOPLUGIN, [ test "$with_evolution" = "yes" ])
 
 fsplugindir="$($PKG_CONFIG --variable=pluginsdir farstream-0.2)"
 AC_SUBST(fsplugindir, ${fsplugindir})

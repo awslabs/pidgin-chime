@@ -21,7 +21,7 @@ TARPREFIX := $(GITCOMMIT)
 endif
 
 srpm: .copr/pidgin-chime.spec .copr/pidgin-chime-$(TARNAME).tar.gz
-	rpmbuild -bs pidgin-chime.spec --define "_sourcedir .copr" --define "_srcrpmdir $(outdir)"
+	rpmbuild -bs .copr/pidgin-chime.spec --define "_sourcedir .copr" --define "_srcrpmdir $(outdir)"
 
 .copr/pidgin-chime.spec: pidgin-chime.spec.in .copr/Makefile
 	sed -e "s/@ISSNAP@/$(ISSNAP)/" \

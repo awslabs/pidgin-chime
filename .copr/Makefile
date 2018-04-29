@@ -2,6 +2,7 @@
 #
 # https://docs.pagure.org/copr.copr/user_documentation.html#make-srpm
 #
+WTF := $(shell dnf install git)
 
 GITCOMMIT := $(shell git rev-parse HEAD)
 GITDESC := $(shell git describe --tags HEAD)
@@ -19,10 +20,10 @@ TARNAME := $(shell echo $(GITCOMMIT) | cut -c1-7)
 TARPREFIX := $(GITCOMMIT)
 endif
 
-srpm: pidgin-chime.spec pidgin-chime-$(TARNAME).tar.gz
-	rpmbuild -bs pidgin-chime.spec --define "_sourcedir ." --define "_srcrpmdir $(outdir)"
+srpm: .copr/pidgin-chime.spec .copr/pidgin-chime-$(TARNAME).tar.gz
+	rpmbuild -bs pidgin-chime.spec --define "_sourcedir .copr" --define "_srcrpmdir $(outdir)"
 
-pidgin-chime.spec: ../pidgin-chime.spec.in Makefile
+.copr/pidgin-chime.spec: pidgin-chime.spec.in .copr/Makefile
 	sed -e "s/@ISSNAP@/$(ISSNAP)/" \
 	    -e "s/@VERSION@/$(GITTAG)/" \
 	    -e "s/@SNAPCOMMIT@/$(GITCOMMIT)/" \
@@ -30,5 +31,5 @@ pidgin-chime.spec: ../pidgin-chime.spec.in Makefile
 	    $< > $@
 
 
-pidgin-chime-$(TARNAME).tar.gz Makefile:
-	cd .. && git archive --prefix=pidgin-chime-$(TARPREFIX)/ $(GITCOMMIT) -o .copr/$@
+.copr/pidgin-chime-$(TARNAME).tar.gz ./copr/Makefile:
+	git archive --prefix=pidgin-chime-$(TARPREFIX)/ $(GITCOMMIT) -o $@

@@ -24,8 +24,8 @@ Source0:        https://github.com/awslabs/%{name}/archive/%{snapcommit}/%{name}
 Source0:        %{name}-%{version}.tar.gz
 %endif
 
-BuildRequires:  pkgconfig(pidgin) >= 2.4.0
-BuildRequires:  pkgconfig(purple) >= 2.4.0
+BuildRequires:  pkgconfig(pidgin) >= 2.14.0
+BuildRequires:  pkgconfig(purple) >= 2.14.0
 BuildRequires:  pkgconfig(gnutls) >= 3.2.0
 BuildRequires:  pkgconfig(farstream-0.2)
 BuildRequires:  pkgconfig(gstreamer-1.0)
@@ -52,7 +52,9 @@ BuildRequires:  libtool
 BuildRequires:  autoconf
 BuildRequires:  automake
 %endif
-Requires:       purple-sipe%{?_isa} = %{version}-%{release}
+Requires:       purple-chime%{?_isa} = %{version}-%{release}
+Requires:       evolution-chime
+Requires:       pidgin >= 2.14.0
 
 %description
 A plugin for the Pidgin multi-protocol instant messenger, to support Amazon

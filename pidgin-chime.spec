@@ -1,21 +1,30 @@
-#%%global commit f4fa0044c2d5f68a056447c990bc1e5c2cdf4ecf
-#%%global gittag v%{version}
-#%%global shortcommit %(c=%{commit}; echo ${c:0:7})
+#global gitsnapshot 1
+%if 0%{?gitsnapshot}
+%global snapcommit @SNAPCOMMIT@
+%global snapcount @SNAPCOUNT@
+%global shortcommit %(c=%{snapcommit}; echo ${c:0:7})
+%global snapver .git.%{snapcount}.%{shortcommit}
+%endif
+
+%global tagver 0.9
 
 %bcond_without evolution # with
 
 Name:           pidgin-chime
 Summary:        libpurple / Pidgin protocol plugin for Amazon Chime
-Version:        0.02
-Release:        0%{?dist}
+Version:        %{tagver}%{?snapver}
+Release:        1%{?dist}
 
 Group:          Applications/Communications
 License:        LGPLv2
-URL:            https://github.com/awslabs/pidgin-chime
+URL:            https://github.com/awslabs/%{name}
+%if 0%{?gitsnapshot:1}
+Source0:        https://github.com/awslabs/%{name}/archive/%{snapcommit}/%{name}-%{shortcommit}.tar.gz
+%else
 Source0:        %{name}-%{version}.tar.gz
-#Source0:        https://github.com/awslabs/%{name}/archive/%{commit}/%{name}-%{shortcommit}.tar.gz
-#Source0:        https://github.com/awslabs/%{name}/archive/%{gittag}/%{name}-%{version}.tar.gz
+%endif
 
+BuildRequires:  pkgconfig(pidgin) >= 2.4.0
 BuildRequires:  pkgconfig(purple) >= 2.4.0
 BuildRequires:  pkgconfig(gnutls) >= 3.2.0
 BuildRequires:  pkgconfig(farstream-0.2)
@@ -34,14 +43,33 @@ BuildRequires:  pkgconfig(evolution-data-server-1.2)
 BuildRequires:  pkgconfig(libebook-1.2)
 BuildRequires:  pkgconfig(libecal-1.2)
 %endif # with evolution
-BuildRequires:  autoconf
-BuildRequires:  automake
 BuildRequires:  gcc
 BuildRequires:  gettext
+%if 0%{?gitsnapshot:1}
 BuildRequires:  libtool
+BuildRequires:  autoconf
+BuildRequires:  automake
+%endif
+Requires:       purple-sipe%{?_isa} = %{version}-%{release}
 
 %description
-A libpurple / Pidgin protocol plugin for Amazon Chime.
+A plugin for the Pidgin multi-protocol instant messenger, to support Amazon
+Chime.
+
+This package provides the icon set for Pidgin, and a UI plugin to indicate
+seen messages.
+
+%package -n purple-chime
+Summary:  Libpurple protocol plugin for Amazon Chime
+Group:    Applications/Communications
+
+%description -n purple-chime
+A plugin for the Pidgin multi-protocol instant messenger, to support Amazon
+Chime.
+
+This package provides the Amazon Chime protocol support for the libpurple
+messaging library, which is used by Pidgin and other tools.
+
 
 %if %{with evolution}
 %package -n evolution-chime
@@ -54,10 +82,12 @@ A plugin for Evolution that allows you to create meetings in Amazon Chime.
 %endif # with evolution
 
 %prep
+%if 0%{?gitsnapshot:1}
+%setup -q -n %{name}-%{snapcommit}
+NOCONFIGURE=x ./autogen.sh
+%else
 %setup -q
-#%%setup -q -n %{name}-%{commit}
-#%%setup -q -n %{name}-%{gittag}
-#autoreconf -f -i -Wnone
+%endif
 
 %build
 %configure \
@@ -75,15 +105,18 @@ find %{buildroot} -type f -name "*.la" -delete -print
 %check
 make %{?_smp_mflags} check
 
-%files -f %{name}.lang
+%files
 %defattr(-,root,root,-)
-%doc README TODO
-%license LICENSE
 %{_datadir}/pixmaps/pidgin/protocols/*/chime*
+%{_libdir}/pidgin/chimeseen.so
+
+%files -n purple-chime -f %{name}.lang
+%{_libdir}/purple-2/libchimeprpl.so
 %{_libdir}/farstream-0.2/libapp-transmitter.so
 %{_libdir}/gstreamer-1.0/libgstchime.so
-%{_libdir}/purple-2/libchimeprpl.so
-%{_libdir}/pidgin/chimeseen.so
+%defattr(-,root,root,-)
+%license LICENSE
+%doc README TODO
 
 %if %{with evolution}
 %files -n evolution-chime

@@ -109,6 +109,15 @@ RAWLINGUAS=`sed -e "/^#/d" -e "s/#.*//" "${srcdir}/po/LINGUAS"`
 LINGUAS=`echo $RAWLINGUAS`
 AC_SUBST(LINGUAS)
 
+if git diff --name-only --exit-code v${PACKAGE_VERSION} HEAD > /dev/null; then
+   gitdesc=$(git describe --tags HEAD)
+   AC_SUBST(SNAPCOUNT, $(echo "$gitdesc" | cut -f2 -d-))
+   AC_SUBST(SNAPCOMMIT, $(git rev-parse HEAD))
+   AC_SUBST(ISSNAP, 1)
+else
+   AC_SUBST(ISSNAP, 0)
+fi
+
 AC_CONFIG_FILES([
 	Makefile
 	po/Makefile
@@ -123,5 +132,6 @@ AC_CONFIG_FILES([
 	fs-app-transmitter/Makefile
 	gst-chime/Makefile
 	chimeseen/Makefile
+	pidgin-chime.spec
 	])
 AC_OUTPUT

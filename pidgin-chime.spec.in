@@ -1,4 +1,4 @@
-#global gitsnapshot 1
+%global gitsnapshot @ISSNAP@
 %if 0%{?gitsnapshot}
 %global snapcommit @SNAPCOMMIT@
 %global snapcount @SNAPCOUNT@
@@ -6,19 +6,19 @@
 %global snapver .git.%{snapcount}.%{shortcommit}
 %endif
 
-%global tagver 0.9
+%global tagver @VERSION@
 
 %bcond_without evolution # with
 
 Name:           pidgin-chime
 Summary:        libpurple / Pidgin protocol plugin for Amazon Chime
 Version:        %{tagver}%{?snapver}
-Release:        1%{?dist}
+Release:        0%{?dist}
 
 Group:          Applications/Communications
 License:        LGPLv2
 URL:            https://github.com/awslabs/%{name}
-%if 0%{?gitsnapshot:1}
+%if 0%{?gitsnapshot}
 Source0:        https://github.com/awslabs/%{name}/archive/%{snapcommit}/%{name}-%{shortcommit}.tar.gz
 %else
 Source0:        %{name}-%{version}.tar.gz
@@ -45,7 +45,7 @@ BuildRequires:  pkgconfig(libecal-1.2)
 %endif # with evolution
 BuildRequires:  gcc
 BuildRequires:  gettext
-%if 0%{?gitsnapshot:1}
+%if 0%{?gitsnapshot}
 BuildRequires:  libtool
 BuildRequires:  autoconf
 BuildRequires:  automake
@@ -82,11 +82,14 @@ A plugin for Evolution that allows you to create meetings in Amazon Chime.
 %endif # with evolution
 
 %prep
-%if 0%{?gitsnapshot:1}
+%if 0%{?gitsnapshot}
 %setup -q -n %{name}-%{snapcommit}
 NOCONFIGURE=x ./autogen.sh
 %else
 %setup -q
+if [ ! -x configure ]; then
+    NOCONFIGURE=x ./autogen.sh
+fi
 %endif
 
 %build

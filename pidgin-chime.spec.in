@@ -8,6 +8,12 @@
 
 %global tagver @VERSION@
 
+%global pidginver 2.14.0
+%if 0%{?rhel} == 7
+# Building 2.14.0 with the V/V bits on EPEL7 is non-trivial. IM only for now.
+%global pidginver 2.10.11
+%endif
+
 %bcond_without evolution # with
 
 Name:           pidgin-chime
@@ -24,8 +30,8 @@ Source0:        https://github.com/awslabs/%{name}/archive/%{snapcommit}/%{name}
 Source0:        %{name}-%{version}.tar.gz
 %endif
 
-BuildRequires:  pkgconfig(pidgin) >= 2.14.0
-BuildRequires:  pkgconfig(purple) >= 2.14.0
+BuildRequires:  pkgconfig(pidgin) >= %{pidginver}
+BuildRequires:  pkgconfig(purple) >= %{pidginver}
 BuildRequires:  pkgconfig(gnutls) >= 3.2.0
 BuildRequires:  pkgconfig(farstream-0.2)
 BuildRequires:  pkgconfig(gstreamer-1.0)
@@ -54,7 +60,7 @@ BuildRequires:  automake
 %endif
 Requires:       purple-chime%{?_isa} = %{version}-%{release}
 Requires:       evolution-chime
-Requires:       pidgin >= 2.14.0
+Requires:       pidgin >= %{pidginver}
 
 %description
 A plugin for the Pidgin multi-protocol instant messenger, to support Amazon

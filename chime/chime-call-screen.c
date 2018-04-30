@@ -159,7 +159,7 @@ static void on_screenws_message(SoupWebsocketConnection *ws, gint type,
 
 			gst_app_sink_set_callbacks(screen->screen_sink, &no_appsink_callbacks, NULL, NULL);
 			screen->screen_sink = NULL;
-			chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTED);
+			chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTED, NULL);
 		}
 		break;
 
@@ -184,6 +184,7 @@ static void screen_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _scre
 		/* If it was cancelled, 'screen' may have been freed. */
 		if (!g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
 			chime_debug("screen ws error %s\n", error->message);
+			chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_FAILED, error->message);
 		}
 		g_clear_error(&error);
 		g_object_unref(cxn);
@@ -202,7 +203,7 @@ static void screen_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _scre
 	else if (screen->screen_sink)
 		chime_call_screen_install_appsink(screen, screen->screen_sink);
 	else
-		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTED);
+		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTED, NULL);
 
 	g_object_unref(cxn);
 }
@@ -232,7 +233,7 @@ ChimeCallScreen *chime_call_screen_open(ChimeConnection *cxn, ChimeCall *call)
 	gchar *origin = g_strdup_printf("http://%s", soup_uri_get_host(uri));
 	soup_uri_free(uri);
 
-	chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTING);
+	chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTING, NULL);
 
 	chime_connection_websocket_connect_async(g_object_ref(cxn), msg, origin, protocols,
 						 screen->cancel, screen_ws_connect_cb, screen);
@@ -249,7 +250,7 @@ static void on_final_screenws_close(SoupWebsocketConnection *ws, gpointer _unuse
 
 void chime_call_screen_close(ChimeCallScreen *screen)
 {
-	chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_HANGUP);
+	chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_HANGUP, NULL);
 
 	if (screen->cancel) {
 		g_cancellable_cancel(screen->cancel);
@@ -292,7 +293,7 @@ static void screen_appsrc_destroy(gpointer _screen)
 	if (screen->state == CHIME_SCREEN_STATE_VIEWING) {
 		screen_send_packet(screen, SCREEN_PKT_TYPE_VIEWER_END, NULL, 0);
 		screen->screen_src = NULL;
-		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTED);
+		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTED, NULL);
 	}
 }
 
@@ -312,7 +313,7 @@ void chime_call_screen_install_appsrc(ChimeCallScreen *screen, GstAppSrc *appsrc
 
 	if (screen->ws) {
 		screen_send_packet(screen, SCREEN_PKT_TYPE_VIEWER_BEGIN, NULL, 0);
-		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_VIEWING);
+		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_VIEWING, NULL);
 	}
 
 	if (screen->screen_sink) {
@@ -364,7 +365,7 @@ static void screen_appsink_destroy(gpointer _screen)
 	if (screen->state == CHIME_SCREEN_STATE_SENDING) {
 		screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_END, NULL, 0);
 		screen->screen_sink = NULL;
-		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTED);
+		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTED, NULL);
 	}
 }
 
@@ -378,7 +379,7 @@ void chime_call_screen_install_appsink(ChimeCallScreen *screen, GstAppSink *apps
 
 	if (screen->ws) {
 		screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_BEGIN, NULL, 0);
-		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_SENDING);
+		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_SENDING, NULL);
 	}
 
 	if (screen->screen_src) {

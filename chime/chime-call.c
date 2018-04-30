@@ -181,12 +181,12 @@ static void chime_call_class_init(ChimeCallClass *klass)
 	signals[AUDIO_STATE] =
 		g_signal_new ("audio-state",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
-			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_INT);
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_STRING);
 
 	signals[SCREEN_STATE] =
 		g_signal_new ("screen-state",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
-			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_INT);
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_STRING);
 
 	signals[PARTICIPANTS_CHANGED] =
 		g_signal_new ("participants-changed",
@@ -587,26 +587,26 @@ void chime_call_set_local_mute(ChimeCall *call, gboolean muted)
 		chime_call_audio_local_mute(call->audio, muted);
 }
 
-void chime_call_audio_set_state(ChimeCallAudio *audio, ChimeAudioState state)
+void chime_call_audio_set_state(ChimeCallAudio *audio, ChimeAudioState state, const gchar *message)
 {
-	chime_debug("Audio state %d (was %d)\n", state, audio->state);
+	chime_debug("Audio state %d (was %d), msg %s\n", state, audio->state, message);
 
 	if (audio->state == state)
 		return;
 
 	audio->state = state;
-	g_signal_emit(audio->call, signals[AUDIO_STATE], 0, state);
+	g_signal_emit(audio->call, signals[AUDIO_STATE], 0, state, message);
 }
 
-void chime_call_screen_set_state(ChimeCallScreen *screen, ChimeScreenState state)
+void chime_call_screen_set_state(ChimeCallScreen *screen, ChimeScreenState state, const gchar *message)
 {
-	chime_debug("Screen state %d (was %d)\n", state, screen->state);
+	chime_debug("Screen state %d (was %d), msg %s\n", state, screen->state, message);
 
 	if (screen->state == state)
 		return;
 
 	screen->state = state;
-	g_signal_emit(screen->call, signals[SCREEN_STATE], 0, state);
+	g_signal_emit(screen->call, signals[SCREEN_STATE], 0, state, message);
 }
 
 void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, GstAppSink *appsink)

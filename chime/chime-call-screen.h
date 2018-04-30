@@ -43,7 +43,7 @@ ChimeCallScreen *chime_call_screen_open(ChimeConnection *cxn, ChimeCall *call);
 void chime_call_screen_close(ChimeCallScreen *screen);
 void chime_call_screen_view(ChimeCallScreen *screen);
 void chime_call_screen_unview(ChimeCallScreen *screen);
-void chime_call_screen_set_state(ChimeCallScreen *audio, ChimeScreenState state);
+void chime_call_screen_set_state(ChimeCallScreen *audio, ChimeScreenState state, const gchar *message);
 
 void chime_call_screen_install_appsrc(ChimeCallScreen *screen, GstAppSrc *appsrc);
 void chime_call_screen_install_appsink(ChimeCallScreen *screen, GstAppSink *appsink);

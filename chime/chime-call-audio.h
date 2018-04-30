@@ -92,7 +92,7 @@ ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gbo
 void chime_call_audio_close(ChimeCallAudio *audio, gboolean hangup);
 void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean silent);
 gboolean chime_call_audio_get_silent(ChimeCallAudio *audio);
-void chime_call_audio_set_state(ChimeCallAudio *audio, ChimeAudioState state);
+void chime_call_audio_set_state(ChimeCallAudio *audio, ChimeAudioState state, const gchar *message);
 void chime_call_audio_local_mute(ChimeCallAudio *audio, gboolean muted);
 
 /* Called from audio code */

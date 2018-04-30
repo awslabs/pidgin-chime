@@ -563,7 +563,7 @@ void chime_call_transport_connect(ChimeCallAudio *audio, gboolean silent)
 	audio->dtls_handshaked = FALSE;
 	audio->recv_ssrc = g_random_int();
 
-	chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING);
+	chime_call_audio_set_state(audio, CHIME_AUDIO_STATE_CONNECTING, NULL);
 
 	GSocketConnectable *addr = g_network_address_parse(chime_call_get_media_host(audio->call),
 							   0, NULL);

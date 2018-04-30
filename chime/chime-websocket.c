@@ -32,7 +32,8 @@ websocket_connect_async_complete (SoupSession *session, SoupMessage *msg, gpoint
 
 	g_task_return_new_error (task,
 				 SOUP_WEBSOCKET_ERROR, SOUP_WEBSOCKET_ERROR_NOT_WEBSOCKET,
-				 "%s", _("The server did not accept the WebSocket handshake."));
+				 _("WebSocket handshake failed: (%d/%s)"),
+				 msg->status_code, msg->reason_phrase);
 	g_object_unref (task);
 }
 

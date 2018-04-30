@@ -401,12 +401,20 @@ static void call_media_setup(ChimeCall *call, struct chime_chat *chat)
 				  GST_DEBUG_GRAPH_SHOW_ALL, "chime conference graph");
 }
 
-static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state, struct chime_chat *chat)
+static void on_audio_state(ChimeCall *call, ChimeAudioState audio_state,
+			    const gchar *message, struct chime_chat *chat)
 {
-	purple_debug(PURPLE_DEBUG_INFO, "chime", "Audio state %d\n", audio_state);
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Audio state %d (%s)\n", audio_state, message);
 
 	const gchar *name = chime_call_get_alert_body(chat->call);
-	if (audio_state == CHIME_AUDIO_STATE_CONNECTING && !chat->media &&
+	if (audio_state == CHIME_AUDIO_STATE_FAILED) {
+		if (chat->media) {
+			purple_media_error(chat->media, "Failed to connect audio transport: %s\n",
+					   message);
+			purple_media_end(chat->media, NULL, NULL);
+			chat->media = NULL;
+		}
+	} else if (audio_state == CHIME_AUDIO_STATE_CONNECTING && !chat->media &&
 	    !chime_call_get_silent(call)) {
 		call_media_setup(call, chat);
 	} else if (audio_state == CHIME_AUDIO_STATE_AUDIO_MUTED && chat->media) {
@@ -463,15 +471,21 @@ static void on_room_membership(ChimeRoom *room, ChimeRoomMember *member, struct 
 	}
 }
 
-static void on_screen_state(ChimeCall *call, ChimeScreenState screen_state, struct chime_chat *chat)
+static void on_screen_state(ChimeCall *call, ChimeScreenState screen_state,
+			    const gchar *message, struct chime_chat *chat)
 {
-	purple_debug(PURPLE_DEBUG_INFO, "chime", "Screen state %d\n", screen_state);
+	purple_debug(PURPLE_DEBUG_INFO, "chime", "Screen state %d (%s)\n", screen_state, message);
 
 	if (screen_state == CHIME_SCREEN_STATE_CONNECTING)
 		return;
 
 	if (chat->share_media) {
-		if (screen_state == CHIME_SCREEN_STATE_SENDING) {
+		if (screen_state == CHIME_SCREEN_STATE_FAILED) {
+			purple_media_error(chat->share_media, _("Failed to connect to screen bithub: %s\n"),
+					   message);
+			purple_media_end(chat->share_media, NULL, NULL);
+			chat->share_media = NULL;
+		} else if (screen_state == CHIME_SCREEN_STATE_SENDING) {
 			purple_media_stream_info(chat->share_media, PURPLE_MEDIA_INFO_ACCEPT, "chime", _("Sharing screen"), FALSE);
 		} else {
 			purple_debug(PURPLE_DEBUG_INFO, "chime", "Screen presentation ends\n");
@@ -479,7 +493,12 @@ static void on_screen_state(ChimeCall *call, ChimeScreenState screen_state, stru
 			chat->share_media = NULL;
 		}
 	} else if (chat->screen_media) {
-		if (screen_state == CHIME_SCREEN_STATE_VIEWING) {
+		if (screen_state == CHIME_SCREEN_STATE_FAILED) {
+			purple_media_error(chat->share_media, _("Failed to connect to screen bithub: %s\n"),
+					   message);
+			purple_media_end(chat->screen_media, NULL, NULL);
+			chat->screen_media = NULL;
+		} else if (screen_state == CHIME_SCREEN_STATE_VIEWING) {
 			purple_media_stream_info(chat->screen_media, PURPLE_MEDIA_INFO_ACCEPT, "chime", chat->screen_title, FALSE);
 		} else {
 			purple_debug(PURPLE_DEBUG_INFO, "chime", "Screen viewing ends\n");

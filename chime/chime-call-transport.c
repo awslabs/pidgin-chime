@@ -394,6 +394,9 @@ static gboolean dtls_src_cb(GDatagramBased *dgram, GIOCondition condition, Chime
 		}
 
 		if (ret) {
+			chime_debug("DTLS failed (%d): %s\n",
+				    gnutls_session_get_verify_cert_status(audio->dtls_sess),
+				    gnutls_strerror(ret));
 			gnutls_deinit(audio->dtls_sess);
 			audio->dtls_sess = NULL;
 			g_source_destroy(audio->dtls_source);
@@ -451,26 +454,29 @@ static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 	gnutls_init(&audio->dtls_sess, GNUTLS_CLIENT|GNUTLS_DATAGRAM|GNUTLS_NONBLOCK);
 	gnutls_set_default_priority(audio->dtls_sess);
 	gnutls_session_set_ptr(audio->dtls_sess, audio);
-
-	/* We can't rely on the length argument to gnutls_server_name_set().
-	   https://bugs.launchpad.net/ubuntu/+bug/1762710 */
-	gchar *hostname = g_strdup(chime_call_get_media_host(audio->call));
-	if (!hostname)
-		goto err;
-	char *colon = strrchr(hostname, ':');
-	if (!colon) {
-		g_free(hostname);
-		goto err;
-	}
-	*colon = 0;
-	gnutls_server_name_set(audio->dtls_sess, GNUTLS_NAME_DNS, hostname, colon - hostname);
-	g_free(hostname);
-
 	if (!audio->dtls_cred) {
 		gnutls_certificate_allocate_credentials(&audio->dtls_cred);
 		gnutls_certificate_set_x509_system_trust(audio->dtls_cred);
 	}
 	gnutls_credentials_set(audio->dtls_sess, GNUTLS_CRD_CERTIFICATE, audio->dtls_cred);
+
+	if (!audio->dtls_hostname) {
+		gchar *hostname = g_strdup(chime_call_get_media_host(audio->call));
+		if (!hostname)
+			goto err;
+		char *colon = strrchr(hostname, ':');
+		if (!colon) {
+			g_free(hostname);
+			goto err;
+		}
+		*colon = 0;
+		audio->dtls_hostname = hostname;
+	}
+	/* We can't rely on the length argument to gnutls_server_name_set().
+	   https://bugs.launchpad.net/ubuntu/+bug/1762710 */
+	gnutls_server_name_set(audio->dtls_sess, GNUTLS_NAME_DNS, audio->dtls_hostname, strlen(audio->dtls_hostname));
+	gnutls_session_set_verify_cert(audio->dtls_sess, audio->dtls_hostname, 0);
+
 	gnutls_transport_set_ptr(audio->dtls_sess, audio);
 	gnutls_transport_set_push_function (audio->dtls_sess,
 					    g_tls_connection_gnutls_push_func);
@@ -621,6 +627,11 @@ void chime_call_transport_disconnect(ChimeCallAudio *audio, gboolean hangup)
 			audio->dtls_source = NULL;
 		}
 		g_clear_object(&audio->dtls_sock);
+	}
+
+	if (audio->dtls_hostname) {
+		g_free(audio->dtls_hostname);
+		audio->dtls_hostname = NULL;
 	}
 
 	if (audio->timeout_source) {

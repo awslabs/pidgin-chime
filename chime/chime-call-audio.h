@@ -50,6 +50,7 @@ struct _ChimeCallAudio {
 	GSocket *dtls_sock;
 	GSource *dtls_source;
 	gnutls_session_t dtls_sess;
+	gchar *dtls_hostname;
 	gnutls_certificate_credentials_t dtls_cred;
 	GCancellable *cancel;
 

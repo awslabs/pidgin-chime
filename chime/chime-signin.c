@@ -126,7 +126,8 @@ static void free_signin(struct signin *s)
 	g_free(s->gwt_policy);
 	g_free(s->gwt_permutation);
 	g_free(s->gwt_module_base);
-	soup_uri_free(s->gwt_rpc_uri);
+	if (s->gwt_rpc_uri)
+		soup_uri_free(s->gwt_rpc_uri);
 	g_free(s->username);
 	g_free(s->region);
 	g_free(s->redirect_url);

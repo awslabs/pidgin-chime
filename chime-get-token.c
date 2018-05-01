@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 	loop = g_main_loop_new(NULL, FALSE);
 	status = EXIT_SUCCESS;
 
-	conn = chime_connection_new(NULL, account, NULL, "foo", NULL);
+	conn = chime_connection_new(account, NULL, "foo", NULL);
 
 	g_signal_connect(conn, "authenticate",
 			 G_CALLBACK(authenticate), NULL);

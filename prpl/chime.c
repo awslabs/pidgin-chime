@@ -230,7 +230,7 @@ static void chime_purple_login(PurpleAccount *account)
 	purple_chime_init_chats(conn);
 	purple_chime_init_messages(conn);
 
-	pc->cxn = chime_connection_new(conn, purple_account_get_username(account),
+	pc->cxn = chime_connection_new(purple_account_get_username(account),
 				       server, devtoken, token);
 
 	g_signal_connect(pc->cxn, "notify::session-token",

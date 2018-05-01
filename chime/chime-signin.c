@@ -186,11 +186,6 @@ static void cancel_signin(struct signin *state)
 				_("Sign-in canceled by the user")));
 }
 
-static void cancel_signin_cb(SoupSession *session, SoupMessage *msg, gpointer data)
-{
-	cancel_signin(data);
-}
-
 /*
  * XPath helpers to simplify querying the DOM of a parsed HTML response.
  */

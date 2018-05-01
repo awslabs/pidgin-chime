@@ -24,7 +24,6 @@
 enum
 {
     PROP_0,
-    PROP_PURPLE_CONNECTION,
     PROP_SESSION_TOKEN,
     PROP_DEVICE_TOKEN,
     PROP_SERVER,
@@ -107,8 +106,6 @@ chime_connection_disconnect(ChimeConnection    *self)
 		priv->msgs_queued = NULL;
 	}
 
-	self->prpl_conn = NULL;
-
 	if (priv->state != CHIME_STATE_DISCONNECTED)
 		g_signal_emit(self, signals[DISCONNECTED], 0, NULL);
 	priv->state = CHIME_STATE_DISCONNECTED;
@@ -138,9 +135,6 @@ chime_connection_get_property(GObject    *object,
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
 	switch (prop_id) {
-	case PROP_PURPLE_CONNECTION:
-		g_value_set_pointer(value, self->prpl_conn);
-		break;
 	case PROP_SESSION_TOKEN:
 		g_value_set_string(value, priv->session_token);
 		break;
@@ -169,9 +163,6 @@ chime_connection_set_property(GObject      *object,
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 
 	switch (prop_id) {
-	case PROP_PURPLE_CONNECTION:
-		self->prpl_conn = g_value_get_pointer(value);
-		break;
 	case PROP_SESSION_TOKEN:
 		priv->session_token = g_value_dup_string(value);
 		break;
@@ -212,14 +203,6 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 	object_class->constructed = chime_connection_constructed;
 	object_class->get_property = chime_connection_get_property;
 	object_class->set_property = chime_connection_set_property;
-
-	props[PROP_PURPLE_CONNECTION] =
-		g_param_spec_pointer("purple-connection",
-				     "purple connection",
-				     "purple connection",
-				     G_PARAM_READWRITE |
-				     G_PARAM_CONSTRUCT_ONLY |
-				     G_PARAM_STATIC_STRINGS);
 
 	props[PROP_SESSION_TOKEN] =
 		g_param_spec_string("session-token",
@@ -358,14 +341,13 @@ chime_connection_init(ChimeConnection *self)
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
 
 ChimeConnection *
-chime_connection_new(void *prpl_conn, const gchar *email, const gchar *server,
+chime_connection_new(const gchar *email, const gchar *server,
 		     const gchar *device_token, const gchar *session_token)
 {
 	if (!server || !*server)
 		server = SIGNIN_DEFAULT;
 
 	return g_object_new (CHIME_TYPE_CONNECTION,
-	                     "purple-connection", prpl_conn,
 			     "account-email", email,
 			     "server", server ? server : SIGNIN_DEFAULT,
 			     "device-token", device_token,

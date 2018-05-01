@@ -251,6 +251,8 @@ static void chime_purple_login(PurpleAccount *account)
 	   on close, and it doesn't use it anyway. */
 	g_signal_connect(pc->cxn, "log-message",
 			 G_CALLBACK(on_chime_log_message), NULL);
+
+	chime_connection_connect(pc->cxn);
 }
 
 static void disconnect_contact(ChimeConnection *cxn, ChimeContact *contact,

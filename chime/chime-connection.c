@@ -181,16 +181,6 @@ chime_connection_set_property(GObject      *object,
 	}
 }
 
-static void chime_connection_constructed(GObject *object)
-{
-	ChimeConnection *self = CHIME_CONNECTION(object);
-
-        G_OBJECT_CLASS (chime_connection_parent_class)->constructed (object);
-
-	chime_connection_connect(self);
-}
-
-
 static void
 chime_connection_class_init(ChimeConnectionClass *klass)
 {
@@ -200,7 +190,6 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 
 	object_class->finalize = chime_connection_finalize;
 	object_class->dispose = chime_connection_dispose;
-	object_class->constructed = chime_connection_constructed;
 	object_class->get_property = chime_connection_get_property;
 	object_class->set_property = chime_connection_set_property;
 

@@ -74,10 +74,13 @@ static void request_credentials_with_fields(struct auth_data *data)
 
 	purple_request_fields_add_group(fields, group);
 
-	purple_request_fields(data->conn, TITLE_LABEL, NULL, NULL, fields,
+	gchar *secondary = g_strdup_printf(_("Authentication for %s"),
+					   data->conn->account->username);
+	purple_request_fields(data->conn, TITLE_LABEL, NULL, secondary, fields,
 			      SEND_LABEL, G_CALLBACK(gather_credentials_from_fields),
 			      CANCEL_LABEL, G_CALLBACK(send_credentials),
 			      data->conn->account, NULL, NULL, data);
+	g_free(secondary);
 }
 
 static void gather_password_from_input(struct auth_data *data, const gchar *password)
@@ -88,23 +91,30 @@ static void gather_password_from_input(struct auth_data *data, const gchar *pass
 
 static void request_password_with_input(struct auth_data *data, const gchar *username)
 {
+	gchar *secondary = g_strdup_printf(_("Password for %s"),
+					   data->conn->account->username);
 	data->username = g_strdup(username);
-	purple_request_input(data->conn, TITLE_LABEL, PASS_LABEL,
-			     NULL, NULL, FALSE, TRUE, (gchar *) PASS_FIELD,
+	purple_request_input(data->conn, TITLE_LABEL, NULL, secondary,
+			     NULL, FALSE, TRUE, (gchar *) PASS_FIELD,
 			     SEND_LABEL, G_CALLBACK(gather_password_from_input),
 			     CANCEL_LABEL, G_CALLBACK(send_credentials),
 			     data->conn->account, NULL, NULL, data);
+	g_free(secondary);
 }
 
 static void request_username_with_input(struct auth_data *data)
 {
-	if (data->user_required)
-		purple_request_input(data->conn, TITLE_LABEL, USER_LABEL,
-				     NULL, NULL, FALSE, FALSE, (gchar *) USER_FIELD,
+	if (data->user_required) {
+		gchar *secondary = g_strdup_printf(_("Username for %s"),
+					   data->conn->account->username);
+		purple_request_input(data->conn, TITLE_LABEL, NULL, secondary,
+				     NULL, FALSE, FALSE, (gchar *) USER_FIELD,
 				     _("OK"), G_CALLBACK(request_password_with_input),
 				     CANCEL_LABEL, G_CALLBACK(send_credentials),
 				     data->conn->account, NULL, NULL, data);
-	else
+		g_free(secondary);
+
+	} else
 		request_password_with_input(data, NULL);
 }
 

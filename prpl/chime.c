@@ -65,7 +65,7 @@ static void chime_purple_plugin_destroy(PurplePlugin *plugin)
 
 static const char *chime_purple_list_icon(PurpleAccount *a, PurpleBuddy *b)
 {
-        return "chime";
+	return "chime";
 }
 
 static void on_set_idle_ready(GObject *source, GAsyncResult *result, gpointer user_data)
@@ -86,6 +86,11 @@ static void chime_purple_set_idle(PurpleConnection *conn, int idle_time)
 	chime_connection_set_device_status_async(cxn, idle_time ? "Idle" : "Active",
 						 NULL, on_set_idle_ready,
 						 NULL);
+}
+
+static void on_chime_authenticate(ChimeConnection *cxn, gpointer state, gboolean user_required, PurpleConnection *conn)
+{
+	purple_request_credentials(conn, state, user_required);
 }
 
 static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, PurpleConnection *conn)
@@ -225,10 +230,13 @@ static void chime_purple_login(PurpleAccount *account)
 	purple_chime_init_chats(conn);
 	purple_chime_init_messages(conn);
 
-	pc->cxn = chime_connection_new(conn, server, devtoken, token);
+	pc->cxn = chime_connection_new(conn, purple_account_get_username(account),
+				       server, devtoken, token);
 
 	g_signal_connect(pc->cxn, "notify::session-token",
 			 G_CALLBACK(on_session_token_changed), conn);
+	g_signal_connect(pc->cxn, "authenticate",
+			 G_CALLBACK(on_chime_authenticate), conn);
 	g_signal_connect(pc->cxn, "connected",
 			 G_CALLBACK(on_chime_connected), conn);
 	g_signal_connect(pc->cxn, "disconnected",
@@ -243,8 +251,6 @@ static void chime_purple_login(PurpleAccount *account)
 	   on close, and it doesn't use it anyway. */
 	g_signal_connect(pc->cxn, "log-message",
 			 G_CALLBACK(on_chime_log_message), NULL);
-
-
 }
 
 static void disconnect_contact(ChimeConnection *cxn, ChimeContact *contact,
@@ -505,4 +511,3 @@ static void chime_purple_init_plugin(PurplePlugin *plugin)
 }
 
 PURPLE_INIT_PLUGIN(chime, chime_purple_init_plugin, chime_plugin_info);
-

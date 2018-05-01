@@ -108,6 +108,7 @@ typedef struct {
 
 	/* Service config */
 	JsonNode *reg_node;
+	const gchar *account_email;
 	const gchar *display_name;
 	const gchar *email;
 
@@ -255,7 +256,7 @@ void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean 
 gboolean chime_call_participant_audio_stats(ChimeCall *call, const gchar *profile_id, int vol, int signal_strength);
 
 
-/* login.c */
+/* chime-login.c */
 void chime_initial_login(ChimeConnection *cxn);
 
 #endif /* __CHIME_CONNECTION_PRIVATE_H__ */

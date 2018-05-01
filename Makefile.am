@@ -14,9 +14,8 @@ PROTOBUF_SRCS = protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
 		protobuf/rt_message.pb-c.c protobuf/rt_message.pb-c.h
 
 PRPL_SRCS =	prpl/chime.h prpl/chime.c prpl/buddy.c prpl/rooms.c prpl/chat.c \
-		prpl/messages.c prpl/conversations.c prpl/meeting.c prpl/attachments.c
-
-LOGIN_SRCS =	login.c login-amazon.c login-warpdrive.c login-private.h
+		prpl/messages.c prpl/conversations.c prpl/meeting.c prpl/attachments.c \
+		prpl/authenticate.c
 
 WEBSOCKET_SRCS = chime/chime-websocket-connection.c chime/chime-websocket-connection.h \
 		chime/chime-websocket.c
@@ -32,7 +31,13 @@ CHIME_SRCS =	chime/chime-connection.c chime/chime-connection.h \
 		chime/chime-call-transport.c \
 		chime/chime-call-screen.c chime/chime-call-screen.h \
 		chime/chime-juggernaut.c \
+		chime/chime-signin.c \
 		chime/chime-meeting.c chime/chime-meeting.h
+
+EXTRA_PROGRAMS = chime-get-token
+chime_get_token_SOURCES = chime-get-token.c
+chime_get_token_CFLAGS = $(SOUP_CFLAGS) $(JSON_CFLAGS)
+chime_get_token_LDADD = libchime.la
 
 noinst_LTLIBRARIES = libchime.la
 

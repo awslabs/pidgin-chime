@@ -58,6 +58,7 @@ typedef void (*ChimeSoupMessageCallback)(ChimeConnection *cxn,
 					 gpointer cb_data);
 
 ChimeConnection *chime_connection_new                        (void *prpl_conn,
+							      const gchar *email,
 							      const gchar *server,
 							      const gchar *device_token,
 							      const gchar *session_token);
@@ -88,6 +89,11 @@ const gchar     *chime_connection_get_session_token          (ChimeConnection  *
 void             chime_connection_set_session_token          (ChimeConnection  *self,
                                                               const gchar      *sess_tok);
 
+
+void chime_connection_signin (ChimeConnection *self);
+void chime_connection_authenticate (gpointer opaque,
+				    const gchar *username,
+				    const gchar *password);
 void chime_connection_log_out_async (ChimeConnection    *self,
 				     GCancellable       *cancellable,
 				     GAsyncReadyCallback callback,

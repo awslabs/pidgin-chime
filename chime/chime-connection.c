@@ -28,12 +28,14 @@ enum
     PROP_SESSION_TOKEN,
     PROP_DEVICE_TOKEN,
     PROP_SERVER,
+    PROP_ACCOUNT_EMAIL,
     LAST_PROP
 };
 
 static GParamSpec *props[LAST_PROP];
 
 enum {
+	AUTHENTICATE,
 	CONNECTED,
 	DISCONNECTED,
 	NEW_CONTACT,
@@ -148,6 +150,9 @@ chime_connection_get_property(GObject    *object,
 	case PROP_SERVER:
 		g_value_set_string(value, priv->server);
 		break;
+	case PROP_ACCOUNT_EMAIL:
+		g_value_set_string(value, priv->account_email);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
 		break;
@@ -175,6 +180,9 @@ chime_connection_set_property(GObject      *object,
 		break;
 	case PROP_SERVER:
 		priv->server = g_value_dup_string(value);
+		break;
+	case PROP_ACCOUNT_EMAIL:
+		priv->account_email = g_value_dup_string(value);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -240,7 +248,21 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 				    G_PARAM_CONSTRUCT_ONLY |
 				    G_PARAM_STATIC_STRINGS);
 
+	props[PROP_ACCOUNT_EMAIL] =
+		g_param_spec_string("account-email",
+				    "account e-mail",
+				    "account e-mail",
+				    NULL,
+				    G_PARAM_READWRITE |
+				    G_PARAM_CONSTRUCT_ONLY |
+				    G_PARAM_STATIC_STRINGS);
+
 	g_object_class_install_properties(object_class, LAST_PROP, props);
+
+	signals[AUTHENTICATE] =
+		g_signal_new ("authenticate",
+			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_BOOLEAN);
 
 	signals[CONNECTED] =
 		g_signal_new ("connected",
@@ -336,7 +358,7 @@ chime_connection_init(ChimeConnection *self)
 #define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
 
 ChimeConnection *
-chime_connection_new(void *prpl_conn, const gchar *server,
+chime_connection_new(void *prpl_conn, const gchar *email, const gchar *server,
 		     const gchar *device_token, const gchar *session_token)
 {
 	if (!server || !*server)
@@ -344,6 +366,7 @@ chime_connection_new(void *prpl_conn, const gchar *server,
 
 	return g_object_new (CHIME_TYPE_CONNECTION,
 	                     "purple-connection", prpl_conn,
+			     "account-email", email,
 			     "server", server ? server : SIGNIN_DEFAULT,
 			     "device-token", device_token,
 			     "session-token", session_token,
@@ -501,7 +524,7 @@ chime_connection_connect(ChimeConnection    *self)
 
 	if (!priv->session_token || !*priv->session_token) {
 		priv->state = CHIME_STATE_DISCONNECTED;
-		chime_initial_login(self);
+		chime_connection_signin(self);
 		return;
 	}
 

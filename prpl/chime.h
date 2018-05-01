@@ -54,6 +54,9 @@ struct purple_chime {
 
 #define PURPLE_CHIME_CXN(conn) (CHIME_CONNECTION(((struct purple_chime *)purple_connection_get_protocol_data(conn))->cxn))
 
+/* authenticate.c */
+void purple_request_credentials(PurpleConnection *conn, gpointer state, gboolean user_required);
+
 /* chime.c */
 /* BEWARE: msg_id is allocated, msg_time is const. I am going to hate myself
    for that one day, but it's convenient for now... */

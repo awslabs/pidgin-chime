@@ -478,6 +478,7 @@ static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 		gnutls_certificate_set_x509_system_trust(audio->dtls_cred);
 		gnutls_certificate_set_x509_trust_dir(audio->dtls_cred,
 						      CHIME_CERTS_DIR, GNUTLS_X509_FMT_PEM);
+		gnutls_certificate_set_verify_function(audio->dtls_cred, dtls_verify_cb);
 	}
 	gnutls_credentials_set(audio->dtls_sess, GNUTLS_CRD_CERTIFICATE, audio->dtls_cred);
 
@@ -496,7 +497,6 @@ static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 	/* We can't rely on the length argument to gnutls_server_name_set().
 	   https://bugs.launchpad.net/ubuntu/+bug/1762710 */
 	gnutls_server_name_set(audio->dtls_sess, GNUTLS_NAME_DNS, audio->dtls_hostname, strlen(audio->dtls_hostname));
-	gnutls_session_set_verify_function(audio->dtls_sess, dtls_verify_cb);
 
 	gnutls_transport_set_ptr(audio->dtls_sess, audio);
 	gnutls_transport_set_push_function (audio->dtls_sess,

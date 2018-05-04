@@ -99,6 +99,7 @@ struct chime_msg {
 
 typedef struct {
 	ChimeConnectionState state;
+	GSList *amazon_cas;
 
 	gchar *server;
 	gchar *device_token;
@@ -258,5 +259,8 @@ gboolean chime_call_participant_audio_stats(ChimeCall *call, const gchar *profil
 
 /* chime-login.c */
 void chime_initial_login(ChimeConnection *cxn);
+
+/* chime-certs.c */
+GSList *chime_cert_list(void);
 
 #endif /* __CHIME_CONNECTION_PRIVATE_H__ */

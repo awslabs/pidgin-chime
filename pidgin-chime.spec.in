@@ -127,6 +127,9 @@ make %{?_smp_mflags} check
 %{_libdir}/purple-2/libchimeprpl.so
 %{_libdir}/farstream-0.2/libapp-transmitter.so
 %{_libdir}/gstreamer-1.0/libgstchime.so
+%dir %{_datadir}/%{name}
+%{_datadir}/%{name}/*.pem
+
 %defattr(-,root,root,-)
 %license LICENSE
 %doc README TODO

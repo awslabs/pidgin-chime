@@ -120,6 +120,8 @@ chime_connection_dispose(GObject *object)
 	if (priv->state != CHIME_STATE_DISCONNECTED)
 		chime_connection_disconnect(self);
 
+	g_slist_free_full(priv->amazon_cas, g_object_unref);
+	priv->amazon_cas = NULL;
 	chime_connection_log(self, CHIME_LOGLVL_MISC, "Connection disposed: %p\n", self);
 
 	G_OBJECT_CLASS(chime_connection_parent_class)->dispose(object);
@@ -307,20 +309,69 @@ void chime_connection_fail(ChimeConnection *cxn, gint code, const gchar *format,
 }
 
 static void
+req_started_cb(SoupSession *sess, SoupMessage *msg, SoupSocket *sock, gpointer _cxn)
+{
+	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
+	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+	if (!soup_socket_is_ssl(sock))
+		return;
+
+	GTlsCertificateFlags cert_errors;
+	g_object_get(sock, "tls-errors", &cert_errors, NULL);
+	if (!cert_errors)
+		return;
+
+	/* If the problem was *only* an unknown CA (i.e. the hostname did
+	 * match OK, it wasn't expired, etc.) then check if it's trusted
+	 * by the Amazon internal CA. */
+	if (cert_errors == G_TLS_CERTIFICATE_UNKNOWN_CA) {
+		/* The identity part shouldn't be needed but there's no
+		 * real harm in being paranoid and checking it again. */
+		SoupURI *uri = soup_message_get_uri(msg);
+		GSocketConnectable *ident = g_network_address_new(soup_uri_get_host(uri),
+								  soup_uri_get_port(uri));
+
+		GTlsCertificate *cert;
+		g_object_get(sock, "tls-certificate", &cert, NULL);
+
+		GSList *l = priv->amazon_cas;
+		while (l && cert_errors) {
+			cert_errors = g_tls_certificate_verify(cert, ident, G_TLS_CERTIFICATE(l->data));
+			l = l->next;
+		}
+		g_object_unref(ident);
+
+		if (!cert_errors) {
+			chime_debug("Allow Amazon CA for %s\n", soup_uri_get_host(uri));
+			return;
+		}
+	}
+
+	/* Don't like the server's cert. Fail the message. */
+	soup_session_cancel_message(sess, msg, SOUP_STATUS_SSL_FAILED);
+}
+
+static void
 chime_connection_init(ChimeConnection *self)
 {
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
 	priv->soup_sess = soup_session_new();
+	priv->amazon_cas = chime_cert_list();
 
 	if (getenv("CHIME_DEBUG") && atoi(getenv("CHIME_DEBUG")) > 0) {
 		SoupLogger *l = soup_logger_new(SOUP_LOGGER_LOG_BODY, -1);
 		soup_session_add_feature(priv->soup_sess, SOUP_SESSION_FEATURE(l));
 		g_object_unref(l);
-		g_object_set(priv->soup_sess, "ssl-strict", FALSE, NULL);
 	}
 
 	const gchar *https_aliases[2] = { "wss", NULL };
 	g_object_set(priv->soup_sess, "https-aliases", https_aliases, NULL);
+
+	/* Unset ssl-strict and manually check, so that we can allow
+	 * the Amazon internal CAs. The media endpoints may use those. */
+	g_object_set(priv->soup_sess, "ssl-strict", FALSE, NULL);
+	g_signal_connect(G_OBJECT(priv->soup_sess), "request-started", G_CALLBACK(req_started_cb), self);
 
 	priv->msgs_pending_auth = g_queue_new();
 	priv->msgs_queued = g_queue_new();

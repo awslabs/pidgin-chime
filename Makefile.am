@@ -7,6 +7,14 @@ endif
 
 AM_CPPFLAGS = @WFLAGS@
 
+pkgdata_DATA = certs/Amazon.com_InfoSec_CA_G3.pem \
+	       certs/Amazon.com_Internal_Root_Certificate_Authority.pem \
+	       certs/Amazon_Root_CA_1.pem \
+	       certs/Amazon_Root_CA_2.pem \
+	       certs/Amazon_Root_CA_3.pem \
+	       certs/Amazon_Root_CA_4.pem \
+	       certs/SFS_Root_CA_G2.pem
+
 purple_plugin_LTLIBRARIES = libchimeprpl.la
 
 PROTOBUF_SRCS = protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
@@ -21,7 +29,7 @@ WEBSOCKET_SRCS = chime/chime-websocket-connection.c chime/chime-websocket-connec
 		chime/chime-websocket.c
 
 CHIME_SRCS =	chime/chime-connection.c chime/chime-connection.h \
-		chime/chime-connection-private.h \
+		chime/chime-connection-private.h chime/chime-certs.c \
 		chime/chime-contact.c chime/chime-contact.h \
 		chime/chime-room.c chime/chime-room.h \
 		chime/chime-conversation.c chime/chime-conversation.h \
@@ -42,7 +50,7 @@ chime_get_token_LDADD = libchime.la
 noinst_LTLIBRARIES = libchime.la
 
 libchime_la_SOURCES = $(CHIME_SRCS) $(WEBSOCKET_SRCS) $(PROTOBUF_SRCS)
-libchime_la_CFLAGS = $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(GSTREAMER_CFLAGS) $(GSTRTP_CFLAGS) $(GSTAPP_CFLAGS) $(GSTVIDEO_CFLAGS) $(GNUTLS_CFLAGS) -Ichime
+libchime_la_CFLAGS = $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(GSTREAMER_CFLAGS) $(GSTRTP_CFLAGS) $(GSTAPP_CFLAGS) $(GSTVIDEO_CFLAGS) $(GNUTLS_CFLAGS) -Ichime -DCHIME_DATADIR=\"$(pkgdatadir)\"
 libchime_la_LIBADD = $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS) $(GSTREAMER_LIBS) $(GSTRTP_LIBS) $(GSTAPP_LIBS) $(GSTVIDEO_LIBS) $(GNUTLS_LIBS)
 libchime_la_LDFLAGS = -module -avoid-version -no-undefined
 

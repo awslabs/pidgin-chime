@@ -15,6 +15,7 @@ fi
 
 aclocal --install -I m4 || exit 1
 autoreconf --force --install --verbose || exit 1
+./mkspec.sh
 
 cd $OLDDIR
 test -n "$NOCONFIGURE" || "$srcdir/configure" "$@"

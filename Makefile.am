@@ -7,7 +7,7 @@ endif
 
 AM_CPPFLAGS = @WFLAGS@
 
-pkgdata_DATA = certs/Amazon.com_InfoSec_CA_G3.pem \
+certs_DATA = certs/Amazon.com_InfoSec_CA_G3.pem \
 	       certs/Amazon.com_Internal_Root_Certificate_Authority.pem \
 	       certs/Amazon_Root_CA_1.pem \
 	       certs/Amazon_Root_CA_2.pem \
@@ -50,7 +50,7 @@ chime_get_token_LDADD = libchime.la
 noinst_LTLIBRARIES = libchime.la
 
 libchime_la_SOURCES = $(CHIME_SRCS) $(WEBSOCKET_SRCS) $(PROTOBUF_SRCS)
-libchime_la_CFLAGS = $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(GSTREAMER_CFLAGS) $(GSTRTP_CFLAGS) $(GSTAPP_CFLAGS) $(GSTVIDEO_CFLAGS) $(GNUTLS_CFLAGS) -Ichime -DCHIME_DATADIR=\"$(pkgdatadir)\"
+libchime_la_CFLAGS = $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(PROTOBUF_CFLAGS) $(GSTREAMER_CFLAGS) $(GSTRTP_CFLAGS) $(GSTAPP_CFLAGS) $(GSTVIDEO_CFLAGS) $(GNUTLS_CFLAGS) -Ichime -DCHIME_CERTS_DIR=\"$(certsdir)\"
 libchime_la_LIBADD = $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS) $(GSTREAMER_LIBS) $(GSTRTP_LIBS) $(GSTAPP_LIBS) $(GSTVIDEO_LIBS) $(GNUTLS_LIBS)
 libchime_la_LDFLAGS = -module -avoid-version -no-undefined
 

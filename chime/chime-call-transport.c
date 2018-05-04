@@ -477,7 +477,7 @@ static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 		gnutls_certificate_allocate_credentials(&audio->dtls_cred);
 		gnutls_certificate_set_x509_system_trust(audio->dtls_cred);
 		gnutls_certificate_set_x509_trust_dir(audio->dtls_cred,
-						      CHIME_DATADIR, GNUTLS_X509_FMT_PEM);
+						      CHIME_CERTS_DIR, GNUTLS_X509_FMT_PEM);
 	}
 	gnutls_credentials_set(audio->dtls_sess, GNUTLS_CRD_CERTIFICATE, audio->dtls_cred);
 

@@ -44,7 +44,7 @@ GSList *chime_cert_list(void)
 			g_object_ref(certs[i]);
 		} else {
 			GError *error = NULL;
-			gchar *filename = g_build_filename(CHIME_DATADIR, cert_filenames[i], NULL);
+			gchar *filename = g_build_filename(CHIME_CERTS_DIR, cert_filenames[i], NULL);
 			certs[i] = g_tls_certificate_new_from_file(filename, &error);
 			if (!certs[i]) {
 				chime_debug("Failed to load %s: %s\n", cert_filenames[1], error->message);

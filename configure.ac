@@ -31,6 +31,12 @@ AS_COMPILER_FLAGS(WFLAGS,
 	 -Wno-declaration-after-statement")
 AC_SUBST(WFLAGS, [$WFLAGS])
 
+AC_ARG_WITH([certsdir],
+	[AS_HELP_STRING([--with-certsdir],
+		[install directory for Amazon CA certs])],
+		[], [with_certsdir='$(pkgdatadir)'])
+AC_SUBST([certsdir], [${with_certsdir}])
+
 purple_plugindir=
 PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0],
 			  [purple_pkg=purple],

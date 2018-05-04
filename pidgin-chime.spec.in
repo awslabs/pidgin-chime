@@ -107,7 +107,7 @@ fi
 %if %{without evolution}
   --without-evolution \
 %endif # without evolution
-  ;
+  --with-certsdir=/etc/pki/purple-chime/cacerts;
 make %{?_smp_mflags}
 
 %install
@@ -127,8 +127,8 @@ make %{?_smp_mflags} check
 %{_libdir}/purple-2/libchimeprpl.so
 %{_libdir}/farstream-0.2/libapp-transmitter.so
 %{_libdir}/gstreamer-1.0/libgstchime.so
-%dir %{_datadir}/%{name}
-%{_datadir}/%{name}/*.pem
+%dir /etc/pki/purple-chime/cacerts
+/etc/pki/purple-chime/cacerts/*.pem
 
 %defattr(-,root,root,-)
 %license LICENSE

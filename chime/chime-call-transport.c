@@ -394,9 +394,7 @@ static gboolean dtls_src_cb(GDatagramBased *dgram, GIOCondition condition, Chime
 		}
 
 		if (ret) {
-			chime_debug("DTLS failed (%d): %s\n",
-				    gnutls_session_get_verify_cert_status(audio->dtls_sess),
-				    gnutls_strerror(ret));
+			chime_debug("DTLS failed: %s\n", gnutls_strerror(ret));
 			gnutls_deinit(audio->dtls_sess);
 			audio->dtls_sess = NULL;
 			g_source_destroy(audio->dtls_source);
@@ -441,6 +439,27 @@ static gboolean dtls_timeout(ChimeCallAudio *audio)
 	return G_SOURCE_REMOVE;
 }
 
+static int dtls_verify_cb(gnutls_session_t sess)
+{
+	ChimeCallAudio *audio = gnutls_session_get_ptr(sess);
+	unsigned int status;
+	int ret;
+
+	ret = gnutls_certificate_verify_peers3(sess, audio->dtls_hostname, &status);
+	if (ret != GNUTLS_E_SUCCESS)
+		return ret;
+
+	if (status) {
+		gnutls_datum_t reasons;
+		if (gnutls_certificate_verification_status_print(status, GNUTLS_CRT_X509, &reasons, 0) != GNUTLS_E_SUCCESS)
+			reasons.data = NULL;
+		chime_debug("DTLS certificate verification failed (%u): %s\n", status, reasons.data);
+		gnutls_free(reasons.data);
+		return -1;
+	}
+	return 0;
+}
+
 static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 {
 	/* Not that "connected" means anything except that we think we can route to it. */
@@ -477,7 +496,7 @@ static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 	/* We can't rely on the length argument to gnutls_server_name_set().
 	   https://bugs.launchpad.net/ubuntu/+bug/1762710 */
 	gnutls_server_name_set(audio->dtls_sess, GNUTLS_NAME_DNS, audio->dtls_hostname, strlen(audio->dtls_hostname));
-	gnutls_session_set_verify_cert(audio->dtls_sess, audio->dtls_hostname, 0);
+	gnutls_session_set_verify_function(audio->dtls_sess, dtls_verify_cb);
 
 	gnutls_transport_set_ptr(audio->dtls_sess, audio);
 	gnutls_transport_set_push_function (audio->dtls_sess,

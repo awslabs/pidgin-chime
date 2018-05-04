@@ -78,7 +78,7 @@ chime/chime-call-transport.c chime/chime-call-audio.c chime/chime-call.c: chime/
 %.pb-c.c %.pb-c.h: %.proto
 	$(PROTOC) $< --c_out .
 
-EXTRA_DIST = LICENSE README pidgin-chime.spec pidgin-chime.spec.in
+EXTRA_DIST = LICENSE README pidgin-chime.spec pidgin-chime.spec.in $(certs_DATA)
 
 deb-%: debian/changelog
 	fakeroot debian/rules $(patsubst deb-%,%,$@)

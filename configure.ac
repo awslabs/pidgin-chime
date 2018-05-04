@@ -125,8 +125,6 @@ AC_CONFIG_FILES([
 	pixmaps/scalable/Makefile
 	pixmaps/16/Makefile
 	pixmaps/22/Makefile
-	pixmaps/24/Makefile
-	pixmaps/32/Makefile
 	pixmaps/48/Makefile
 	evolution-plugin/Makefile
 	fs-app-transmitter/Makefile

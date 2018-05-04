@@ -88,5 +88,33 @@ debian/changelog: debian/changelog.in
 	 COMMITDATE=$$(git show -s --format=%cD); \
 	 sed -e "s/%COMMITDESC%/$$COMMITDESC/" -e "s/%COMMITDATE%/$$COMMITDATE/" $< > $@
 
-dist-hook:
+tmp-dist: uncommitted-check
+	$(MAKE) $(AM_MAKEFLAGS) VERSION=$(patsubst v%,%,$(shell git describe --tags)) DISTHOOK=0 dist
+
+uncommitted-check:
+	@if ! git update-index --refresh --unmerged || \
+	    ! git diff-index --name-only --exit-code HEAD; then \
+		echo "*** ERROR: Uncommitted changes in above files"; exit 1; fi
+
+DISTHOOK=1
+dist-hook: uncommitted-check
+	@if [ $(DISTHOOK) = 1 ]; then \
+	    if ! git rev-parse --verify v$(VERSION) &> /dev/null; then \
+		echo "*** ERROR: Version v$(VERSION) is not tagged"; exit 1; fi ; \
+	    if ! git diff --name-only --exit-code v$(VERSION) HEAD > /dev/null; then \
+		echo "*** ERROR: Git checkout not at version v$(VERSION)"; exit 1; fi ; \
+	fi
 	./mkspec.sh
+
+sign-dist: dist
+	@for a in $(DIST_ARCHIVES); do \
+		gpg --default-key 0AC01544 --detach-sign -a $$a ; \
+	done
+
+tag: uncommitted-check
+	@if git rev-parse --verify v$(VERSION) &> /dev/null; then \
+		echo "*** ERROR: Version v$(VERSION) is already tagged"; exit 1; fi
+	@sed 's/AC_INIT.*/AC_INIT(pidgin-chime, $(VERSION))/' -i $(srcdir)/configure.ac
+	@cd $(srcdir) && git commit -s -m "Tag version $(VERSION)" configure.ac
+	@git tag v$(VERSION)
+	@cd $(srcdir) && ./autogen.sh

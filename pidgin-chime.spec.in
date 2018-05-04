@@ -127,6 +127,7 @@ make %{?_smp_mflags} check
 %{_libdir}/purple-2/libchimeprpl.so
 %{_libdir}/farstream-0.2/libapp-transmitter.so
 %{_libdir}/gstreamer-1.0/libgstchime.so
+%dir /etc/pki/purple-chime
 %dir /etc/pki/purple-chime/cacerts
 /etc/pki/purple-chime/cacerts/*.pem
 

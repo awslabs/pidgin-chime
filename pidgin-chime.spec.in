@@ -52,11 +52,10 @@ BuildRequires:  pkgconfig(libebook-1.2)
 BuildRequires:  pkgconfig(libecal-1.2)
 %endif # with evolution
 BuildRequires:  gettext
-%if 0%{?gitsnapshot}
 BuildRequires:  libtool
 BuildRequires:  autoconf
 BuildRequires:  automake
-%endif
+
 Requires:       purple-chime%{?_isa} = %{version}-%{release}
 Requires:       evolution-chime
 Requires:       pidgin >= %{pidginver}

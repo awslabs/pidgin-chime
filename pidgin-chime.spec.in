@@ -8,7 +8,7 @@
 
 %global tagver @VERSION@
 
-%global pidginver 2.14.0
+%global pidginver 2.13.0
 %if 0%{?rhel} == 7
 # Building 2.14.0 with the V/V bits on EPEL7 is non-trivial. IM only for now.
 %global pidginver 2.10.11

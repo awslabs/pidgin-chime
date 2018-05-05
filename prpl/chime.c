@@ -360,7 +360,7 @@ static PurpleMediaCaps chime_purple_get_media_caps(PurpleAccount *account, const
 #ifdef PURPLE_BLIST_NODE_IS_VISIBLE /* This was added at the same time */
 #define PRPL_HAS_GET_CB_ALIAS
 #else
-#define OPT_PROTO_TRANSIENT_BUDDIES 0
+#define OPT_PROTO_TRANSIENT_BUDDIES 0x1000
 #endif
 
 static PurplePluginProtocolInfo chime_prpl_info = {
@@ -389,6 +389,8 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.blist_node_menu = chime_purple_blist_node_menu,
 	.get_media_caps = chime_purple_get_media_caps,
 	.initiate_media = chime_purple_initiate_media,
+	.add_buddies_with_invite = NULL, /* We *really* depend on 2.8.0, and this is
+					  * immediately before .get_cb_alias() */
 #ifdef PRPL_HAS_GET_CB_ALIAS
 	.get_cb_alias = chime_purple_get_cb_alias,
 #endif
@@ -510,6 +512,17 @@ static void chime_purple_init_plugin(PurplePlugin *plugin)
 	opts = g_list_append(opts, opt);
 
 	chime_prpl_info.protocol_options = opts;
+
+#ifndef PRPL_HAS_GET_CB_ALIAS
+	PurplePluginProtocolInfo *i = g_malloc0(sizeof (*i) + sizeof(void *));
+	memcpy(i, &chime_prpl_info, sizeof(*i));
+	chime_plugin_info.extra_info = i;
+
+	/* Now add the .get_cb_alias method */
+	i->struct_size += sizeof(void *);
+	i++;
+	*(void **)i = chime_purple_get_cb_alias;
+#endif
 }
 
 PURPLE_INIT_PLUGIN(chime, chime_purple_init_plugin, chime_plugin_info);

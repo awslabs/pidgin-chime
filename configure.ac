@@ -38,11 +38,7 @@ AC_ARG_WITH([certsdir],
 AC_SUBST([certsdir], [${with_certsdir}])
 
 purple_plugindir=
-PKG_CHECK_MODULES(PURPLE, [purple >= 2.4.0],
-			  [purple_pkg=purple],
-			  [PKG_CHECK_MODULES(PURPLE, purple-3,
-					    [AC_MSG_ERROR([Pidgin 3.0 is not yet released. Do not use it. It has nothing you need for Lync support that I didn't already backport to Pidgin 2.11.])])])
-
+PKG_CHECK_MODULES(PURPLE, [purple >= 2.8.0], [purple_pkg=purple])
 
 purple_plugindir="$($PKG_CONFIG --variable=plugindir $purple_pkg)"
 AC_SUBST(purple_plugindir, $purple_plugindir)

@@ -41,6 +41,18 @@
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
 
+#ifndef HAVE_SCREENSHARE
+#ifdef _WIN32
+#include <windows.h>
+#define dlopen(filename, flag)  GetModuleHandleA(filename)
+#define dlsym(handle, symbol)   GetProcAddress(handle, symbol)
+#define dlclose(handle)         FreeLibrary(handle)
+#define RTLD_LAZY               0x0001
+#else
+#include <dlfcn.h>
+#endif
+#endif /* HAVE_SCREENSHARE */
+
 struct chime_chat {
 	/* msgs first as it's a "subclass". Really ought to do proper GTypes here... */
 	struct chime_msgs m;
@@ -507,7 +519,6 @@ static void on_screen_state(ChimeCall *call, ChimeScreenState screen_state,
 	}
 }
 
-#ifdef HAVE_SCREENSHARE
 static void share_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)
 {
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Share media state %d\n", state);
@@ -598,32 +609,42 @@ static void share_screen(gpointer _chat, PurpleMediaElementInfo *info)
 	GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(purple_media_manager_get_pipeline(mgr)),
 				  GST_DEBUG_GRAPH_SHOW_ALL, "chime share graph");
 }
-#endif /* HAVE_SCREENSHARE */
 
 static void select_screen_share(PurpleBuddy *buddy, gpointer _chat)
 {
+	static void *(*request_fn)(void *handle, const char *title,
+				   const char *primary, const char *secondary,
+				   PurpleAccount *account, GCallback cb,
+				   void *user_data) = NULL;
 	struct chime_chat *chat = _chat;
 
 	if (chat->share_media || chat->share_select_ui)
 		return;
 
 #ifdef HAVE_SCREENSHARE
-	if (purple_request_get_ui_ops()->request_screenshare_media) {
+	if (!request_fn && purple_request_get_ui_ops()->request_screenshare_media)
+		request_fn = purple_request_screenshare_media;
+#else
+	if (!request_fn && purple_request_get_ui_ops()->_purple_reserved1) {
+		void *mod = dlopen(NULL, RTLD_LAZY);
+		if (mod)
+			request_fn = (void *) dlsym(mod, "purple_request_screenshare_media");
+		printf("Looked up request_fn %p\n", request_fn);
+	}
+#endif
+	if (request_fn) {
 		char *secondary = g_strdup_printf(_("Select the window to share to %s"),
 						  chat->conv->name);
-		chat->share_select_ui = purple_request_screenshare_media(chat->conv->account->gc, _("Select screenshare"),
-									 NULL, secondary, chat->conv->account,
-									 (GCallback)share_screen, chat);
+		chat->share_select_ui = request_fn(chat->conv->account->gc, _("Select screenshare"),
+						   NULL, secondary, chat->conv->account,
+						   (GCallback)share_screen, chat);
+		g_free(secondary);
 		return;
 	}
+
 	purple_notify_error(chat->conv->account->gc, _("Please upgrade Pidgin"),
 			    _("Your version of Pidgin does not support screenshare selection."),
 			    _("Please upgrade."));
-#else
-	purple_notify_error(chat->conv->account->gc, _("Please upgrade Pidgin"),
-			    _("This version of purple-chime was built against a libpurple without screenshare selection support."),
-			    _("Please upgrade and rebuild the plugin."));
-#endif
 }
 
 static void screen_media_changed(PurpleMedia *media, PurpleMediaState state, const gchar *id, const gchar *participant, struct chime_chat *chat)

@@ -21,13 +21,12 @@ Summary:        Pidgin/libpurple protocol plugin for Amazon Chime
 Version:        %{tagver}%{?snapver}
 Release:        0%{?dist}
 
-Group:          Applications/Communications
 License:        LGPLv2
 URL:            https://github.com/awslabs/%{name}
 %if 0%{?gitsnapshot}
 Source0:        https://github.com/awslabs/%{name}/archive/%{snapcommit}/%{name}-%{shortcommit}.tar.gz
 %else
-Source0:        %{name}-%{version}.tar.gz
+Source0:        ftp://ftp.infradead.org/pub/%{name}/%{name}-%{version}.tar.gz
 %endif
 
 BuildRequires:  pkgconfig(pidgin) >= %{pidginver}
@@ -69,7 +68,6 @@ seen messages.
 
 %package -n purple-chime
 Summary:  Libpurple protocol plugin for Amazon Chime
-Group:    Applications/Communications
 
 %description -n purple-chime
 A plugin for the Pidgin multi-protocol instant messenger, to support Amazon
@@ -82,7 +80,6 @@ messaging library, which is used by Pidgin and other tools.
 %if %{with evolution}
 %package -n evolution-chime
 Summary:  Evolution plugin for Amazon Chime
-Group:    Applications/Productivity
 Requires: pidgin-chime = %{version}-%{release}
 
 %description -n evolution-chime
@@ -105,7 +102,7 @@ fi
 %if %{without evolution}
   --without-evolution \
 %endif # without evolution
-  --with-certsdir=/etc/pki/purple-chime/cacerts;
+  --with-certsdir=%{_sysconfdir}/pki/purple-chime/cacerts;
 make %{?_smp_mflags}
 
 %install
@@ -117,7 +114,6 @@ find %{buildroot} -type f -name "*.la" -delete -print
 make %{?_smp_mflags} check
 
 %files
-%defattr(-,root,root,-)
 %{_datadir}/pixmaps/pidgin/protocols/*/chime*
 %{_libdir}/pidgin/chimeseen.so
 
@@ -125,17 +121,15 @@ make %{?_smp_mflags} check
 %{_libdir}/purple-2/libchimeprpl.so
 %{_libdir}/farstream-0.2/libapp-transmitter.so
 %{_libdir}/gstreamer-1.0/libgstchime.so
-%dir /etc/pki/purple-chime
-%dir /etc/pki/purple-chime/cacerts
-/etc/pki/purple-chime/cacerts/*.pem
+%dir %{_sysconfdir}/pki/purple-chime
+%dir %{_sysconfdir}/pki/purple-chime/cacerts
+%{_sysconfdir}/pki/purple-chime/cacerts/*.pem
 
-%defattr(-,root,root,-)
 %license LICENSE
 %doc README TODO
 
 %if %{with evolution}
 %files -n evolution-chime
-%defattr(-,root,root,-)
 %{_libdir}/evolution/modules/module-event-from-template.so
 %endif # with evolution
 

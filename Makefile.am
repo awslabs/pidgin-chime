@@ -83,8 +83,8 @@ EXTRA_DIST = LICENSE README pidgin-chime.spec pidgin-chime.spec.in $(certs_DATA)
 deb-%: debian/changelog
 	fakeroot debian/rules $(patsubst deb-%,%,$@)
 
-debian/changelog: debian/changelog.in
-	@COMMITDESC=$$(git describe --tags | sed 's/v\(.*\)-g[0-9a-f]\+/\1/'); \
+debian/changelog: debian/changelog.in configure.ac Makefile.am
+	@COMMITDESC=$$(git describe --tags | sed  -e 's/$$/-0/' -e 's/v\([^-]\+-[^-]\+\)\(-g[0-9a-f-]\+\|\)/\1/') \
 	 COMMITDATE=$$(git show -s --format=%cD); \
 	 sed -e "s/%COMMITDESC%/$$COMMITDESC/" -e "s/%COMMITDATE%/$$COMMITDATE/" $< > $@
 

@@ -50,6 +50,7 @@ BuildRequires:  pkgconfig(evolution-data-server-1.2)
 BuildRequires:  pkgconfig(libebook-1.2)
 BuildRequires:  pkgconfig(libecal-1.2)
 %endif # with evolution
+BuildRequires:  gcc
 BuildRequires:  gettext
 BuildRequires:  libtool
 BuildRequires:  autoconf

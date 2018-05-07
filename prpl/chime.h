@@ -165,5 +165,6 @@ typedef struct _AttachmentContext {
 ChimeAttachment *extract_attachment(JsonNode *record);
 
 void download_attachment(ChimeConnection *cxn, ChimeAttachment *att, AttachmentContext *ctx);
+void chime_send_file(PurpleConnection *gc, const char *who, const char *filename);
 
 #endif /* __CHIME_H__ */

@@ -56,7 +56,7 @@ libchime_la_LDFLAGS = -module -avoid-version -no-undefined
 
 libchimeprpl_la_SOURCES = $(PRPL_SRCS) $(LOGIN_SRCS)
 libchimeprpl_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(GSTREAMER_CFLAGS) -Ichime -Iprpl
-libchimeprpl_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(GSTREAMER_LIBS) libchime.la
+libchimeprpl_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(GSTREAMER_LIBS) -ldl libchime.la
 libchimeprpl_la_LDFLAGS = -module -avoid-version -no-undefined
 
 POTFILES = $(libchime_la_SOURCES) $(libchimeprpl_la_SOURCES)

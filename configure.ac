@@ -53,6 +53,12 @@ fi
 AC_SUBST(pixmapdir, ${pidgin_datadir}/pixmaps/pidgin/protocols)
 AC_SUBST(pidgin_plugindir, $pidgin_plugindir)
 
+DLOPEN_LIBS=""
+AC_SEARCH_LIBS([dlopen],[dl dld],[DLOPEN_LIBS="$ac_cv_search_dlopen"],
+  [AC_MSG_ERROR([Unable to find dlopen function])]
+)
+AC_SUBST([DLOPEN_LIBS])
+
 PKG_CHECK_MODULES(GNUTLS, [gnutls >= 3.2.0])
 PKG_CHECK_MODULES(FARSTREAM, [farstream-0.2])
 PKG_CHECK_MODULES(GSTREAMER, [gstreamer-1.0])

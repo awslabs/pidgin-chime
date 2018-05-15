@@ -54,7 +54,8 @@ AC_SUBST(pixmapdir, ${pidgin_datadir}/pixmaps/pidgin/protocols)
 AC_SUBST(pidgin_plugindir, $pidgin_plugindir)
 
 DLOPEN_LIBS=""
-AC_SEARCH_LIBS([dlopen],[dl dld],[DLOPEN_LIBS="$ac_cv_search_dlopen"],
+AC_SEARCH_LIBS([dlopen],[dl dld],
+  [test "$ac_cv_search_dlopen" == "none required" || DLOPEN_LIBS="$ac_cv_search_dlopen"],
   [AC_MSG_ERROR([Unable to find dlopen function])]
 )
 AC_SUBST([DLOPEN_LIBS])

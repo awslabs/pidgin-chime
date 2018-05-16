@@ -49,6 +49,7 @@ BuildRequires:  pkgconfig(evolution-shell-3.0)
 BuildRequires:  pkgconfig(evolution-data-server-1.2)
 BuildRequires:  pkgconfig(libebook-1.2)
 BuildRequires:  pkgconfig(libecal-1.2)
+BuildRequires:  pkgconfig(camel-1.2)
 %endif # with evolution
 BuildRequires:  gcc
 BuildRequires:  gettext

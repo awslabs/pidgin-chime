@@ -10,5 +10,5 @@ module_event_from_template_la_SOURCES = event-from-template.c
 
 module_event_from_template_la_LDFLAGS = -module -avoid-version -no-undefined
 
-module_event_from_template_la_LIBADD = $(EVOLUTION_LIBS)
+module_event_from_template_la_LIBADD = $(EVOLUTION_LIBS) $(CAMEL_LIBS)
 

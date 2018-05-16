@@ -106,7 +106,15 @@ AS_IF([test "x$with_evolution" != xno],
 	 fi
 	 evomoddir="$($PKG_CONFIG --variable=moduledir evolution-shell-3.0)"
 	 AC_SUBST(evomoddir, ${evomoddir})],
-	[:])])
+	[:])]
+      CAMEL_LIBS=""
+      AC_SEARCH_LIBS(
+        [camel_address_new],[camel-1.2],
+        [$ac_cv_search_camel_address_new == 'none required' || CAMEL_LIBS=$ac_cv_search_camel_address_new],
+        [AC_MSG_ERROR([Couldn't found the library providing camel_address_new()])]
+      )
+      AC_SUBST([CAMEL_LIBS])
+)
 
 AM_CONDITIONAL(BUILD_EVOPLUGIN, [ test "$with_evolution" = "yes" ])
 

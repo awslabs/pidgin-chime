@@ -469,7 +469,7 @@ static struct dom *parse_html(SoupMessage *msg)
 	return dom;
 }
 
-static GHashTable *parse_json(SoupMessage *msg)
+static GHashTable *parse_json(const gchar *text)
 {
 	GError *error = NULL;
 	GHashTable *result = NULL;
@@ -477,18 +477,9 @@ static GHashTable *parse_json(SoupMessage *msg)
 	JsonNode *node;
 	JsonObject *object;
 	JsonParser *parser;
-	const gchar *ctype;
-
-	ctype = soup_message_headers_get_content_type(msg->response_headers, NULL);
-	if (g_strcmp0(ctype, "application/json") || !msg->response_body ||
-	    msg->response_body->length <= 0) {
-		chime_debug("Empty JSON response or unexpected content %s\n", ctype);
-		return result;
-	}
 
 	parser = json_parser_new();
-	if (!json_parser_load_from_data(parser, msg->response_body->data,
-					msg->response_body->length, &error)) {
+	if (!json_parser_load_from_data(parser, text, strlen(text), &error)) {
 		chime_debug("JSON parsing error: %s\n", error->message);
 		goto out;
 	}
@@ -904,11 +895,11 @@ static void wd_signin_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 
 static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
-	GHashTable *provider_info;
+	GHashTable *provider_info = NULL;
 	SoupMessage *next;
 	SoupSessionCallback handler;
 	SoupURI *destination;
-	gchar *type, *path;
+	gchar *json, *type, *path;
 	struct signin *state = data;
 
 	if (msg->status_code == 400) {
@@ -919,10 +910,16 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 
 	fail_on_response_error(msg, state);
 
-	provider_info = parse_json(msg);
+	json = parse_regex(msg, "data *= *({[^}]+}) *;", 1);
+	if (!(json && *json)) {
+		fail_bad_response(state, _("Could not locate provider data in response"));
+		goto out;
+	}
+
+	provider_info = parse_json(json);
 	if (!provider_info) {
 		fail_bad_response(state, _("Error searching for sign-in provider"));
-		return;
+		goto out;
 	}
 
 	type = g_hash_table_lookup(provider_info, "provider");
@@ -950,20 +947,23 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 	soup_uri_free(destination);
  out:
 	g_hash_table_destroy(provider_info);
+	g_free(json);
 }
 
 static void signin_page_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
 	SoupMessage *next;
 	struct signin *state = data;
-	struct dom *dom = NULL;
-	struct form *form = NULL;
+	struct dom *dom;
+	struct form *form;
+	gchar *csrf;
 
 	fail_on_response_error(msg, state);
 
 	dom = parse_html(msg);
+	csrf = xpath_string(dom, "//meta[@name='csrf-token']/@content");
 	form = scrap_form(dom, soup_message_get_uri(msg), "//form[@id='picker_email']");
-	if (!(form && form->email_name)) {
+	if (!(csrf && *csrf && form && form->email_name)) {
 		fail_bad_response(state, _("Error initiating sign in"));
 		goto out;
 	}
@@ -971,9 +971,12 @@ static void signin_page_cb(SoupSession *session, SoupMessage *msg, gpointer data
 	g_hash_table_insert(form->params, g_strdup(form->email_name),
 			    g_strdup(state->email));
 	next = soup_form_request_new_from_hash(form->method, form->action, form->params);
+	soup_message_headers_append(next->request_headers, "X-CSRF-Token", csrf);
+	soup_message_headers_append(next->request_headers, "Accept", "*/*;q=0.5, text/javascript, application/javascript, application/ecmascript, application/x-ecmascript");
 	soup_session_queue_message(session, next, signin_search_result_cb, state);
  out:
 	free_form(form);
+	g_free(csrf);
 	free_dom(dom);
 }
 

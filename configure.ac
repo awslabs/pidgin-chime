@@ -1,4 +1,4 @@
-AC_INIT(pidgin-chime, 1.0)
+AC_INIT(pidgin-chime, 1.1)
 
 PKG_PROG_PKG_CONFIG
 AC_LANG_C

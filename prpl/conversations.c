@@ -286,7 +286,7 @@ static void create_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 			goto bad;
 		}
 
-		chime_connection_send_message_async(cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd);
+		chime_connection_send_message_async(cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd, NULL);
 		return;
 	}
  bad:
@@ -316,7 +316,7 @@ static void find_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 			g_free(imd->message);
 			g_free(imd);
 		} else {
-			chime_connection_send_message_async(cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd);
+			chime_connection_send_message_async(cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd, NULL);
 		}
 		return;
 	}
@@ -364,7 +364,7 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 
 	imd->im = g_hash_table_lookup(pc->ims_by_email, who);
 	if (imd->im) {
-		chime_connection_send_message_async(pc->cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd);
+		chime_connection_send_message_async(pc->cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd, NULL);
 		return 0;
 	}
 

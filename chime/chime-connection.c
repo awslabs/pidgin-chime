@@ -1038,7 +1038,8 @@ chime_connection_send_message_async(ChimeConnection *self,
 				    const gchar *message,
 				    GCancellable *cancellable,
 				    GAsyncReadyCallback callback,
-				    gpointer user_data)
+				    gpointer user_data,
+				    JsonObject *additional_json)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
@@ -1069,6 +1070,18 @@ chime_connection_send_message_async(ChimeConnection *self,
 					   CHIME_IS_ROOM(obj) ? "room" : "conversation",
 					   chime_object_get_id(obj));
 	JsonNode *node = json_builder_get_root(jb);
+	JsonObject *json_obj = json_node_get_object(node);
+	if (additional_json) {
+		GList *members_head = json_object_get_members(additional_json);
+		GList *member = members_head;
+		while (member != NULL) {
+			gchar *member_name = (gchar*)member->data;
+			JsonNode *member_node = json_object_dup_member(additional_json, member_name);
+			json_object_set_member(json_obj, member_name, member_node);
+			member = member->next;
+		}
+		g_list_free(members_head);
+	}
 	chime_connection_queue_http_request(self, node, uri, "POST", send_message_cb, task);
 
 	json_node_unref(node);

@@ -982,7 +982,7 @@ int chime_purple_chat_send(PurpleConnection *conn, int id, const char *message, 
 	} else
 		expanded = unescaped;
 
-	chime_connection_send_message_async(pc->cxn, chat->m.obj, expanded, NULL, sent_msg_cb, chat);
+	chime_connection_send_message_async(pc->cxn, chat->m.obj, expanded, NULL, sent_msg_cb, chat, NULL);
 
 	g_free(expanded);
 	return 0;

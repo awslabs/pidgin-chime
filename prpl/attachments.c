@@ -544,12 +544,9 @@ struct chime_im {
 	ChimeContact *peer;
 };
 
-static void chime_send_init(PurpleXfer *xfer)
+static void init_upload(PurpleXfer *xfer, struct purple_chime *pc, ChimeObject *obj)
 {
 	purple_debug_info("chime", "Starting to handle upload of file '%s'\n", xfer->local_filename);
-
-	struct purple_chime *pc = purple_connection_get_protocol_data(xfer->account->gc);
-	struct chime_im *im = g_hash_table_lookup(pc->ims_by_email, xfer->who);
 
 	g_return_if_fail(CHIME_IS_CONNECTION(pc->cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(pc->cxn);
@@ -566,7 +563,7 @@ static void chime_send_init(PurpleXfer *xfer)
 	}
 	AttachmentUpload *data = g_new0(AttachmentUpload, 1);
 	data->conn = pc->cxn;
-	data->obj = im->m.obj;
+	data->obj = obj;
 	data->content = file_contents;
 	data->content_length = length;
 	get_mime_type(xfer->local_filename, &data->content_type);
@@ -576,6 +573,25 @@ static void chime_send_init(PurpleXfer *xfer)
 	purple_xfer_ref(xfer);
 
 	request_upload_url(pc->cxn, priv->messaging_url, xfer);
+}
+
+static void chime_send_init(PurpleXfer *xfer)
+{
+	purple_debug_info("chime", "Starting to handle upload of file '%s'\n", xfer->local_filename);
+
+	struct purple_chime *pc = purple_connection_get_protocol_data(xfer->account->gc);
+	struct chime_im *im = g_hash_table_lookup(pc->ims_by_email, xfer->who);
+
+	init_upload(xfer, pc, im->m.obj);
+}
+
+static void chime_send_init_chat(PurpleXfer *xfer)
+{
+	purple_debug_info("chime", "Starting to handle upload of file '%s'\n", xfer->local_filename);
+	ChimeObject *obj = (ChimeObject*)xfer->data;
+	struct purple_chime *pc = purple_connection_get_protocol_data(xfer->account->gc);
+
+	init_upload(xfer, pc, obj);
 }
 
 static void chime_send_start(PurpleXfer *xfer)
@@ -608,6 +624,27 @@ void chime_send_file(PurpleConnection *gc, const char *who, const char *filename
 		purple_xfer_set_start_fnc(xfer, chime_send_start);
 		purple_xfer_set_cancel_send_fnc(xfer, chime_send_cancel);
 	}
+
+	if (filename) {
+		purple_xfer_request_accepted(xfer, filename);
+	} else {
+		purple_xfer_request(xfer);
+	}
+}
+
+void chime_send_file_chat(PurpleConnection *gc, ChimeObject *obj, const char *who, const char *filename)
+{
+	purple_debug_info("chime", "chime_send_file_chat(who=%s, file=%s\n", who, filename);
+
+	PurpleXfer *xfer;
+	xfer = purple_xfer_new(gc->account, PURPLE_XFER_SEND, who);
+	if (xfer) {
+		purple_xfer_set_init_fnc(xfer, chime_send_init_chat);
+		purple_xfer_set_start_fnc(xfer, chime_send_start);
+		purple_xfer_set_cancel_send_fnc(xfer, chime_send_cancel);
+	}
+
+	xfer->data = obj;
 
 	if (filename) {
 		purple_xfer_request_accepted(xfer, filename);

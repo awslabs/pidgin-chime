@@ -1250,6 +1250,36 @@ static void leave_room(PurpleBuddy *buddy, gpointer _chat)
 	chime_connection_remove_room_member_async(cxn, room, me, NULL, leave_room_cb, chat);
 }
 
+static void send_file(PurpleBuddy *buddy, gpointer *_pchat)
+{
+	purple_debug_info("chime", "send_file\n");
+	PurpleChat *pchat = (PurpleChat*)_pchat;
+	purple_debug_info("chime", "room\n");
+	if (!pchat->components)
+		return;
+
+	const gchar *roomid = g_hash_table_lookup(pchat->components, (char *)"RoomId");
+	if (!roomid)
+		return;
+
+	purple_debug_info("chime", "Chat menu for %s\n", roomid);
+
+	PurpleConnection *conn = pchat->account->gc;
+	if (!conn)
+		return;
+
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+	ChimeRoom *room = chime_connection_room_by_id(pc->cxn, roomid);
+	if (!room)
+		return;
+
+	struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, room);
+	if (!chat)
+		return;
+	purple_debug_info("chime", "Has chat\n");
+	chime_send_file_chat(conn, chat->m.obj, roomid, NULL);
+}
+
 GList *chime_purple_chat_menu(PurpleChat *pchat)
 {
 
@@ -1276,6 +1306,10 @@ GList *chime_purple_chat_menu(PurpleChat *pchat)
 		return NULL;
 
 	GList *items = NULL;
+	items = g_list_append(items,
+			      purple_menu_action_new(_("Send file"),
+						     PURPLE_CALLBACK(send_file), pchat, NULL));
+
 	if (chat->call) {
 		items = g_list_append(items,
 				      purple_menu_action_new(_("Show participants"),

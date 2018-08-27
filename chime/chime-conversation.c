@@ -295,6 +295,10 @@ static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNo
 	if (!node || !parse_string(node, "id", &from))
 		return FALSE;
 
+	/* Hide own typing notifications possibly coming from other devices */
+	if (g_strcmp0(from, priv->profile_id) == 0)
+		return FALSE;
+
 	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_id, from);
 	if (!contact)
 		return FALSE;

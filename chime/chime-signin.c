@@ -746,14 +746,14 @@ static void wd_send_credentials(struct signin *state, const gchar *user, const g
 {
 	SoupMessage *msg;
 	gchar *safe_user, *safe_password;
-	static const gchar *type = "com.amazonaws.warpdrive.console.shared.LoginRequest_v4/3859384737";
+	static const gchar *type = "com.amazonaws.warpdrive.console.shared.LoginRequest_v5/3777621251";
 
 	safe_user = escaped(user);
 	safe_password = escaped(password);
 
-	msg = gwt_request(state, WARPDRIVE_INTERFACE, "authenticateUser", 11,
-			  type, type, "", "", state->client_id, "", NULL,
-			  state->directory, safe_password, "", safe_user);
+	msg = gwt_request(state, WARPDRIVE_INTERFACE, "authenticateUser", 14,
+			  type, type, "", "", state->client_id, "MicrosoftAD", "", "", NULL,
+			  state->directory, safe_password, "", "", safe_user);
 
 	soup_session_queue_message(state->session, msg, wd_credentials_response_cb, state);
 	g_free(safe_password);
@@ -779,7 +779,7 @@ static void gwt_region_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 		goto out;
 	}
 
-	state->region = g_strdup(response[count - 1]);
+	state->region = g_strdup(response[count - 2]);
 	if (!state->region) {
 		fail_gwt_discovery(state, "NULL region value\n");
 		goto out;
@@ -793,7 +793,7 @@ static void gwt_region_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 static void gwt_policy_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 {
 	SoupMessage *next;
-	static const gchar *type = "com.amazonaws.warpdrive.console.shared.ValidateClientRequest_v2/2136236667";
+	static const gchar *type = "com.amazonaws.warpdrive.console.shared.ValidateClientRequest_v4/3281916758";
 	struct signin *state = data;
 
 	fail_on_response_error(msg, state);
@@ -826,7 +826,7 @@ static void gwt_entry_point_cb(SoupSession *session, SoupMessage *msg, gpointer 
 		return;
 	}
 
-	policy_path = g_strdup_printf("deferredjs/%s/5.cache.js",
+	policy_path = g_strdup_printf("deferredjs/%s/6.cache.js",
 				      state->gwt_permutation);
 	base = soup_uri_new(state->gwt_module_base);
 	destination = soup_uri_new_with_base(base, policy_path);

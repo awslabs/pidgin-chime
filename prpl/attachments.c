@@ -519,8 +519,9 @@ static void get_mime_type(gchar *filename, gchar **mime_type)
 	gchar *file_extension = g_strrstr(basename(filename), ".");
 	const gchar *content_type = NULL;
 	if (file_extension) {
+		int i;
 		purple_debug_misc("chime", "File extension: %s\n", file_extension);
-		for (int i = 0; i < sizeof(file_types) / sizeof(struct FileType); i++) {
+		for (i = 0; i < sizeof(file_types) / sizeof(struct FileType); i++) {
 			if (!g_strcmp0(file_extension, file_types[i].file_extension)) {
 				content_type = file_types[i].mime_type;
 				break;

@@ -128,7 +128,7 @@ make %{?_smp_mflags} check
 %{_sysconfdir}/pki/purple-chime/cacerts/*.pem
 
 %license LICENSE
-%doc README TODO
+%doc README.md TODO
 
 %if %{with evolution}
 %files -n evolution-chime

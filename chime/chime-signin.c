@@ -826,7 +826,7 @@ static void gwt_entry_point_cb(SoupSession *session, SoupMessage *msg, gpointer 
 		return;
 	}
 
-	policy_path = g_strdup_printf("deferredjs/%s/6.cache.js",
+	policy_path = g_strdup_printf("deferredjs/%s/7.cache.js",
 				      state->gwt_permutation);
 	base = soup_uri_new(state->gwt_module_base);
 	destination = soup_uri_new_with_base(base, policy_path);

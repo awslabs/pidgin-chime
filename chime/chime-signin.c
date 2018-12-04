@@ -502,7 +502,7 @@ static GHashTable *parse_json(const gchar *text)
 	}
 	g_list_free(members);
  out:
-	g_error_free(error);
+	g_clear_error(&error);
 	g_object_unref(parser);
 	return result;
 }
@@ -593,7 +593,7 @@ static gchar **parse_gwt(SoupMessage *msg, gboolean *ok, guint *count)
 		fields[i] = g_strdup(value);
 	}
  out:
-	g_error_free(error);
+	g_clear_error(&error);
 	g_object_unref(parser);
 	return fields;
 }

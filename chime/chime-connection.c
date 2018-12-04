@@ -63,6 +63,7 @@ chime_connection_finalize(GObject *object)
 	g_free(priv->session_token);
 	g_free(priv->device_token);
 	g_free(priv->server);
+	g_free(priv->express_url);
 
 	chime_connection_log(self, CHIME_LOGLVL_MISC, "Connection finalized: %p\n", self);
 
@@ -401,6 +402,7 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 	JsonObject *obj = json_node_get_object(priv->reg_node);
 	JsonNode *node, *sess_node = json_object_get_member(obj, "Session");
 	const gchar *sess_tok;
+	char *express_url, *p;
 
 	if (!sess_node)
 		return FALSE;
@@ -460,6 +462,20 @@ static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 	node = json_object_get_member(obj, "Conference");
 	if (!parse_string(node, "RestUrl", &priv->conference_url))
 		return FALSE;
+
+	node = json_object_get_member(obj, "Feature");
+	if (!parse_string(node, "RestUrl", &priv->feature_url))
+		return FALSE;
+
+	/* Ick. How are we supposed to discover this? */
+	express_url = g_strdup(priv->feature_url);
+        p = strstr(express_url, "feature");
+	if (!p) {
+		g_free(express_url);
+		return FALSE;
+	}
+	memcpy(p, "express", 7);
+	priv->express_url = express_url;
 
 	return TRUE;
 }
@@ -707,6 +723,8 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 	while ( (cmsg = g_queue_pop_head(priv->msgs_pending_auth)) ) {
 		soup_message_headers_replace(cmsg->msg->request_headers,
 					     "Cookie", cookie_hdr);
+		soup_message_headers_replace(cmsg->msg->request_headers,
+					     "X-Chime-Auth-Token", cookie_hdr);
 		chime_connection_log(self, CHIME_LOGLVL_MISC, "Requeued %p to %s\n", cmsg->msg,
 				     soup_uri_get_path(soup_message_get_uri(cmsg->msg)));
 		g_object_ref(self);
@@ -817,6 +835,7 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 	if (priv->session_token) {
 		gchar *cookie = g_strdup_printf("_aws_wt_session=%s", priv->session_token);
 		soup_message_headers_append(cmsg->msg->request_headers, "Cookie", cookie);
+		soup_message_headers_append(cmsg->msg->request_headers, "X-Chime-Auth-Token", cookie);
 		g_free(cookie);
 	}
 

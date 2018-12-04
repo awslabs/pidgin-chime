@@ -128,6 +128,8 @@ typedef struct {
 	const gchar *contacts_url;
 	const gchar *messaging_url;
 	const gchar *conference_url;
+	const gchar *feature_url;
+	gchar *express_url;
 
 	SoupSession *soup_sess;
 

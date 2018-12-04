@@ -849,7 +849,7 @@ void chime_connection_autocomplete_contact_async(ChimeConnection *cxn,
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 
-	SoupURI *uri = soup_uri_new_printf(priv->contacts_url, "/registered_auto_completes");
+	SoupURI *uri = soup_uri_new_printf(priv->express_url, "/bazl/contact-auto-completes");
 	JsonBuilder *jb = json_builder_new();
 	jb = json_builder_begin_object(jb);
 	jb = json_builder_set_member_name(jb, "q");

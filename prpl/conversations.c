@@ -25,6 +25,7 @@
 #include <debug.h>
 
 #include "chime.h"
+#include "markdown.h"
 
 #include <libsoup/soup.h>
 
@@ -70,6 +71,15 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		ctx->when = msg_time;
 		/* The attachment and context structs will be owned by the code doing the download and will be disposed of at the end. */
 		download_attachment(cxn, att, ctx);
+	}
+
+	/* Process markdown */
+	if (g_str_has_prefix(escaped, "/md") && (escaped[3] == ' ' || escaped[3] == '\n')) {
+		gchar *processed;
+		if (!do_markdown(escaped + 4, &processed)) {
+			g_free(escaped);
+			escaped = processed;
+		}
 	}
 
 	if (!strcmp(sender, chime_connection_get_profile_id(cxn))) {

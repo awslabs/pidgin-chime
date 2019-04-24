@@ -108,7 +108,10 @@ static void
 set_attendees (ECalComponent *comp,
                CamelInternetAddress *addresses)
 {
-	GSList *attendees = NULL, *to_free = NULL;
+	GSList *attendees = NULL;
+#ifndef EDS_IS_LIBECAL_2_0
+	GSList *to_free = NULL;
+#endif
 	ECalComponentAttendee *ca;
 	gint len, i;
 
@@ -121,6 +124,17 @@ set_attendees (ECalComponent *comp,
 
 			temp = g_strconcat ("mailto:", addr, NULL);
 
+			#ifdef EDS_IS_LIBECAL_2_0
+			ca = e_cal_component_attendee_new ();
+			e_cal_component_attendee_set_value (ca, temp);
+			e_cal_component_attendee_set_cn (ca, name);
+			e_cal_component_attendee_set_cutype (ca, I_CAL_CUTYPE_INDIVIDUAL);
+			e_cal_component_attendee_set_partstat (ca, I_CAL_PARTSTAT_NEEDSACTION);
+			e_cal_component_attendee_set_role (ca, I_CAL_ROLE_REQPARTICIPANT);
+
+			g_free (temp);
+
+			#else
 			ca = g_new0 (ECalComponentAttendee, 1);
 
 			ca->value = temp;
@@ -130,18 +144,24 @@ set_attendees (ECalComponent *comp,
 			ca->role = ICAL_ROLE_REQPARTICIPANT;
 
 			to_free = g_slist_prepend (to_free, temp);
+			#endif
 
-			attendees = g_slist_append (attendees, ca);
+			attendees = g_slist_prepend (attendees, ca);
 		}
 	}
 
+	attendees = g_slist_reverse (attendees);
+
+#ifdef EDS_IS_LIBECAL_2_0
+	e_cal_component_set_attendees (comp, attendees);
+
+	g_slist_free_full (attendees, e_cal_component_attendee_free);
+#else
 	e_cal_component_set_attendee_list (comp, attendees);
 
-	g_slist_foreach (attendees, (GFunc) g_free, NULL);
-	g_slist_foreach (to_free, (GFunc) g_free, NULL);
-
-	g_slist_free (to_free);
-	g_slist_free (attendees);
+	g_slist_free_full (to_free, g_free);
+	g_slist_free_full (attendees, g_free);
+#endif
 }
 
 typedef struct {
@@ -183,6 +203,88 @@ static ECalComponent *generate_comp(const gchar *organizer, const gchar *summary
 				    const gchar *location, const gchar *description,
 				    GVariantIter *attendees)
 {
+	ECalComponent *comp;
+#ifdef EDS_IS_LIBECAL_2_0
+	ECalComponentText *text;
+	ECalComponentDateTime *dt, *dt2;
+	ICalProperty *prop;
+	ICalComponent *icomp;
+	ICalTime *tt, *tt2;
+	ICalTimezone *tz = calendar_config_get_icaltimezone ();
+	CamelInternetAddress *addresses;
+	gchar *attendee;
+
+	tt = i_cal_time_current_time_with_zone (tz);
+	/* Round up to the next half hour */
+	i_cal_time_adjust (tt, 0, 0, 30 - (i_cal_time_get_minute (tt) % 30), - i_cal_time_get_second (tt));
+
+	tt2 = i_cal_time_new_clone (tt);
+
+	dt = e_cal_component_datetime_new_take (tt, tz ? g_strdup (i_cal_timezone_get_tzid (tz)) : NULL);
+
+	i_cal_time_adjust (tt2, 0, 0, 30, 0);
+	dt2 = e_cal_component_datetime_new_take (tt2, tz ? g_strdup (i_cal_timezone_get_tzid (tz)) : NULL);
+
+	comp = e_cal_component_new ();
+
+	e_cal_component_set_new_vtype (comp, E_CAL_COMPONENT_EVENT);
+	e_cal_component_set_dtstart (comp, dt);
+	e_cal_component_set_dtend (comp, dt2);
+
+	e_cal_component_datetime_free (dt);
+	e_cal_component_datetime_free (dt2);
+
+	/* set the summary */
+	if (summary && *summary) {
+		text = e_cal_component_text_new (summary, NULL);
+		e_cal_component_set_summary (comp, text);
+		e_cal_component_text_free (text);
+	}
+
+	if (location && *location)
+		e_cal_component_set_location (comp, location);
+
+	if (description && *description) {
+		GSList *sl;
+
+		text = e_cal_component_text_new (description, NULL);
+		sl = g_slist_append (NULL, text);
+		e_cal_component_set_descriptions (comp, sl);
+		g_slist_free_full (sl, e_cal_component_text_free);
+	}
+
+	addresses = camel_internet_address_new ();
+	if (organizer && camel_address_unformat (CAMEL_ADDRESS (addresses), organizer) > 0) {
+		ECalComponentOrganizer *e_organizer;
+		const gchar *name = NULL, *addr = NULL;
+
+		if (camel_internet_address_get (addresses, 0, &name, &addr)) {
+			gchar *mailto = g_strconcat ("mailto:", addr, NULL);
+
+			e_organizer = e_cal_component_organizer_new ();
+			e_cal_component_organizer_set_value (e_organizer, mailto);
+			e_cal_component_organizer_set_cn (e_organizer, name);
+			e_cal_component_set_organizer (comp, e_organizer);
+			e_cal_component_organizer_free (e_organizer);
+			g_free (mailto);
+		}
+	}
+
+	while (g_variant_iter_loop (attendees, "s", &attendee)) {
+		camel_address_unformat (CAMEL_ADDRESS (addresses), attendee);
+	}
+	g_variant_iter_free (attendees);
+	set_attendees (comp, addresses);
+
+	/* no need to increment a sequence number, this is a new component */
+	e_cal_component_abort_sequence (comp);
+
+	icomp = e_cal_component_get_icalcomponent (comp);
+
+	prop = i_cal_property_new_x ("1");
+	i_cal_property_set_x_name (prop, "X-EVOLUTION-MOVE-CALENDAR");
+	i_cal_component_take_property (icomp, prop);
+#else
 	ECalComponentDateTime dt, dt2;
 	struct icaltimetype tt, tt2;
 	icaltimezone *tz = calendar_config_get_icaltimezone();
@@ -199,7 +301,6 @@ static ECalComponent *generate_comp(const gchar *organizer, const gchar *summary
 	dt2.value = &tt2;
 	dt2.tzid = icaltimezone_get_tzid(tz);
 
-	ECalComponent *comp;
 	ECalComponentText text;
 	icalproperty *icalprop;
 	icalcomponent *icalcomp;
@@ -257,6 +358,7 @@ static ECalComponent *generate_comp(const gchar *organizer, const gchar *summary
 	icalprop = icalproperty_new_x ("1");
 	icalproperty_set_x_name (icalprop, "X-EVOLUTION-MOVE-CALENDAR");
 	icalcomponent_add_property (icalcomp, icalprop);
+#endif
 
 	return comp;
 }

@@ -99,7 +99,14 @@ AC_ARG_WITH([evolution],
             [with_evolution=no])
 
 AS_IF([test "x$with_evolution" != xno],
-      [PKG_CHECK_MODULES(EVOLUTION, [evolution-calendar-3.0 evolution-shell-3.0 evolution-data-server-1.2 libebook-1.2 libecal-1.2 camel-1.2],
+      [ if $PKG_CONFIG --atleast-version 3.33 libecal-2.0; then
+           EVOLUTION_MODULES="evolution-calendar-3.0 evolution-shell-3.0 evolution-data-server-1.2 libecal-2.0 camel-1.2"
+           AC_DEFINE(EDS_IS_LIBECAL_2_0, 1, [Since 3.33.2])
+        else
+           EVOLUTION_MODULES="evolution-calendar-3.0 evolution-shell-3.0 evolution-data-server-1.2 libecal-1.2 camel-1.2"
+        fi
+
+        PKG_CHECK_MODULES(EVOLUTION, [$EVOLUTION_MODULES],
 	[with_evolution=yes
 	 if $PKG_CONFIG --atleast-version 3.20 evolution-shell-3.0; then
 	    AC_DEFINE(EVO_HAS_E_COMP_EDITOR, 1, [Since 3.20])

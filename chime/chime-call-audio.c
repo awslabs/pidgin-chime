@@ -147,6 +147,50 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 		chime_debug("RX timeout, reconnect audio\n");
 		audio->timeout_source = g_timeout_add(0, audio_reconnect, audio);
 	}
+	if (buffer && GST_BUFFER_DURATION_IS_VALID(buffer) &&
+	    GST_BUFFER_DTS_IS_VALID(buffer) && gst_rtp_buffer_map(buffer, GST_MAP_READ, &rtp)) {
+		GstClockTime dts, pts, dur;
+
+		dts = GST_BUFFER_DTS(buffer);
+		pts = GST_BUFFER_PTS(buffer);
+		dur = GST_BUFFER_DURATION(buffer);
+
+		nr_samples = GST_BUFFER_DURATION(buffer) / NS_PER_SAMPLE;
+		chime_debug("buf dts %ld pts %ld dur %ld samples %d\n", dts, pts, dur, nr_samples);
+		if (audio->next_dts) {
+			int frames_missed;
+
+			if (dts < audio->next_dts) {
+				chime_debug("Out of order frame %ld < %ld\n", dts, audio->next_dts);
+				goto drop;
+			}
+			frames_missed = (dts - audio->next_dts) / dur;
+			if (frames_missed) {
+				chime_debug("Missed %d frames\n", frames_missed);
+				audio->audio_msg.sample_time += frames_missed * nr_samples;
+				audio->next_dts += frames_missed * dur;
+			}
+			audio->next_dts += dur;
+		} else {
+			audio->next_dts = dts + dur;
+		}
+
+		if (audio->state == CHIME_AUDIO_STATE_AUDIO) {
+//			printf ("State %d, send audio\n", audio->state);
+			audio->audio_msg.audio.len = gst_rtp_buffer_get_payload_len(&rtp);
+			audio->audio_msg.audio.data = gst_rtp_buffer_get_payload(&rtp);
+		} else {
+//			printf ("State %d, send no audio\n", audio->state);
+			audio->audio_msg.audio.len = 0;
+		}
+	} else {
+		int delta_samples = (now - audio->last_send_local_time) / NS_PER_SAMPLE;
+		if (delta_samples > 480)
+			audio->audio_msg.sample_time += delta_samples - 320;
+		audio->next_dts = 0;
+		nr_samples = 320;
+		audio->audio_msg.audio.len = 0;
+	}
 	audio->audio_msg.seq = (audio->audio_msg.seq + 1) & 0xffff;
 
 	if (audio->last_server_time_offset) {
@@ -169,38 +213,6 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 
 	audio->audio_msg.has_audio = TRUE;
 
-	if (buffer && GST_BUFFER_DURATION_IS_VALID(buffer) &&
-	    GST_BUFFER_DTS_IS_VALID(buffer) && gst_rtp_buffer_map(buffer, GST_MAP_READ, &rtp)) {
-		GstClockTime dts, pts, dur;
-
-		dts = GST_BUFFER_DTS(buffer);
-		pts = GST_BUFFER_PTS(buffer);
-		dur = GST_BUFFER_DURATION(buffer);
-
-		nr_samples = GST_BUFFER_DURATION(buffer) / NS_PER_SAMPLE;
-		chime_debug("buf dts %ld pts %ld dur %ld samples %d\n", dts, pts, dur, nr_samples);
-
-		if (audio->next_dts && dts > audio->next_dts) {
-			/* We skipped some. */
-			audio->audio_msg.sample_time += (dts - audio->next_dts) / NS_PER_SAMPLE;
-		}
-		audio->next_dts = dts + dur;
-		if (audio->state == CHIME_AUDIO_STATE_AUDIO) {
-//			printf ("State %d, send audio\n", audio->state);
-			audio->audio_msg.audio.len = gst_rtp_buffer_get_payload_len(&rtp);
-			audio->audio_msg.audio.data = gst_rtp_buffer_get_payload(&rtp);
-		} else {
-//			printf ("State %d, send no audio\n", audio->state);
-			audio->audio_msg.audio.len = 0;
-		}
-	} else {
-		int delta_samples = (now - audio->last_send_local_time) / NS_PER_SAMPLE;
-		if (delta_samples > 480)
-			audio->audio_msg.sample_time += delta_samples - 320;
-		audio->next_dts = 0;
-		nr_samples = 320;
-		audio->audio_msg.audio.len = 0;
-	}
 	audio->last_send_local_time = now;
 	chime_call_transport_send_packet(audio, XRP_RT_MESSAGE, &audio->rt_msg.base);
 	if (audio->audio_msg.audio.data) {
@@ -208,6 +220,7 @@ static void do_send_rt_packet(ChimeCallAudio *audio, GstBuffer *buffer)
 		gst_rtp_buffer_unmap(&rtp);
 	}
 	audio->audio_msg.sample_time += nr_samples;
+ drop:
 	g_mutex_unlock(&audio->rt_lock);
 }
 

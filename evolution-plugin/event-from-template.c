@@ -214,11 +214,11 @@ static ECalComponent *generate_comp(const gchar *organizer, const gchar *summary
 	CamelInternetAddress *addresses;
 	gchar *attendee;
 
-	tt = i_cal_time_current_time_with_zone (tz);
+	tt = i_cal_time_new_current_with_zone (tz);
 	/* Round up to the next half hour */
 	i_cal_time_adjust (tt, 0, 0, 30 - (i_cal_time_get_minute (tt) % 30), - i_cal_time_get_second (tt));
 
-	tt2 = i_cal_time_new_clone (tt);
+	tt2 = i_cal_time_clone (tt);
 
 	dt = e_cal_component_datetime_new_take (tt, tz ? g_strdup (i_cal_timezone_get_tzid (tz)) : NULL);
 

@@ -48,7 +48,12 @@ BuildRequires:  pkgconfig(evolution-calendar-3.0)
 BuildRequires:  pkgconfig(evolution-shell-3.0)
 BuildRequires:  pkgconfig(evolution-data-server-1.2)
 BuildRequires:  pkgconfig(libebook-1.2)
-BuildRequires:  pkgconfig(libecal-1.2)
+# libecal changed from -1.2 to -2.0 in e-d-s 3.33.2
+# Any conditional BR would be based on %_fedora and be distro-specific
+# anyway, so we might as well just not BR it at all, depending on the
+# equally distro-specific knowledge that it's in e-d-s-devel with the
+# rest.
+#BuildRequires:  pkgconfig(libecal-1.2)
 BuildRequires:  pkgconfig(camel-1.2)
 %endif # with evolution
 BuildRequires:  gcc

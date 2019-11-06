@@ -221,15 +221,17 @@ static void match_contact_cb(ChimeConnection *cxn, ChimeContact *contact, gpoint
 
 static void open_participant_im(PurpleConnection *conn, GList *row, gpointer _chat)
 {
-	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
-	struct ccb ccb = { NULL, row->data };
+	if (row != NULL) {
+		ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
+		struct ccb ccb = { NULL, row->data };
 
-	chime_connection_foreach_contact(cxn, match_contact_cb, &ccb);
-	if (ccb.contact) {
-		PurpleConversation *pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM,
-								    purple_connection_get_account(conn),
-								    chime_contact_get_email(ccb.contact));
-		purple_conversation_present(pconv);
+		chime_connection_foreach_contact(cxn, match_contact_cb, &ccb);
+		if (ccb.contact) {
+			PurpleConversation *pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM,
+									    purple_connection_get_account(conn),
+									    chime_contact_get_email(ccb.contact));
+			purple_conversation_present(pconv);
+		}
 	}
 }
 

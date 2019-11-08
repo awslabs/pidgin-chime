@@ -292,6 +292,7 @@ static const PurpleStatusPrimitive purple_statuses[] = {
 	[CHIME_AVAILABILITY_BUSY] = PURPLE_STATUS_UNAVAILABLE,
 	[CHIME_AVAILABILITY_MOBILE] = PURPLE_STATUS_MOBILE,
 	[CHIME_AVAILABILITY_PRIVATE] = PURPLE_STATUS_INVISIBLE,
+	[CHIME_AVAILABILITY_DO_NOT_DISTURB] = PURPLE_STATUS_UNAVAILABLE,
 };
 
 static GList *chime_purple_status_types(PurpleAccount *account)
@@ -302,7 +303,7 @@ static GList *chime_purple_status_types(PurpleAccount *account)
 
 	gpointer klass = g_type_class_ref(CHIME_TYPE_AVAILABILITY);
 
-	for (av = CHIME_AVAILABILITY_OFFLINE; av <= CHIME_AVAILABILITY_PRIVATE; av++) {
+	for (av = CHIME_AVAILABILITY_OFFLINE; av < CHIME_AVAILABILITY_LAST; av++) {
 		GEnumValue *val = g_enum_get_value(klass, av);
 
 		type = purple_status_type_new(purple_statuses[av], val->value_name,

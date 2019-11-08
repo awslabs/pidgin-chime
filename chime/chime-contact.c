@@ -59,7 +59,8 @@ G_DEFINE_TYPE(ChimeContact, chime_contact, CHIME_TYPE_OBJECT)
        { CHIME_AVAILABILITY_AWAY,	"away",		N_("Away") },\
        { CHIME_AVAILABILITY_BUSY,	"busy",		N_("Busy") },\
        { CHIME_AVAILABILITY_MOBILE,	"mobile",	N_("Mobile") },\
-       { CHIME_AVAILABILITY_PRIVATE,	"private",	N_("Private") },
+       { CHIME_AVAILABILITY_PRIVATE,	"private",	N_("Private") },\
+       { CHIME_AVAILABILITY_DO_NOT_DISTURB, "dnd",	N_("Do Not Disturb") },
 
 CHIME_DEFINE_ENUM_TYPE(ChimeAvailability, chime_availability, CHIME_AVAILABILITY_VALUES)
 
@@ -69,7 +70,10 @@ const gchar *chime_availability_name(ChimeAvailability av)
 	gpointer klass = g_type_class_ref(CHIME_TYPE_AVAILABILITY);
 	GEnumValue *val = g_enum_get_value(klass, av);
 	g_type_class_unref(klass);
-	return val->value_name;
+	if (val)
+		return val->value_name;
+	else
+		return _("Unknown");
 }
 
 static void unsubscribe_contact(gpointer key, gpointer val, gpointer data);

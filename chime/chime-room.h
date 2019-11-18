@@ -50,6 +50,12 @@ gboolean chime_room_get_visibility(ChimeRoom *self);
 const gchar *chime_room_get_channel(ChimeRoom *self);
 
 const gchar *chime_room_get_last_mentioned(ChimeRoom *self);
+const gchar *chime_room_get_last_read(ChimeRoom *self);
+const gchar *chime_room_get_last_sent(ChimeRoom *self);
+const gchar *chime_room_get_created_on(ChimeRoom *self);
+
+gboolean chime_room_has_mention(ChimeRoom *self);
+gboolean chime_room_has_unread(ChimeRoom *self);
 
 ChimeRoom *chime_connection_room_by_name(ChimeConnection *cxn,
 					 const gchar *name);

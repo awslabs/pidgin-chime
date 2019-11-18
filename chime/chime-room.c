@@ -305,6 +305,56 @@ const gchar *chime_room_get_last_mentioned(ChimeRoom *self)
 	return self->last_mentioned;
 }
 
+const gchar *chime_room_get_last_read(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
+
+	return self->last_read;
+}
+
+const gchar *chime_room_get_last_sent(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
+
+	return self->last_sent;
+}
+
+const gchar *chime_room_get_created_on(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), NULL);
+
+	return self->created_on;
+}
+
+static gboolean cmp_time(const char *ev, const char *last_read)
+{
+	GTimeVal ev_time, read_time;
+
+	if (!ev || !g_time_val_from_iso8601(ev, &ev_time))
+		return FALSE;
+
+	if (!last_read || !g_time_val_from_iso8601(last_read, &read_time))
+		return TRUE;
+
+	return (ev_time.tv_sec > read_time.tv_sec ||
+		(ev_time.tv_sec == read_time.tv_sec && ev_time.tv_usec > read_time.tv_usec));
+}
+
+gboolean chime_room_has_mention(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), FALSE);
+
+	return cmp_time(self->last_mentioned, self->last_read);
+}
+
+gboolean chime_room_has_unread(ChimeRoom *self)
+{
+	g_return_val_if_fail(CHIME_IS_ROOM(self), FALSE);
+
+	return cmp_time(self->last_sent, self->last_read);
+}
+
+
 static gboolean parse_privacy(JsonNode *node, const gchar *member, gboolean *val)
 {
 	const gchar *str;

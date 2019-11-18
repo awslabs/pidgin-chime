@@ -30,31 +30,77 @@
 
 #include <libsoup/soup.h>
 
-static void add_room_to_list(ChimeConnection *cxn, ChimeRoom *room, gpointer _roomlist)
-{
-	PurpleRoomlist *roomlist = _roomlist;
+struct room_sort {
+	struct room_sort *next;
+	gboolean unread;
+	gboolean mention;
+	GTimeVal when;
+	ChimeRoom *room;
+};
 
-	PurpleRoomlistRoom *proom = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM,
-	                                                     chime_room_get_name(room), NULL);
-	purple_roomlist_room_add_field(roomlist, proom, chime_room_get_id(room));
-	purple_roomlist_room_add_field(roomlist, proom, GUINT_TO_POINTER(chime_room_get_visibility(room)));
-	purple_roomlist_room_add_field(roomlist, proom, GUINT_TO_POINTER(chime_room_get_privacy(room)));
-	purple_roomlist_room_add(roomlist, proom);
+static gboolean cmp_room(struct room_sort *a, struct room_sort *b)
+{
+	if (a->mention != b->mention)
+		return a->mention;
+	if (a->unread != b->unread)
+		return a->unread;
+	if (a->when.tv_sec > b->when.tv_sec)
+		return TRUE;
+	if (a->when.tv_sec == b->when.tv_sec &&
+	    a->when.tv_usec > b->when.tv_sec)
+		return TRUE;
+	return FALSE;
+}
+
+static void sort_room(ChimeConnection *cxn, ChimeRoom *room, gpointer _rs_list)
+{
+	struct room_sort **rs_list = _rs_list;
+	struct room_sort *rs = g_new0(struct room_sort, 1);
+	const char *tm;
+
+	rs->room = room;
+	rs->unread = chime_room_has_unread(room);
+	rs->mention = chime_room_has_mention(room);
+
+	tm = chime_room_get_last_sent(room);
+	if (!tm || !g_time_val_from_iso8601(tm, &rs->when)) {
+		tm = chime_room_get_created_on(room);
+		if (tm)
+			g_time_val_from_iso8601(tm, &rs->when);
+	}
+	while (*rs_list && cmp_room(*rs_list, rs))
+		rs_list = &((*rs_list)->next);
+	rs->next = *rs_list;
+	*rs_list = rs;
 }
 
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn)
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	PurpleRoomlist *roomlist;
+	struct room_sort *rooms = NULL, *tmp_rs;
 	GList *fields = NULL;
 
 	roomlist = purple_roomlist_new(conn->account);
 	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_STRING, "", "RoomId", TRUE));
-	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_BOOL, _("Visible"), "Visibility", FALSE));
-	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_BOOL, _("Private"), "Privacy", FALSE));
+	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_STRING, _("Status"), "Status", FALSE));
+	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_STRING, _("Last Sent"), "Last Sent", FALSE));
 	purple_roomlist_set_fields(roomlist, fields);
 
-	chime_connection_foreach_room(cxn, add_room_to_list, roomlist);
+	chime_connection_foreach_room(cxn, sort_room, &rooms);
+
+	while (rooms) {
+		ChimeRoom *room = rooms->room;
+		PurpleRoomlistRoom *proom = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM,
+								     chime_room_get_name(room), NULL);
+		purple_roomlist_room_add_field(roomlist, proom, chime_room_get_id(room));
+		purple_roomlist_room_add_field(roomlist, proom, rooms->mention ? "@" : (rooms->unread ? "•" : ""));
+		purple_roomlist_room_add_field(roomlist, proom, chime_room_get_last_sent(room) ? : chime_room_get_created_on(room));
+		purple_roomlist_room_add(roomlist, proom);
+		tmp_rs = rooms;
+		rooms = rooms->next;
+		g_free(tmp_rs);
+	}
 
 	purple_roomlist_set_in_progress(roomlist, FALSE);
 	return roomlist;

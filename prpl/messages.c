@@ -170,13 +170,21 @@ static void fetch_msgs_cb(GObject *source, GAsyncResult *result, gpointer _msgs)
 	struct chime_msgs *msgs = _msgs;
 
 	GError *error = NULL;
-	if (!chime_connection_create_conversation_finish(cxn, result, &error)) {
+	if (!chime_connection_fetch_messages_finish(cxn, result, &error)) {
 		purple_debug(PURPLE_DEBUG_ERROR, "chime", "Failed to fetch messages: %s\n", error->message);
 		g_clear_error(&error);
 
 		/* Don't update the 'last seen'. Better luck next time... */
 		msgs->msgs_failed = TRUE;
 	}
+
+	/* If cleanup_msgs() was already called, it will have left the
+	 * struct to be freed here. */
+	if (!msgs->obj) {
+		free(msgs);
+		return;
+	}
+
 	msgs->msgs_done = TRUE;
 	if (msgs->members_done)
 		chime_complete_messages(cxn, msgs);
@@ -261,11 +269,23 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
 void cleanup_msgs(struct chime_msgs *msgs)
 {
 	g_queue_free_full(msgs->seen_msgs, g_free);
-	if (msgs->msg_gather)
+	if (msgs->msg_gather) {
 		g_hash_table_destroy(msgs->msg_gather);
+		msgs->msg_gather = NULL;
+	}
+
 	/* Caller disconnects all signals with 'msgs' as user_data */
 	g_clear_pointer(&msgs->last_seen, g_free);
 	g_clear_object(&msgs->obj);
+
+	/* If msgs->msgs_done then we can free immediately. This
+	 * actually frees the entire containing chat/im struct, not
+	 * just the msgs. Otherwise, fetch_msgs_cb() is still pending
+	 * so we need to defer the free until it happens. Even on an
+	 * account disconnect, fetch_msgs_cb() will get called with a
+	 * failure result. */
+	if (msgs->msgs_done)
+		g_free(msgs);
 }
 
 static void chime_update_last_msg(ChimeConnection *cxn, struct chime_msgs *msgs,

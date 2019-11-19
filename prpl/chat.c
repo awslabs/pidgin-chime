@@ -827,7 +827,7 @@ void chime_destroy_chat(struct chime_chat *chat)
 	g_hash_table_remove(pc->live_chats, GUINT_TO_POINTER(id));
 	g_hash_table_remove(pc->chats_by_room, chat->m.obj);
 	cleanup_msgs(&chat->m);
-	g_free(chat);
+	/* chat == &chat->m, and it's freed by cleanup_msgs */
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Destroyed chat %p\n", chat);
 }
 

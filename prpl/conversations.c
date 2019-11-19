@@ -546,7 +546,7 @@ static void im_destroy(gpointer _im)
 	g_signal_handlers_disconnect_matched(im->m.obj, G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, im);
 	g_object_unref(im->peer);
 	cleanup_msgs(&im->m);
-	g_free(im);
+	/* im == &im->m, and it's freed by cleanup_msgs */
 }
 
 void purple_chime_init_conversations(PurpleConnection *conn)

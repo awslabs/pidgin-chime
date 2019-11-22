@@ -146,6 +146,7 @@ static void on_screenws_message(SoupWebsocketConnection *ws, gint type,
 
 	case SCREEN_PKT_TYPE_KEY_REQUEST:
 		if (screen->screen_sink) {
+			screen->viewer_present = 1;
 			GstEvent *ev = gst_video_event_new_upstream_force_key_unit(GST_CLOCK_TIME_NONE, FALSE, 0);
 			GstPad *pad = gst_element_get_static_pad(GST_ELEMENT(screen->screen_sink), "sink");
 			GstPad *peer = gst_pad_get_peer(pad);
@@ -169,6 +170,10 @@ static void on_screenws_message(SoupWebsocketConnection *ws, gint type,
 			gst_buffer_fill(buffer, 0, &pkt[1], s - sizeof(*pkt));
 			gst_app_src_push_buffer(GST_APP_SRC(screen->screen_src), buffer);
 		}
+		break;
+
+	default:
+		chime_debug("Incoming screen packet type %d not handled\n", pkt->type);
 		break;
 	}
 }
@@ -311,17 +316,15 @@ void chime_call_screen_install_appsrc(ChimeCallScreen *screen, GstAppSrc *appsrc
 	if (screen->state == CHIME_SCREEN_STATE_SENDING)
 		screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_END, NULL, 0);
 
-	if (screen->ws) {
-		screen_send_packet(screen, SCREEN_PKT_TYPE_VIEWER_BEGIN, NULL, 0);
-		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_VIEWING, NULL);
-	}
-
 	if (screen->screen_sink) {
 		gst_app_sink_set_callbacks(screen->screen_sink, &no_appsink_callbacks, NULL, NULL);
 		screen->screen_sink = NULL;
 	}
 
-
+	if (screen->ws) {
+		screen_send_packet(screen, SCREEN_PKT_TYPE_VIEWER_BEGIN, NULL, 0);
+		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_VIEWING, NULL);
+	}
 }
 
 static GstFlowReturn screen_appsink_new_sample(GstAppSink* self, gpointer data)
@@ -332,7 +335,7 @@ static GstFlowReturn screen_appsink_new_sample(GstAppSink* self, gpointer data)
 	if (!sample)
 		return GST_FLOW_OK;
 
-	if (screen->state == CHIME_SCREEN_STATE_SENDING) {
+	if (screen->state == CHIME_SCREEN_STATE_SENDING && screen->viewer_present) {
 		GstBuffer *buffer = gst_sample_get_buffer(sample);
 		gsize len = gst_buffer_get_size(buffer);
 
@@ -344,8 +347,10 @@ static GstFlowReturn screen_appsink_new_sample(GstAppSink* self, gpointer data)
 		buf->flag = SCREEN_PKT_FLAG_BROADCAST;
 		gst_buffer_extract(buffer, 0, &buf[1], len);
 		g_mutex_lock(&screen->transport_lock);
-		if (screen->ws && screen->state == CHIME_SCREEN_STATE_SENDING)
+		if (screen->ws && screen->state == CHIME_SCREEN_STATE_SENDING) {
+			chime_debug("Screen send %zu bytes dts %ld\n", len, GST_BUFFER_DTS(buffer));
 			soup_websocket_connection_send_binary(screen->ws, buf, sizeof(*buf) + len);
+		}
 		g_mutex_unlock(&screen->transport_lock);
 		g_free(buf);
 	}
@@ -377,14 +382,14 @@ void chime_call_screen_install_appsink(ChimeCallScreen *screen, GstAppSink *apps
 	if (screen->state == CHIME_SCREEN_STATE_VIEWING)
 		screen_send_packet(screen, SCREEN_PKT_TYPE_VIEWER_END, NULL, 0);
 
-	if (screen->ws) {
-		screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_BEGIN, NULL, 0);
-		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_SENDING, NULL);
-	}
-
 	if (screen->screen_src) {
 		gst_app_src_set_callbacks(screen->screen_src, &no_appsrc_callbacks, NULL, NULL);
 		screen->screen_src = NULL;
 	}
 
+	if (screen->ws) {
+		screen->viewer_present = 1;
+		screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_BEGIN, NULL, 0);
+		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_SENDING, NULL);
+	}
 }

@@ -31,7 +31,7 @@ struct _ChimeCallScreen {
 	GMutex transport_lock;
 
 	GstAppSrc *screen_src;
-	gboolean appsrc_need_data;
+	gboolean appsrc_need_data, viewer_present;
 
 	GstAppSink *screen_sink;
 

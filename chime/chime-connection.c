@@ -390,7 +390,7 @@ chime_connection_new(const gchar *email, const gchar *server,
 
 	return g_object_new (CHIME_TYPE_CONNECTION,
 			     "account-email", email,
-			     "server", server ? server : SIGNIN_DEFAULT,
+			     "server", server,
 			     "device-token", device_token,
 			     "session-token", session_token,
 	                     NULL);

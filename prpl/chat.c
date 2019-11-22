@@ -507,7 +507,7 @@ static void on_screen_state(ChimeCall *call, ChimeScreenState screen_state,
 		}
 	} else if (chat->screen_media) {
 		if (screen_state == CHIME_SCREEN_STATE_FAILED) {
-			purple_media_error(chat->share_media, _("Failed to connect to screen bithub: %s\n"),
+			purple_media_error(chat->screen_media, _("Failed to connect to screen bithub: %s\n"),
 					   message);
 			purple_media_end(chat->screen_media, NULL, NULL);
 			chat->screen_media = NULL;

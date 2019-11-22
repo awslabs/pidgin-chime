@@ -99,8 +99,8 @@ void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 			seen_one = TRUE;
 			msgs->cb(cxn, msgs, node, ms->tm.tv_sec);
 		}
-		g_free(ms);
 		l = g_list_remove(l, ms);
+		g_free(ms);
 
 		/* Last message, note down the received time */
 		if (!l && !msgs->msgs_failed && seen_one) {

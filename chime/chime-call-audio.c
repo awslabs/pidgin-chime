@@ -466,8 +466,8 @@ static gboolean audio_receive_data_msg(ChimeCallAudio *audio, gconstpointer pkt,
 			if (m->msg_id >= audio->data_next_logical_msg)
 				break;
 
-			free_msgbuf(m);
 			audio->data_messages = g_slist_remove(audio->data_messages, m);
+			free_msgbuf(m);
 		}
 	}
  drop:

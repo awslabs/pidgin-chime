@@ -681,7 +681,7 @@ void chime_call_transport_send_packet(ChimeCallAudio *audio, enum xrp_pkt_type t
 	hdr->len = htons(len);
 	protobuf_c_message_pack(message, (void *)(hdr + 1));
 	if (getenv("CHIME_AUDIO_DEBUG")) {
-		printf("sending protobuf of len %zd\n", len);
+		printf("sending protobuf of len %"G_GSIZE_FORMAT"\n", len);
 		hexdump(hdr, len);
 	}
 	g_mutex_lock(&audio->transport_lock);

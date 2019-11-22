@@ -433,7 +433,7 @@ void chime_call_screen_install_appsink(ChimeCallScreen *screen, GstAppSink *apps
 	}
 
 	if (screen->ws) {
-		screen->viewer_present = 1;
+		screen->viewer_present = 0;
 		screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_BEGIN, NULL, 0);
 		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_SENDING, NULL);
 	}

@@ -617,16 +617,14 @@ void chime_call_install_gst_app_callbacks(ChimeCall *call, GstAppSrc *appsrc, Gs
 
 void chime_call_view_screen(ChimeConnection *cxn, ChimeCall *call, GstAppSrc *appsrc)
 {
-	if (!call->screen)
-		call->screen = chime_call_screen_open(cxn, call);
+	call->screen = chime_call_screen_open(cxn, call, call->screen);
 
 	chime_call_screen_install_appsrc(call->screen, appsrc);
 }
 
 void chime_call_send_screen(ChimeConnection *cxn, ChimeCall *call, GstAppSink *appsink)
 {
-	if (!call->screen)
-		call->screen = chime_call_screen_open(cxn, call);
+	call->screen = chime_call_screen_open(cxn, call, call->screen);
 
 	chime_call_screen_install_appsink(call->screen, appsink);
 }

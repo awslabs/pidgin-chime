@@ -117,10 +117,24 @@ static void screen_send_packet(ChimeCallScreen *screen, enum screen_pkt_type typ
 
 static void on_screenws_closed(SoupWebsocketConnection *ws, gpointer _screen)
 {
-	//	ChimeCallScreen *screen = _screen;
+	ChimeCallScreen *screen = _screen;
 
-	//	chime_call_transport_disconnect(screen, FALSE);
-	//	chime_call_transport_connect(screen, screen->silent);
+	chime_debug("Screen websocket closed %d %s!\n",
+		    soup_websocket_connection_get_close_code(ws),
+		    soup_websocket_connection_get_close_data(ws));
+
+	/* This provokes the UI to tear down the GStreamer pipeline */
+	chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_FAILED, "Websocket closed unexpectedly");
+
+	if (screen->screen_src) {
+		gst_app_src_set_callbacks(screen->screen_src, &no_appsrc_callbacks, NULL, NULL);
+		screen->screen_src = NULL;
+	}
+
+	if (screen->screen_sink) {
+		gst_app_sink_set_callbacks(screen->screen_sink, &no_appsink_callbacks, NULL, NULL);
+		screen->screen_sink = NULL;
+	}
 }
 
 static void on_screenws_message(SoupWebsocketConnection *ws, gint type,
@@ -139,6 +153,7 @@ static void on_screenws_message(SoupWebsocketConnection *ws, gint type,
 		return;
 
 	const struct screen_pkt *pkt = d;
+
 	switch(pkt->type) {
 	case SCREEN_PKT_TYPE_HEARTBEAT_REQUEST:
 		screen_send_packet(screen, SCREEN_PKT_TYPE_HEARTBEAT_RESPONSE, NULL, 0);
@@ -213,20 +228,39 @@ static void screen_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _scre
 	g_object_unref(cxn);
 }
 
-
-ChimeCallScreen *chime_call_screen_open(ChimeConnection *cxn, ChimeCall *call)
+ChimeCallScreen *chime_call_screen_open(ChimeConnection *cxn, ChimeCall *call, ChimeCallScreen *screen)
 {
-	ChimeCallScreen *screen = g_new0(ChimeCallScreen, 1);
+	if (screen) {
+		if (screen->state != CHIME_SCREEN_STATE_FAILED)
+			return screen;
 
-	g_mutex_init(&screen->transport_lock);
+		/* It will already be closed. Just drop it. */
+		g_object_unref(screen->ws);
+		screen->ws = NULL;
 
-	screen->call = call;
-	screen->cancel = g_cancellable_new();
+		if (screen->screen_src) {
+			gst_app_src_set_callbacks(screen->screen_src, &no_appsrc_callbacks, NULL, NULL);
+			screen->screen_src = NULL;
+		}
+		if (screen->screen_sink) {
+			gst_app_sink_set_callbacks(screen->screen_sink, &no_appsink_callbacks, NULL, NULL);
+			screen->screen_sink = NULL;
+		}
+	}
+
+	if (!screen) {
+		screen = g_new0(ChimeCallScreen, 1);
+
+		g_mutex_init(&screen->transport_lock);
+
+		screen->call = call;
+		screen->cancel = g_cancellable_new();
+	}
 
 	SoupURI *uri = soup_uri_new(chime_call_get_desktop_bithub_url(screen->call));
 	SoupMessage *msg = soup_message_new_from_uri("GET", uri);
 	soup_message_headers_append(msg->request_headers, "User-Agent", "BibaScreen/2.0");
-	soup_message_headers_append(msg->request_headers, "X-BitHub-Call-Id", chime_call_get_uuid(call));
+	soup_message_headers_append(msg->request_headers, "X-BitHub-Call-Id", chime_call_get_uuid(screen->call));
 	soup_message_headers_append(msg->request_headers, "X-BitHub-Client-Type", "screen");
 	soup_message_headers_append(msg->request_headers, "X-BitHub-Capabilities", "1");
 	char *cookie_hdr = g_strdup_printf("_relay_session=%s",
@@ -255,6 +289,13 @@ static void on_final_screenws_close(SoupWebsocketConnection *ws, gpointer _unuse
 
 void chime_call_screen_close(ChimeCallScreen *screen)
 {
+	/* If the websocket is already closed, clear it now instead of trying to
+	   close it gracefully */
+	if (screen->state == CHIME_SCREEN_STATE_FAILED && screen->ws) {
+		g_object_unref(screen->ws);
+		screen->ws = NULL;
+	}
+
 	chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_HANGUP, NULL);
 
 	if (screen->cancel) {
@@ -299,6 +340,8 @@ static void screen_appsrc_destroy(gpointer _screen)
 		screen_send_packet(screen, SCREEN_PKT_TYPE_VIEWER_END, NULL, 0);
 		screen->screen_src = NULL;
 		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTED, NULL);
+	} else if (screen->state == CHIME_SCREEN_STATE_FAILED) {
+		screen->screen_src = NULL;
 	}
 }
 
@@ -371,6 +414,8 @@ static void screen_appsink_destroy(gpointer _screen)
 		screen_send_packet(screen, SCREEN_PKT_TYPE_PRESENTER_END, NULL, 0);
 		screen->screen_sink = NULL;
 		chime_call_screen_set_state(screen, CHIME_SCREEN_STATE_CONNECTED, NULL);
+	} else if (screen->state == CHIME_SCREEN_STATE_FAILED) {
+		screen->screen_sink = NULL;
 	}
 }
 

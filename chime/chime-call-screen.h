@@ -39,7 +39,7 @@ struct _ChimeCallScreen {
 };
 
 /* Called from ChimeMeeting */
-ChimeCallScreen *chime_call_screen_open(ChimeConnection *cxn, ChimeCall *call);
+ChimeCallScreen *chime_call_screen_open(ChimeConnection *cxn, ChimeCall *call, ChimeCallScreen *screen);
 void chime_call_screen_close(ChimeCallScreen *screen);
 void chime_call_screen_view(ChimeCallScreen *screen);
 void chime_call_screen_unview(ChimeCallScreen *screen);

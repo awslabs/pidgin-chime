@@ -103,6 +103,7 @@ static void screen_send_packet(ChimeCallScreen *screen, enum screen_pkt_type typ
 		memcpy(&buf[1], data, dlen);
 
 		soup_websocket_connection_send_binary(screen->ws, buf, sizeof(*buf) + dlen);
+		g_free(buf);
 	} else {
 		struct screen_pkt pkt;
 		pkt.type = type;

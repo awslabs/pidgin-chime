@@ -576,7 +576,7 @@ static void share_screen(gpointer _chat, PurpleMediaElementInfo *info)
 	}
 
 	gchar *sinkname = g_strdup_printf("chime_screen_sink_%p", chat->call);
-	gchar *sinkpipe = g_strdup_printf("videorate ! video/x-raw,framerate=3/1 ! videoconvert ! vp8enc min-quantizer=15 max-quantizer=25 target-bitrate=256000 deadline=1 ! appsink name=%s async=false", sinkname);
+	gchar *sinkpipe = g_strdup_printf("videorate drop-only=1 max-rate=3 ! videoconvert ! vp8enc min-quantizer=15 max-quantizer=25 target-bitrate=256000 deadline=1 ! appsink name=%s async=false", sinkname);
 	PurpleMediaCandidate *cand =
 		purple_media_candidate_new(NULL, 1,
 					   PURPLE_MEDIA_CANDIDATE_TYPE_HOST,

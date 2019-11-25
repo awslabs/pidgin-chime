@@ -23,6 +23,8 @@
 
 #include "xcbimageutil.h"
 
+#include <X11/Xlib-xcb.h>
+
 GType
 gst_meta_xcbimage_api_get_type (void)
 {
@@ -173,6 +175,20 @@ beach:
 }
 #endif /* HAVE_XSHM */
 
+static xcb_connection_t *
+get_xcb_connection (Display *dpy)
+{
+  xcb_connection_t *conn;
+
+  conn = XGetXCBConnection (dpy);
+  if (xcb_connection_has_error (conn)) {
+    g_warning ("Could not get XCB connection");
+    return NULL;
+  }
+
+  return conn;
+}
+
 /* This function gets the X Display and global info about it. Everything is
    stored in our object and will be cleaned when the object is disposed. Note
    here that caps for supported format are generated without any window or
@@ -192,6 +208,7 @@ xcbimageutil_xcontext_get (GstElement * parent, const gchar * display_name)
     g_free (xcontext);
     return NULL;
   }
+  xcontext->conn = get_xcb_connection (xcontext->disp);
   xcontext->screen = DefaultScreenOfDisplay (xcontext->disp);
   xcontext->visual = DefaultVisualOfScreen (xcontext->screen);
   xcontext->root = RootWindowOfScreen (xcontext->screen);

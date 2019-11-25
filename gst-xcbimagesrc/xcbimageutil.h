@@ -35,6 +35,8 @@
 #include <X11/extensions/XShm.h>
 #endif /* HAVE_XSHM */
 
+#include <xcb/xcb.h>
+
 #include <string.h>
 #include <math.h>
 
@@ -75,6 +77,7 @@ typedef struct _GstMetaXcbImage GstMetaXcbImage;
  */
 struct _GstXContext {
   Display *disp;
+  xcb_connection_t *conn;
 
   Screen *screen;
 

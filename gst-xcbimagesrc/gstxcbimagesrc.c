@@ -51,6 +51,10 @@
 #define _(x) x
 #include <gst/video/video.h>
 
+#ifdef HAVE_XFIXES
+#include <xcb/xfixes.h>
+#endif
+
 //#include "gst/glib-compat-private.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_debug_xcbimage_src);
@@ -225,18 +229,12 @@ gst_xcbimage_src_open_display (GstXcbImageSrc * s, const gchar * name)
 use_root_window:
 
 #ifdef HAVE_XFIXES
-  /* check if xfixes supported */
-  {
-    int error_base;
-
-    if (XFixesQueryExtension (s->xcontext->disp, &s->fixes_event_base,
-            &error_base)) {
-      s->have_xfixes = TRUE;
-      GST_DEBUG_OBJECT (s, "X Server supports XFixes");
-    } else {
-
-      GST_DEBUG_OBJECT (s, "X Server does not support XFixes");
-    }
+  /* check if xfixes is supported */
+  if (xcb_get_extension_data (s->xcontext->conn, &xcb_xfixes_id)->present) {
+    GST_DEBUG_OBJECT (s, "X Server supports XFixes");
+    s->have_xfixes = TRUE;
+  } else {
+    GST_DEBUG_OBJECT (s, "X Server does not support XFixes");
   }
 
 #ifdef HAVE_XDAMAGE

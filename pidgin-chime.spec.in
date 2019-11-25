@@ -36,7 +36,12 @@ BuildRequires:  pkgconfig(farstream-0.2)
 BuildRequires:  pkgconfig(gstreamer-1.0)
 BuildRequires:  pkgconfig(gstreamer-app-1.0)
 BuildRequires:  pkgconfig(gstreamer-rtp-1.0)
+BuildRequires:  pkgconfig(gstreamer-base-1.0)
 BuildRequires:  pkgconfig(gstreamer-video-1.0)
+BuildRequires:  pkgconfig(x11)
+BuildRequires:  pkgconfig(xcb)
+BuildRequires:  pkgconfig(xext)
+BuildRequires:  pkgconfig(xfixes)
 BuildRequires:  pkgconfig(opus)
 BuildRequires:  pkgconfig(libprotobuf-c)
 BuildRequires:  pkgconfig(json-glib-1.0)
@@ -127,7 +132,7 @@ make %{?_smp_mflags} check
 %files -n purple-chime -f %{name}.lang
 %{_libdir}/purple-2/libchimeprpl.so
 %{_libdir}/farstream-0.2/libapp-transmitter.so
-%{_libdir}/gstreamer-1.0/libgstchime.so
+%{_libdir}/gstreamer-1.0/libgst*.so
 %dir %{_sysconfdir}/pki/purple-chime
 %dir %{_sysconfdir}/pki/purple-chime/cacerts
 %{_sysconfdir}/pki/purple-chime/cacerts/*.pem

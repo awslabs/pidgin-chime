@@ -75,6 +75,19 @@ if $PKG_CONFIG --atleast-version 2.59 libsoup-2.4; then
    AC_DEFINE(USE_LIBSOUP_WEBSOCKETS, 1, [Use libsoup websockets])
 fi
 
+PKG_CHECK_MODULES(X11, [x11], [have_x11=yes], [have_x11=no])
+PKG_CHECK_MODULES(GSTBASE, [gstreamer-base-1.0], [have_gstbase=yes], [have_gstbase=no])
+PKG_CHECK_MODULES(XCB, [xcb], [have_xcb=yes], [have_xcb=no]);
+AM_CONDITIONAL(BUILD_GSTXCBIMAGESRC, [ test "$have_x11$have_gstbase$have_xcb" = "yesyesyes" ])
+
+if test "$have_x11" = "yes"; then
+   PKG_CHECK_MODULES(XDAMAGE, xdamage, AC_DEFINE(HAVE_XDAMAGE, 1, [xdamage]), [:])
+   PKG_CHECK_MODULES(XFIXES, xfixes, AC_DEFINE(HAVE_XFIXES, 1, [xfixes]), [:])
+   PKG_CHECK_MODULES(XEXT, "xext",
+   			   [AC_CHECK_LIB([Xext], [XShmAttach],
+			   			 AC_DEFINE(HAVE_XSHM, 1, [xshm]))], [:])
+fi
+
 LIBS="$LIBS $PURPLE_LIBS"
 AC_CHECK_FUNC(purple_request_screenshare_media, [AC_DEFINE(HAVE_SCREENSHARE, 1, [Have purple_request_screenshare_media()])], [])
 LIBS="$oldLIBS"
@@ -139,6 +152,7 @@ AC_CONFIG_FILES([
 	evolution-plugin/Makefile
 	fs-app-transmitter/Makefile
 	gst-chime/Makefile
+	gst-xcbimagesrc/Makefile
 	chimeseen/Makefile
 	])
 AC_OUTPUT

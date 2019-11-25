@@ -1,6 +1,10 @@
 
 SUBDIRS = po pixmaps fs-app-transmitter gst-chime chimeseen
 
+if BUILD_GSTXCBIMAGESRC
+SUBDIRS += gst-xcbimagesrc
+endif
+
 if BUILD_EVOPLUGIN
 SUBDIRS += evolution-plugin
 endif

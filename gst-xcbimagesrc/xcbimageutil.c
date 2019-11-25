@@ -24,6 +24,7 @@
 #include "xcbimageutil.h"
 
 #include <X11/Xlib-xcb.h>
+#include <xcb/shm.h>
 
 GType
 gst_meta_xcbimage_api_get_type (void)
@@ -251,8 +252,7 @@ xcbimageutil_xcontext_get (GstElement * parent, const gchar * display_name)
 
 #ifdef HAVE_XSHM
   /* Search for XShm extension support */
-  if (XShmQueryExtension (xcontext->disp) &&
-      xcbimageutil_check_xshm_calls (xcontext)) {
+  if (xcb_get_extension_data (xcontext->conn, &xcb_shm_id)->present) {
     xcontext->use_xshm = TRUE;
     GST_DEBUG ("xcbimageutil is using XShm extension");
   } else {

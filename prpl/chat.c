@@ -329,6 +329,8 @@ static void call_media_changed(PurpleMedia *media, PurpleMediaState state, const
 			chat->media_connected = FALSE;
 			chime_call_set_silent(chat->call, TRUE);
 		}
+		if (chat->conv)
+			purple_conversation_destroy(chat->conv);
 	}
 }
 
@@ -1151,7 +1153,7 @@ void chime_purple_chat_invite(PurpleConnection *conn, int id, const char *messag
 	chime_connection_autocomplete_contact_async(pc->cxn, who, NULL, autocomplete_mad_cb, mad);
 }
 
-static void show_participants (PurpleBuddy *buddy, gpointer _chat)
+static void show_participants(PurpleBuddy *buddy, gpointer _chat)
 {
 	struct chime_chat *chat = _chat;
 	if (chat->call) {
@@ -1160,6 +1162,12 @@ static void show_participants (PurpleBuddy *buddy, gpointer _chat)
 		g_signal_connect(chat->call, "participants-changed", G_CALLBACK(on_call_participants), chat);
 		chime_call_emit_participants(chat->call);
 	}
+}
+
+void chime_purple_chat_join_audio(struct chime_chat *chat)
+{
+	if (chat->call)
+		chime_call_set_silent(chat->call, FALSE);
 }
 
 static void join_audio(PurpleBuddy *buddy, gpointer _chat)

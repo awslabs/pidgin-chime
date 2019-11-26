@@ -311,8 +311,23 @@ static void do_join_joinable(PurpleConnection *conn, GList *row, gboolean muted)
 	gchar *name = g_list_nth_data(row, 1);
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "Join meeting %s\n", name);
 	ChimeMeeting *mtg = chime_connection_meeting_by_name(cxn, name);
-	if (mtg)
+
+	if (mtg) {
+		if (!muted) {
+			/* If asked for audio and the meeting is already open, just start audio */
+			struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+			ChimeRoom *room = chime_meeting_get_chat_room(mtg);
+
+			if (room) {
+				struct chime_chat *chat = g_hash_table_lookup(pc->chats_by_room, room);
+				if (chat) {
+					chime_purple_chat_join_audio(chat);
+					return;
+				}
+			}
+		}
 		chime_connection_join_meeting_async(cxn, mtg, muted, NULL, join_mtg_done, conn);
+	}
 }
 
 static void join_joinable_audio(PurpleConnection *conn, GList *row, gpointer _unused)

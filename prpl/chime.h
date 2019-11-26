@@ -103,6 +103,7 @@ char *chime_purple_cb_real_name(PurpleConnection *conn, int id, const char *who)
 void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);
 void chime_purple_chat_invite(PurpleConnection *conn, int id, const char *message, const char *who);
 struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, ChimeObject *obj, JsonNode *first_msg, ChimeMeeting *meeting);
+void chime_purple_chat_join_audio(struct chime_chat *chat);
 GList *chime_purple_chat_menu(PurpleChat *chat);
 char *chime_purple_get_cb_alias(PurpleConnection *conn, int id, const gchar *who);
 

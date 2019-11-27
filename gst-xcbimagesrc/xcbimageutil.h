@@ -79,11 +79,11 @@ struct _GstXContext {
   Display *disp;
   xcb_connection_t *conn;
 
-  Screen *screen;
+  xcb_screen_t *screen;
 
   Visual *visual;
 
-  Window root;
+  xcb_window_t root;
 
   gulong white, black;
 

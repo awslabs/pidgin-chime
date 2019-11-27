@@ -210,18 +210,19 @@ xcbimageutil_xcontext_get (GstElement * parent, const gchar * display_name)
     return NULL;
   }
   xcontext->conn = get_xcb_connection (xcontext->disp);
-  xcontext->screen = DefaultScreenOfDisplay (xcontext->disp);
-  xcontext->visual = DefaultVisualOfScreen (xcontext->screen);
-  xcontext->root = RootWindowOfScreen (xcontext->screen);
-  xcontext->white = WhitePixelOfScreen (xcontext->screen);
-  xcontext->black = BlackPixelOfScreen (xcontext->screen);
-  xcontext->depth = DefaultDepthOfScreen (xcontext->screen);
+  xcontext->screen = xcb_setup_roots_iterator (xcb_get_setup (xcontext->conn)).data;
+  // TODO
+  xcontext->visual = DefaultVisualOfScreen (DefaultScreenOfDisplay (xcontext->disp));
+  xcontext->root = xcontext->screen->root;
+  xcontext->white = xcontext->screen->white_pixel;
+  xcontext->black = xcontext->screen->black_pixel;
+  xcontext->depth = xcontext->screen->root_depth;
 
-  xcontext->width = WidthOfScreen (xcontext->screen);
-  xcontext->height = HeightOfScreen (xcontext->screen);
+  xcontext->width = xcontext->screen->width_in_pixels;
+  xcontext->height = xcontext->screen->height_in_pixels;
 
-  xcontext->widthmm = WidthMMOfScreen (xcontext->screen);
-  xcontext->heightmm = HeightMMOfScreen (xcontext->screen);
+  xcontext->widthmm = xcontext->screen->width_in_millimeters;
+  xcontext->heightmm = xcontext->screen->height_in_millimeters;
 
   xcontext->caps = NULL;
 

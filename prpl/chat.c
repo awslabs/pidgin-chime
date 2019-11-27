@@ -813,6 +813,8 @@ void chime_destroy_chat(struct chime_chat *chat)
 		g_signal_handlers_disconnect_matched(chat->call, G_SIGNAL_MATCH_DATA,
 						     0, 0, NULL, NULL, chat);
 
+		chat->conv = NULL;
+
 		if (chat->media) {
 			purple_media_end(chat->media, NULL, NULL);
 			chat->media = NULL;

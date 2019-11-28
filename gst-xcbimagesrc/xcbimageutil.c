@@ -190,6 +190,7 @@ xcbimageutil_xcontext_clear (GstXContext * xcontext)
     gst_caps_unref (xcontext->caps);
 
   XCloseDisplay (xcontext->disp);
+  xcb_disconnect (xcontext->conn);
 
   g_free (xcontext);
 }

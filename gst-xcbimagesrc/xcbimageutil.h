@@ -125,8 +125,6 @@ struct _GstXWindow {
   GC gc;
 };
 
-gboolean xcbimageutil_check_xshm_calls (GstXContext * xcontext);
-
 GstXContext *xcbimageutil_xcontext_get (GstElement *parent, 
     const gchar *display_name);
 void xcbimageutil_xcontext_clear (GstXContext *xcontext);

@@ -146,8 +146,7 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(chat->conv));
 	const gchar *content, *sender;
 
-	if (!parse_string(node, "Content", &content) ||
-	    !parse_string(node, "Sender", &sender))
+	if (!parse_string(node, "Sender", &sender))
 		return;
 
 	const gchar *from = _("Unknown sender");
@@ -163,19 +162,6 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 		msg_flags = PURPLE_MESSAGE_RECV;
 	}
 
-	gchar *escaped = g_markup_escape_text(content, -1);
-
-	gchar *parsed = NULL;
-	if (CHIME_IS_ROOM(chat->m.obj)) {
-		if (parse_inbound_mentions(cxn, pc->mention_regex, escaped, &parsed) &&
-		    (msg_flags & PURPLE_MESSAGE_RECV)) {
-			// Presumably this will trigger a notification.
-			msg_flags |= PURPLE_MESSAGE_NICK;
-		}
-		g_free(escaped);
-	} else
-		parsed = escaped;
-
 	ChimeAttachment *att = extract_attachment(node);
 	if (att) {
 		AttachmentContext *ctx = g_new(AttachmentContext, 1);
@@ -188,12 +174,27 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 		download_attachment(cxn, att, ctx);
 	}
 
-	serv_got_chat_in(conn, id, from, msg_flags, parsed, msg_time);
+	if (parse_string(node, "Content", &content)) {
+		gchar *escaped = g_markup_escape_text(content, -1);
+
+		gchar *parsed = NULL;
+		if (CHIME_IS_ROOM(chat->m.obj)) {
+			if (parse_inbound_mentions(cxn, pc->mention_regex, escaped, &parsed)
+					&& (msg_flags & PURPLE_MESSAGE_RECV)) {
+				// Presumably this will trigger a notification.
+				msg_flags |= PURPLE_MESSAGE_NICK;
+			}
+			g_free(escaped);
+		} else
+			parsed = escaped;
+
+		serv_got_chat_in(conn, id, from, msg_flags, parsed, msg_time);
+		g_free(parsed);
+	}
 	/* If the conversation already had focus and unseen-count didn't change, fake
 	   a PURPLE_CONV_UPDATE_UNSEEN notification anyway, so that we see that it's
 	   (still) zero and tell the server it's read. */
 	purple_conversation_update(chat->conv, PURPLE_CONV_UPDATE_UNSEEN);
-	g_free(parsed);
 }
 
 static gint participant_sort(gconstpointer a, gconstpointer b)

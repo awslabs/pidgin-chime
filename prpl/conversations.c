@@ -39,11 +39,10 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 {
 	const gchar *sender, *message;
 	gint64 sys;
-
 	if (!parse_string(record, "Sender", &sender) ||
-	    !parse_string(record, "Content", &message) ||
 	    !parse_int(record, "IsSystemMessage", &sys))
 		return FALSE;
+
 
 	PurpleMessageFlags flags = 0;
 	if (sys)
@@ -58,7 +57,6 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		if (who)
 			from = chime_contact_get_email(who);
 	}
-	gchar *escaped = g_markup_escape_text(message, -1);
 
 	ChimeAttachment *att = extract_attachment(record);
 	if (att) {
@@ -71,39 +69,47 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		/* The attachment and context structs will be owned by the code doing the download and will be disposed of at the end. */
 		download_attachment(cxn, att, ctx);
 	}
+	// Download messages don't have 'content' but normal messages do.
+	// if you receive one, parse it:
+	if (parse_string(record, "Content", &message)) {
+		gchar *escaped = g_markup_escape_text(message, -1);
 
-	if (!strcmp(sender, chime_connection_get_profile_id(cxn))) {
-		/* Ick, how do we inject a message from ourselves? */
-		PurpleAccount *account = im->m.conn->account;
-		PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
-										  email, account);
-		if (!pconv) {
-			pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM, account, email);
+		if (!strcmp(sender, chime_connection_get_profile_id(cxn))) {
+			/* Ick, how do we inject a message from ourselves? */
+			PurpleAccount *account = im->m.conn->account;
+			PurpleConversation *pconv = purple_find_conversation_with_account(
+					PURPLE_CONV_TYPE_IM, email, account);
 			if (!pconv) {
-				purple_debug_error("chime", "NO CONV FOR %s\n", email);
-				g_free(escaped);
-				return FALSE;
+				pconv = purple_conversation_new(PURPLE_CONV_TYPE_IM, account,
+												email);
+				if (!pconv) {
+					purple_debug_error("chime", "NO CONV FOR %s\n", email);
+					g_free(escaped);
+					return FALSE;
+				}
 			}
-		}
-		purple_conversation_write(pconv, NULL, escaped, flags | PURPLE_MESSAGE_SEND, msg_time);
-		purple_signal_emit(purple_connection_get_prpl(account->gc), "chime-got-convmsg",
-				   pconv, TRUE, record);
-	} else {
-		serv_got_im(im->m.conn, email, escaped, flags | PURPLE_MESSAGE_RECV, msg_time);
+			purple_conversation_write(pconv, NULL, escaped,
+					flags | PURPLE_MESSAGE_SEND, msg_time);
+			purple_signal_emit(purple_connection_get_prpl(account->gc),
+					"chime-got-convmsg", pconv, TRUE, record);
+		} else {
+			serv_got_im(im->m.conn, email, escaped, flags | PURPLE_MESSAGE_RECV,
+						msg_time);
 
-		/* If the conversation already had focus and unseen-count didn't change, fake
-		   a PURPLE_CONV_UPDATE_UNSEEN notification anyway, so that we see that it's
-		   (still) zero and tell the server it's read. */
-		PurpleConversation *pconv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM,
-										  email, im->m.conn->account);
-		if (pconv) {
-			purple_conversation_update(pconv, PURPLE_CONV_UPDATE_UNSEEN);
-			purple_signal_emit(purple_connection_get_prpl(im->m.conn),
-					   "chime-got-convmsg", pconv, FALSE, record);
-		}
+			/* If the conversation already had focus and unseen-count didn't change, fake
+			 a PURPLE_CONV_UPDATE_UNSEEN notification anyway, so that we see that it's
+			 (still) zero and tell the server it's read. */
+			PurpleConversation *pconv = purple_find_conversation_with_account(
+					PURPLE_CONV_TYPE_IM, email, im->m.conn->account);
+			if (pconv) {
+				purple_conversation_update(pconv, PURPLE_CONV_UPDATE_UNSEEN);
+				purple_signal_emit(purple_connection_get_prpl(im->m.conn),
+								   "chime-got-convmsg", pconv, FALSE, record);
+			}
 
+		}
+		g_free(escaped);
 	}
-	g_free(escaped);
 	return TRUE;
 }
 

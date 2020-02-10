@@ -119,35 +119,6 @@ gst_xcbimage_src_return_buf (GstXcbImageSrc * xcbimagesrc, GstBuffer * xcbimage)
   return ret;
 }
 
-static Window
-gst_xcbimage_src_find_window (GstXcbImageSrc * src, Window root, const char *name)
-{
-  Window *children;
-  Window window = 0, root_return, parent_return;
-  unsigned int nchildren;
-  char *tmpname;
-  int n, status;
-
-  status = XFetchName (src->xcontext->disp, root, &tmpname);
-  if (status && !strcmp (name, tmpname))
-    return root;
-
-  status =
-      XQueryTree (src->xcontext->disp, root, &root_return, &parent_return,
-      &children, &nchildren);
-  if (!status || !children)
-    return (Window) 0;
-
-  for (n = 0; n < nchildren; ++n) {
-    window = gst_xcbimage_src_find_window (src, children[n], name);
-    if (window != 0)
-      break;
-  }
-
-  XFree (children);
-  return window;
-}
-
 static gboolean
 gst_xcbimage_src_open_display (GstXcbImageSrc * s, const gchar * name)
 {
@@ -169,64 +140,6 @@ gst_xcbimage_src_open_display (GstXcbImageSrc * s, const gchar * name)
   s->height = s->xcontext->height;
 
   s->xwindow = s->xcontext->root;
-  if (s->xid != 0 || s->xname) {
-    int status;
-    XWindowAttributes attrs;
-    Window window;
-    int x, y;
-    Window child;
-    Bool coord_translated;
-
-    if (s->xid != 0) {
-      status = XGetWindowAttributes (s->xcontext->disp, s->xid, &attrs);
-      if (status) {
-        GST_DEBUG_OBJECT (s, "Found window XID %" G_GUINT64_FORMAT, s->xid);
-        s->xwindow = s->xid;
-        goto window_found;
-      } else {
-        GST_WARNING_OBJECT (s, "Failed to get window %" G_GUINT64_FORMAT
-            " attributes", s->xid);
-      }
-    }
-
-    if (s->xname) {
-      GST_DEBUG_OBJECT (s, "Looking for window %s", s->xname);
-      window = gst_xcbimage_src_find_window (s, s->xcontext->root, s->xname);
-      if (window != 0) {
-        GST_DEBUG_OBJECT (s, "Found window named %s, ", s->xname);
-        status = XGetWindowAttributes (s->xcontext->disp, window, &attrs);
-        if (status) {
-          s->xwindow = window;
-          goto window_found;
-        } else {
-          GST_WARNING_OBJECT (s, "Failed to get window attributes for "
-              "window named %s", s->xname);
-        }
-      }
-    }
-
-    GST_INFO_OBJECT (s, "Using root window");
-    goto use_root_window;
-
-  window_found:
-    g_assert (s->xwindow != 0);
-    s->width = attrs.width;
-    s->height = attrs.height;
-
-    coord_translated = XTranslateCoordinates (s->xcontext->disp, s->xwindow,
-        s->xcontext->root, 0, 0, &x, &y, &child);
-    if (coord_translated) {
-      s->x = x;
-      s->y = y;
-    } else {
-      s->x = 0;
-      s->y = 0;
-    }
-
-    GST_INFO_OBJECT (s, "Using default window size of %dx%d at location %d,%d",
-        s->width, s->height, s->x, s->y);
-  }
-use_root_window:
 
 #ifdef HAVE_XFIXES
   /* check if xfixes is supported */
@@ -236,45 +149,6 @@ use_root_window:
   } else {
     GST_DEBUG_OBJECT (s, "X Server does not support XFixes");
   }
-
-#ifdef HAVE_XDAMAGE
-  /* check if xdamage is supported */
-  {
-    int error_base;
-    long evmask = NoEventMask;
-
-    s->have_xdamage = FALSE;
-    s->damage = None;
-    s->damage_copy_gc = None;
-    s->damage_region = None;
-
-    if (XDamageQueryExtension (s->xcontext->disp, &s->damage_event_base,
-            &error_base)) {
-      s->damage =
-          XDamageCreate (s->xcontext->disp, s->xwindow, XDamageReportNonEmpty);
-      if (s->damage != None) {
-        s->damage_region = XFixesCreateRegion (s->xcontext->disp, NULL, 0);
-        if (s->damage_region != None) {
-          XGCValues values;
-
-          GST_DEBUG_OBJECT (s, "Using XDamage extension");
-          values.subwindow_mode = IncludeInferiors;
-          s->damage_copy_gc = XCreateGC (s->xcontext->disp,
-              s->xwindow, GCSubwindowMode, &values);
-          XSelectInput (s->xcontext->disp, s->xwindow, evmask);
-
-          s->have_xdamage = TRUE;
-        } else {
-          XDamageDestroy (s->xcontext->disp, s->damage);
-          s->damage = None;
-        }
-      } else
-        GST_DEBUG_OBJECT (s, "Could not attach to XDamage");
-    } else {
-      GST_DEBUG_OBJECT (s, "X Server does not have XDamage extension");
-    }
-  }
-#endif
 #endif
 
   g_mutex_unlock (&s->x_lock);
@@ -291,11 +165,6 @@ gst_xcbimage_src_start (GstBaseSrc * basesrc)
   GstXcbImageSrc *s = GST_XCBIMAGE_SRC (basesrc);
 
   s->last_frame_no = -1;
-#ifdef HAVE_XDAMAGE
-  if (s->last_ximage)
-    gst_buffer_unref (GST_BUFFER_CAST (s->last_ximage));
-  s->last_ximage = NULL;
-#endif
   return gst_xcbimage_src_open_display (s, s->display_name);
 }
 
@@ -303,12 +172,6 @@ static gboolean
 gst_xcbimage_src_stop (GstBaseSrc * basesrc)
 {
   GstXcbImageSrc *src = GST_XCBIMAGE_SRC (basesrc);
-
-#ifdef HAVE_XDAMAGE
-  if (src->last_ximage)
-    gst_buffer_unref (GST_BUFFER_CAST (src->last_ximage));
-  src->last_ximage = NULL;
-#endif
 
   gst_xcbimage_src_clear_bufpool (src);
 
@@ -320,21 +183,6 @@ gst_xcbimage_src_stop (GstBaseSrc * basesrc)
 
   if (src->xcontext) {
     g_mutex_lock (&src->x_lock);
-
-#ifdef HAVE_XDAMAGE
-    if (src->damage_copy_gc != None) {
-      XFreeGC (src->xcontext->disp, src->damage_copy_gc);
-      src->damage_copy_gc = None;
-    }
-    if (src->damage_region != None) {
-      XFixesDestroyRegion (src->xcontext->disp, src->damage_region);
-      src->damage_region = None;
-    }
-    if (src->damage != None) {
-      XDamageDestroy (src->xcontext->disp, src->damage);
-      src->damage = None;
-    }
-#endif
 
     xcbimageutil_xcontext_clear (src->xcontext);
     src->xcontext = NULL;
@@ -470,18 +318,6 @@ composite_pixel (GstXContext * xcontext, guchar * dest, guchar * src)
 }
 #endif
 
-#ifdef HAVE_XDAMAGE
-static void
-copy_buffer (GstBuffer * dest, GstBuffer * src)
-{
-  GstMapInfo map;
-
-  gst_buffer_map (src, &map, GST_MAP_READ);
-  gst_buffer_fill (dest, 0, map.data, map.size);
-  gst_buffer_unmap (src, &map);
-}
-#endif
-
 /* Retrieve an XcbImageSrcBuffer, preferably from our
  * pool of existing images and populate it from the window */
 static GstBuffer *
@@ -531,175 +367,6 @@ gst_xcbimage_src_xcbimage_get (GstXcbImageSrc * xcbimagesrc)
 
   meta = GST_META_XCBIMAGE_GET (xcbimage);
 
-#ifdef HAVE_XDAMAGE
-  if (xcbimagesrc->have_xdamage && xcbimagesrc->use_damage &&
-      xcbimagesrc->last_ximage != NULL) {
-    XEvent ev;
-    gboolean have_damage = FALSE;
-
-    /* have_frame is TRUE when either the entire screen has been
-     * grabbed or when the last image has been copied */
-    gboolean have_frame = FALSE;
-
-    GST_DEBUG_OBJECT (xcbimagesrc, "Retrieving screen using XDamage");
-
-    do {
-      XDamageNotifyEvent *damage_ev = (XDamageNotifyEvent *) (&ev);
-
-      XNextEvent (xcbimagesrc->xcontext->disp, &ev);
-
-      if (ev.type == xcbimagesrc->damage_event_base + XDamageNotify &&
-          damage_ev->level == XDamageReportNonEmpty) {
-
-        XDamageSubtract (xcbimagesrc->xcontext->disp, xcbimagesrc->damage, None,
-            xcbimagesrc->damage_region);
-        have_damage = TRUE;
-      }
-    } while (XPending (xcbimagesrc->xcontext->disp));
-
-    if (have_damage) {
-      XRectangle *rects;
-      int nrects;
-
-      /* Now copy out all of the damaged rectangles. */
-      rects =
-          XFixesFetchRegion (xcbimagesrc->xcontext->disp,
-          xcbimagesrc->damage_region, &nrects);
-      if (rects != NULL) {
-        int i;
-
-        if (!have_frame) {
-          GST_LOG_OBJECT (xcbimagesrc,
-              "Copying from last frame xcbimage->size: %" G_GSIZE_FORMAT,
-              gst_buffer_get_size (xcbimage));
-          copy_buffer (xcbimage, xcbimagesrc->last_ximage);
-          have_frame = TRUE;
-        }
-        for (i = 0; i < nrects; i++) {
-          GST_LOG_OBJECT (xcbimagesrc,
-              "Damaged sub-region @ %d,%d size %dx%d reported",
-              rects[i].x, rects[i].y, rects[i].width, rects[i].height);
-
-          /* if we only want a small area, clip this damage region to
-           * area we want */
-          if (xcbimagesrc->endx > xcbimagesrc->startx &&
-              xcbimagesrc->endy > xcbimagesrc->starty) {
-            /* see if damage area intersects */
-            if (rects[i].x + rects[i].width - 1 < xcbimagesrc->startx ||
-                rects[i].x > xcbimagesrc->endx) {
-              /* trivial reject */
-            } else if (rects[i].y + rects[i].height - 1 < xcbimagesrc->starty ||
-                rects[i].y > xcbimagesrc->endy) {
-              /* trivial reject */
-            } else {
-              /* find intersect region */
-              int startx, starty, width, height;
-
-              startx = (rects[i].x < xcbimagesrc->startx) ? xcbimagesrc->startx :
-                  rects[i].x;
-              starty = (rects[i].y < xcbimagesrc->starty) ? xcbimagesrc->starty :
-                  rects[i].y;
-              width = (rects[i].x + rects[i].width - 1 < xcbimagesrc->endx) ?
-                  rects[i].x + rects[i].width - startx :
-                  xcbimagesrc->endx - startx + 1;
-              height = (rects[i].y + rects[i].height - 1 < xcbimagesrc->endy) ?
-                  rects[i].y + rects[i].height - starty : xcbimagesrc->endy -
-                  starty + 1;
-
-              GST_LOG_OBJECT (xcbimagesrc,
-                  "Retrieving damaged sub-region @ %d,%d size %dx%d as intersect region",
-                  startx, starty, width, height);
-              XGetSubImage (xcbimagesrc->xcontext->disp, xcbimagesrc->xwindow,
-                  startx, starty, width, height, AllPlanes, ZPixmap,
-                  meta->ximage, startx - xcbimagesrc->startx,
-                  starty - xcbimagesrc->starty);
-            }
-          } else {
-
-            GST_LOG_OBJECT (xcbimagesrc,
-                "Retrieving damaged sub-region @ %d,%d size %dx%d",
-                rects[i].x, rects[i].y, rects[i].width, rects[i].height);
-
-            XGetSubImage (xcbimagesrc->xcontext->disp, xcbimagesrc->xwindow,
-                rects[i].x, rects[i].y,
-                rects[i].width, rects[i].height,
-                AllPlanes, ZPixmap, meta->ximage, rects[i].x, rects[i].y);
-          }
-        }
-        XFree (rects);
-      }
-    }
-    if (!have_frame) {
-      GST_LOG_OBJECT (xcbimagesrc,
-          "Copying from last frame xcbimage->size: %" G_GSIZE_FORMAT,
-          gst_buffer_get_size (xcbimage));
-      copy_buffer (xcbimage, xcbimagesrc->last_ximage);
-    }
-#ifdef HAVE_XFIXES
-    /* re-get area where last mouse pointer was  but only if in our clipping
-     * bounds */
-    if (xcbimagesrc->cursor_image) {
-      gint x, y, width, height;
-
-      x = xcbimagesrc->cursor_image->x - xcbimagesrc->cursor_image->xhot -
-          xcbimagesrc->x;
-      y = xcbimagesrc->cursor_image->y - xcbimagesrc->cursor_image->yhot -
-          xcbimagesrc->y;
-      width = xcbimagesrc->cursor_image->width;
-      height = xcbimagesrc->cursor_image->height;
-
-      /* bounds checking */
-      if (x < 0)
-        x = 0;
-      if (y < 0)
-        y = 0;
-      if (x + width > xcbimagesrc->xcontext->width)
-        width = xcbimagesrc->xcontext->width - x;
-      if (y + height > xcbimagesrc->xcontext->height)
-        height = xcbimagesrc->xcontext->height - y;
-      g_assert (x >= 0);
-      g_assert (y >= 0);
-      GST_DEBUG_OBJECT (xcbimagesrc,
-          "Cursor was at (%d,%d) width: %d, height: %d and our range is: (%d,%d) - (%d,%d)",
-          x, y, width, height, xcbimagesrc->startx, xcbimagesrc->starty,
-          xcbimagesrc->endx, xcbimagesrc->endy);
-      /* only get where cursor last was, if it is in our range */
-      if (xcbimagesrc->endx > xcbimagesrc->startx &&
-          xcbimagesrc->endy > xcbimagesrc->starty) {
-        /* check bounds */
-        if (x + width < xcbimagesrc->startx || x > xcbimagesrc->endx) {
-          /* trivial reject */
-        } else if (y + height < xcbimagesrc->starty || y > xcbimagesrc->endy) {
-          /* trivial reject */
-        } else {
-          /* find intersect region */
-          int startx, starty, iwidth, iheight;
-
-          startx = (x < xcbimagesrc->startx) ? xcbimagesrc->startx : x;
-          starty = (y < xcbimagesrc->starty) ? xcbimagesrc->starty : y;
-          iwidth = (x + width < xcbimagesrc->endx) ?
-              x + width - startx : xcbimagesrc->endx - startx;
-          iheight = (y + height < xcbimagesrc->endy) ?
-              y + height - starty : xcbimagesrc->endy - starty;
-          GST_DEBUG_OBJECT (xcbimagesrc, "Removing cursor from %d,%d", x, y);
-          XGetSubImage (xcbimagesrc->xcontext->disp, xcbimagesrc->xwindow,
-              startx, starty, iwidth, iheight, AllPlanes, ZPixmap,
-              meta->ximage, startx - xcbimagesrc->startx,
-              starty - xcbimagesrc->starty);
-        }
-      } else {
-
-        GST_DEBUG_OBJECT (xcbimagesrc, "Removing cursor from %d,%d", x, y);
-        XGetSubImage (xcbimagesrc->xcontext->disp, xcbimagesrc->xwindow,
-            x, y, width, height, AllPlanes, ZPixmap, meta->ximage, x, y);
-      }
-    }
-#endif
-
-
-  } else {
-#endif
-
 #ifdef HAVE_XSHM
     if (xcbimagesrc->xcontext->use_xshm) {
       GST_DEBUG_OBJECT (xcbimagesrc, "Retrieving screen using XShm");
@@ -721,9 +388,6 @@ gst_xcbimage_src_xcbimage_get (GstXcbImageSrc * xcbimagesrc)
             xcbimagesrc->height, AllPlanes, ZPixmap);
       }
     }
-#ifdef HAVE_XDAMAGE
-  }
-#endif
 
 #ifdef HAVE_XFIXES
   if (xcbimagesrc->show_pointer && xcbimagesrc->have_xfixes
@@ -808,17 +472,7 @@ gst_xcbimage_src_xcbimage_get (GstXcbImageSrc * xcbimagesrc)
     }
   }
 #endif
-#ifdef HAVE_XDAMAGE
-  if (xcbimagesrc->have_xdamage && xcbimagesrc->use_damage) {
-    /* need to ref xcbimage to put in last_ximage */
-    gst_buffer_ref (xcbimage);
-    if (xcbimagesrc->last_ximage) {
-      gst_buffer_unref (xcbimagesrc->last_ximage);
-    }
-    xcbimagesrc->last_ximage = xcbimage;
-    GST_LOG_OBJECT (xcbimagesrc, "reffing current buffer for last_ximage");
-  }
-#endif
+
   return xcbimage;
 }
 

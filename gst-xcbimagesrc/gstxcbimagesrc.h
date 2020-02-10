@@ -95,13 +95,6 @@ struct _GstXcbImageSrc
   int fixes_event_base;
   XFixesCursorImage *cursor_image;
 #endif
-#ifdef HAVE_XDAMAGE
-  Damage damage;
-  int damage_event_base;
-  XserverRegion damage_region;
-  GC damage_copy_gc;
-  GstBuffer *last_ximage;
-#endif
 };
 
 struct _GstXcbImageSrcClass

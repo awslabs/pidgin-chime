@@ -422,7 +422,8 @@ mail_to_event (EShell *shell, GDBusMethodInvocation *invocation, const gchar *or
 	AsyncData *data = g_new0 (AsyncData, 1);
 	EClientCache *client_cache = e_shell_get_client_cache (shell);
 
-	data->comp = generate_comp(organizer, summary, location, description, attendees);
+	/* Replace organizer with source's display name to ensure that Evolution considers event editable */
+	data->comp = generate_comp(e_source_get_display_name(source), summary, location, description, attendees);
 	data->invocation = invocation;
 	data->shell = g_object_ref(shell);
 

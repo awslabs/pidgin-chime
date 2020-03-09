@@ -1180,6 +1180,33 @@ static void join_audio(PurpleBuddy *buddy, gpointer _chat)
 		chime_call_set_silent(chat->call, FALSE);
 }
 
+
+static void end_meeting_cb(GObject *source, GAsyncResult *result, gpointer _chat)
+{
+        struct chime_chat *chat = _chat;
+        ChimeConnection *cxn = CHIME_CONNECTION(source);
+        GError *error = NULL;
+
+        if (!chime_connection_end_meeting_finish(cxn, result, &error)) {
+                purple_conversation_write(chat->conv, NULL, error->message,
+                                          PURPLE_MESSAGE_ERROR, time(NULL));
+        } else {
+		/* If it succeeds, close it now. */
+		purple_conversation_destroy(chat->conv);
+	}
+}
+
+static void end_meeting(PurpleBuddy *buddy, gpointer _chat)
+{
+	struct chime_chat *chat = _chat;
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(chat->conv->account->gc);
+
+	if (chat->meeting) {
+		chime_connection_end_meeting_async(cxn, CHIME_MEETING(chat->meeting), NULL,
+						   end_meeting_cb, chat);
+	}
+}
+
 static void leave_room_cb(GObject *source, GAsyncResult *result, gpointer _chat)
 {
         struct chime_chat *chat = _chat;
@@ -1244,6 +1271,9 @@ GList *chime_purple_chat_menu(PurpleChat *pchat)
 		items = g_list_append(items,
 				      purple_menu_action_new(_("Share screen..."),
 							     PURPLE_CALLBACK(select_screen_share), chat, NULL));
+		items = g_list_append(items,
+				      purple_menu_action_new(_("End meeting"),
+							     PURPLE_CALLBACK(end_meeting), chat, NULL));
 	} else if (CHIME_IS_ROOM(chat->m.obj)) {
 		items = g_list_append(items,
 				      purple_menu_action_new(_("Leave room"),

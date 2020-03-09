@@ -153,6 +153,16 @@ ChimeMeeting *chime_connection_create_meeting_finish(ChimeConnection *self,
 						     GAsyncResult *result,
 						     GError **error);
 
+
+void chime_connection_end_meeting_async(ChimeConnection *cxn,
+					ChimeMeeting *meeting,
+					GCancellable *cancellable,
+					GAsyncReadyCallback callback,
+					gpointer user_data);
+
+gboolean chime_connection_end_meeting_finish(ChimeConnection *self,
+					     GAsyncResult *result,
+					     GError **error);
 G_END_DECLS
 
 #endif /* __CHIME_MEETING_H__ */

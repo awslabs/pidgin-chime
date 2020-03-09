@@ -919,3 +919,53 @@ ChimeMeeting *chime_connection_create_meeting_finish(ChimeConnection *self,
 
 	return g_task_propagate_pointer(G_TASK(result), error);
 }
+
+static void meeting_ended_cb(ChimeConnection *cxn, SoupMessage *msg,
+			     JsonNode *node, gpointer user_data)
+{
+        GTask *task = G_TASK(user_data);
+
+        if (!SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
+                const gchar *reason = msg->reason_phrase;
+
+                parse_string(node, "error", &reason);
+                g_task_return_new_error(task, CHIME_ERROR,
+                                        CHIME_ERROR_NETWORK,
+                                        _("Failed to end meeting: %s"),
+                                        reason);
+        } else {
+                g_task_return_boolean(task, TRUE);
+        }
+
+        g_object_unref(task);
+}
+
+
+
+void chime_connection_end_meeting_async(ChimeConnection *cxn,
+					ChimeMeeting *meeting,
+					GCancellable *cancellable,
+					GAsyncReadyCallback callback,
+					gpointer user_data)
+{
+        g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+        g_return_if_fail(CHIME_IS_MEETING(meeting));
+        ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+
+        GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+        SoupURI *uri = soup_uri_new_printf(priv->conference_url, "/v2/meetings/%s",
+                                           chime_meeting_get_id(meeting));
+        chime_connection_queue_http_request(cxn, NULL, uri, "DELETE",
+					    meeting_ended_cb, task);
+}
+
+gboolean chime_connection_end_meeting_finish(ChimeConnection *self,
+					     GAsyncResult *result,
+					     GError **error)
+{
+        g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+        g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+        return g_task_propagate_boolean(G_TASK(result), error);
+}
+

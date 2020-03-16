@@ -49,6 +49,9 @@ static gboolean chime_purple_plugin_load(PurplePlugin *plugin)
 	/* conv */	       purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_CONVERSATION),
 	/* Member node */      purple_value_new(PURPLE_TYPE_POINTER));
 
+	if (!purple_dbus_get_init_error())
+		purple_dbus_register_bindings(plugin, chime_purple_dbus_bindings);
+
 	return TRUE;
 }
 

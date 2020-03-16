@@ -20,6 +20,7 @@
 
 #include <glib.h>
 
+#include <dbus-server.h>
 #include <prpl.h>
 
 #include <libsoup/soup.h>
@@ -81,6 +82,7 @@ void purple_chime_init_meetings(PurpleConnection *conn);
 void purple_chime_destroy_meetings(PurpleConnection *conn);
 gboolean chime_purple_initiate_media(PurpleAccount *account, const char *who,
 				     PurpleMediaSessionType type);
+void chime_add_joinable_meeting(PurpleAccount *account, const char *pin);
 
 /* rooms.c */
 PurpleRoomlist *chime_purple_roomlist_get_list(PurpleConnection *conn);
@@ -114,6 +116,9 @@ void purple_chime_destroy_conversations(PurpleConnection *conn);
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags);
 unsigned int chime_send_typing(PurpleConnection *conn, const char *name, PurpleTypingState state);
 void chime_purple_recent_conversations(PurplePluginAction *action);
+
+/* dbus.c */
+extern PurpleDBusBinding chime_purple_dbus_bindings[];
 
 /* messages.c */
 struct chime_msgs;

@@ -543,3 +543,31 @@ gboolean chime_purple_initiate_media(PurpleAccount *account, const char *who,
 	g_slist_free(cl);
 	return TRUE;
 }
+
+static void add_joinable_done(GObject *source, GAsyncResult *result, gpointer _gc)
+{
+	PurpleConnection *gc = _gc;
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	GError *error = NULL;
+	ChimeMeeting *mtg = chime_connection_lookup_meeting_by_pin_finish(cxn, result, &error);
+
+	if (!mtg) {
+		purple_notify_error(gc, NULL,
+				    _("Unable to lookup meeting"),
+				    error->message);
+	} else {
+		g_object_unref(mtg);
+	}
+}
+
+void chime_add_joinable_meeting(PurpleAccount *account, const char *pin)
+{
+	ChimeConnection *cxn = PURPLE_CHIME_CXN(account->gc);
+
+	if (pin && g_str_has_prefix(pin, "https://chime.aws/"))
+		pin += strlen("https://chime.aws/");
+
+	chime_connection_lookup_meeting_by_pin_async(cxn, pin, NULL,
+						     add_joinable_done, account->gc);
+
+}

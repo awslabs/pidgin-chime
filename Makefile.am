@@ -27,7 +27,7 @@ PROTOBUF_SRCS = protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
 
 PRPL_SRCS =	prpl/chime.h prpl/chime.c prpl/buddy.c prpl/rooms.c prpl/chat.c \
 		prpl/messages.c prpl/conversations.c prpl/meeting.c prpl/attachments.c \
-		prpl/authenticate.c
+		prpl/authenticate.c prpl/dbus.h prpl/dbus.c
 
 WEBSOCKET_SRCS = chime/chime-websocket-connection.c chime/chime-websocket-connection.h \
 		chime/chime-websocket.c
@@ -59,8 +59,8 @@ libchime_la_LIBADD = $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(PROTOBUF_LIBS) $
 libchime_la_LDFLAGS = -module -avoid-version -no-undefined
 
 libchimeprpl_la_SOURCES = $(PRPL_SRCS) $(LOGIN_SRCS)
-libchimeprpl_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(GSTREAMER_CFLAGS) -Ichime -Iprpl
-libchimeprpl_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(GSTREAMER_LIBS) $(DLOPEN_LIBS) libchime.la
+libchimeprpl_la_CFLAGS = $(PURPLE_CFLAGS) $(SOUP_CFLAGS) $(JSON_CFLAGS) $(LIBXML_CFLAGS) $(GSTREAMER_CFLAGS) $(DBUS_CFLAGS) -Ichime -Iprpl
+libchimeprpl_la_LIBADD = $(PURPLE_LIBS) $(SOUP_LIBS) $(JSON_LIBS) $(LIBXML_LIBS) $(GSTREAMER_LIBS) $(DLOPEN_LIBS) $(DBUS_LIBS) libchime.la
 libchimeprpl_la_LDFLAGS = -module -avoid-version -no-undefined
 
 POTFILES = $(libchime_la_SOURCES) $(libchimeprpl_la_SOURCES)

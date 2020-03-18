@@ -450,37 +450,37 @@ static GList *chime_purple_plugin_actions(PurplePlugin *plugin,
 	PurplePluginAction *act;
 	GList *acts = NULL;
 
-	act = purple_plugin_action_new(_("About Chime plugin..."),
-				       chime_purple_show_about_plugin);
-	acts = g_list_append(acts, act);
-
-	act = purple_plugin_action_new(_("Recent conversations..."),
-				       chime_purple_recent_conversations);
-	acts = g_list_append(acts, act);
-
-	act = purple_plugin_action_new(_("User search..."),
-				       chime_purple_user_search);
-	acts = g_list_append(acts, act);
-
-	act = purple_plugin_action_new(_("Schedule meeting (Personal PIN)..."),
-				       chime_purple_schedule_personal);
-	acts = g_list_append(acts, act);
-
-	act = purple_plugin_action_new(_("Schedule meeting (Onetime PIN)..."),
-				       chime_purple_schedule_onetime);
-	acts = g_list_append(acts, act);
-
-	act = purple_plugin_action_new(_("Joinable meetings..."),
-				       chime_purple_show_joinable);
-	acts = g_list_append(acts, act);
+	act = purple_plugin_action_new(_("Log out..."),
+				       chime_purple_logout);
+	acts = g_list_prepend(acts, act);
 
 	act = purple_plugin_action_new(_("Join meeting by PIN..."),
 				       chime_purple_pin_join);
-	acts = g_list_append(acts, act);
+	acts = g_list_prepend(acts, act);
 
-	act = purple_plugin_action_new(_("Log out..."),
-				       chime_purple_logout);
-	acts = g_list_append(acts, act);
+	act = purple_plugin_action_new(_("Joinable meetings..."),
+				       chime_purple_show_joinable);
+	acts = g_list_prepend(acts, act);
+
+	act = purple_plugin_action_new(_("Schedule meeting (Onetime PIN)..."),
+				       chime_purple_schedule_onetime);
+	acts = g_list_prepend(acts, act);
+
+	act = purple_plugin_action_new(_("Schedule meeting (Personal PIN)..."),
+				       chime_purple_schedule_personal);
+	acts = g_list_prepend(acts, act);
+
+	act = purple_plugin_action_new(_("User search..."),
+				       chime_purple_user_search);
+	acts = g_list_prepend(acts, act);
+
+	act = purple_plugin_action_new(_("Recent conversations..."),
+				       chime_purple_recent_conversations);
+	acts = g_list_prepend(acts, act);
+
+	act = purple_plugin_action_new(_("About Chime plugin..."),
+				       chime_purple_show_about_plugin);
+	acts = g_list_prepend(acts, act);
 
 	return acts;
 }

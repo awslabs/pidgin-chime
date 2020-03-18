@@ -159,7 +159,7 @@ ChimeAttachment *extract_attachment(JsonNode *record)
 	robj = json_node_get_object(record);
 	g_return_val_if_fail(robj != NULL, NULL);
 	node = json_object_get_member(robj, "Attachment");
-	if (!node)
+	if (!node || json_node_is_null(node))
 		return NULL;
 
 	g_return_val_if_fail(parse_string(record, "MessageId", &msg_id), NULL);

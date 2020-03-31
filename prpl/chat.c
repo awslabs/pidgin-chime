@@ -174,6 +174,10 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 		download_attachment(cxn, att, ctx);
 	}
 
+	/* If the message is over a day old, don't beep for it. */
+	if (msg_time + 86400 < time(NULL))
+		msg_flags |= PURPLE_MESSAGE_DELAYED;
+
 	if (parse_string(node, "Content", &content)) {
 		gchar *escaped = g_markup_escape_text(content, -1);
 

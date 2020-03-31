@@ -129,6 +129,7 @@ struct chime_msgs {
 	PurpleConnection *conn;
 	ChimeObject *obj;
 	gchar *last_seen;
+	gchar *fetch_until;
 	GQueue *seen_msgs;
 	gboolean unseen;
 	GHashTable *msg_gather;

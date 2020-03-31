@@ -27,6 +27,8 @@
 
 #include "chime.h"
 
+#define FETCH_TIME_CHUNK (604800*2)
+
 static void chime_update_last_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 				  const gchar *msg_time, const gchar *msg_id);
 
@@ -87,7 +89,6 @@ void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 
 	/* Sort messages by time */
 	g_hash_table_foreach_remove(msgs->msg_gather, insert_queued_msg, &l);
-	g_clear_pointer(&msgs->msg_gather, g_hash_table_destroy);
 
 	while (l) {
 		struct msg_sort *ms = l->data;
@@ -110,20 +111,22 @@ void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 		}
 		json_node_unref(node);
 	}
+
+	if (!msgs->fetch_until)
+		g_clear_pointer(&msgs->msg_gather, g_hash_table_destroy);
 }
 
-static gboolean msg_newer(JsonNode *old, JsonNode *new)
+
+static gboolean msg_newer_than(JsonNode *new, const gchar *old_date)
 {
-	const gchar *old_updated = NULL, *new_updated = NULL;
+	const gchar *new_updated = NULL;
 
 	if (!parse_string(new, "UpdatedOn", &new_updated))
 		return FALSE;
-	if (!parse_string(old, "UpdatedOn", &old_updated))
-		return TRUE;
 
 	GTimeVal old_tv, new_tv;
 	if (!g_time_val_from_iso8601(new_updated, &new_tv) ||
-	    !g_time_val_from_iso8601(old_updated, &old_tv))
+	    !g_time_val_from_iso8601(old_date, &old_tv))
 		return FALSE;
 
 	if (new_tv.tv_sec > old_tv.tv_sec ||
@@ -133,6 +136,16 @@ static gboolean msg_newer(JsonNode *old, JsonNode *new)
 	return FALSE;
 }
 
+static gboolean msg_newer(JsonNode *new, JsonNode *old)
+{
+	const gchar *old_updated = NULL;
+
+	if (!parse_string(old, "UpdatedOn", &old_updated))
+		return TRUE;
+
+	return msg_newer_than(new, old_updated);
+}
+
 static void on_message_received(ChimeObject *obj, JsonNode *node, struct chime_msgs *msgs)
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(msgs->conn);
@@ -140,6 +153,12 @@ static void on_message_received(ChimeObject *obj, JsonNode *node, struct chime_m
 	if (!parse_string(node, "MessageId", &id))
 		return;
 	if (msgs->msg_gather) {
+		/* If we're still fetching ancient messages and a new message comes
+		 * in, then ignore it. We'll fetch it again when our fetch reaches
+		 * the present day. */
+		if (msgs->fetch_until && msg_newer_than(node, msgs->fetch_until))
+			return;
+
 		/* Still gathering messages. Add to the table, to avoid dupes */
 		JsonNode *old_node = g_hash_table_lookup(msgs->msg_gather, id);
 		if (old_node) {
@@ -185,9 +204,31 @@ static void fetch_msgs_cb(GObject *source, GAsyncResult *result, gpointer _msgs)
 		return;
 	}
 
-	msgs->msgs_done = TRUE;
+	/* If we have the member list, we can sort and deliver this batch of messages. */
 	if (msgs->members_done)
 		chime_complete_messages(cxn, msgs);
+
+	if (msgs->fetch_until) {
+		/* Fetch the next batch */
+		gchar *next_after = msgs->fetch_until;
+		GTimeVal before_tv;
+
+		g_time_val_from_iso8601(msgs->fetch_until, &before_tv);
+		before_tv.tv_sec += FETCH_TIME_CHUNK;
+		if (before_tv.tv_sec < time(NULL) - 86400)
+			msgs->fetch_until = g_time_val_to_iso8601(&before_tv);
+		else
+			msgs->fetch_until = NULL;
+		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch more messages from %s until %s\n", next_after, msgs->fetch_until);
+		chime_connection_fetch_messages_async(cxn, msgs->obj, msgs->fetch_until,
+						      next_after, NULL, fetch_msgs_cb, msgs);
+		g_free(next_after);
+
+
+	} else {
+		msgs->msgs_done = TRUE;
+	}
+
 }
 
 static void on_room_members_done(ChimeRoom *room, struct chime_msgs *msgs)
@@ -202,6 +243,10 @@ static void on_room_members_done(ChimeRoom *room, struct chime_msgs *msgs)
 static void on_last_sent_updated(ChimeObject *obj, GParamSpec *ignored, struct chime_msgs *msgs)
 {
 	gchar *last_sent;
+
+	if (!msgs->msgs_done)
+		return;
+
 	g_object_get(obj, "last-sent", &last_sent, NULL);
 
 	if (g_strcmp0(last_sent, msgs->last_seen)) {
@@ -223,11 +268,10 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
 	msgs->cb = cb;
 	msgs->seen_msgs = g_queue_new();
 
-	const gchar *last_seen;
+	const gchar *last_seen = NULL;
 	gchar *last_id = NULL;
-	if (!chime_read_last_msg(conn, obj, &last_seen, &last_id))
-		last_seen = "1970-01-01T00:00:00.000Z";
-	msgs->last_seen = g_strdup(last_seen);
+	chime_read_last_msg(conn, obj, &last_seen, &last_id);
+	msgs->last_seen = g_strdup(last_seen ? : "1970-01-01T00:00:00.000Z");
 
 	if (last_id) {
 		mark_msg_seen(msgs->seen_msgs, last_id);
@@ -248,15 +292,30 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
 		gchar *last_sent;
 		g_object_get(obj, "last-sent", &last_sent, NULL);
 
-		if (!last_sent || ! strcmp(last_seen, last_sent))
+		if (!last_sent || ! strcmp(msgs->last_seen, last_sent))
 			msgs->msgs_done = TRUE;
 
 		g_free(last_sent);
 	}
 
 	if (!msgs->msgs_done) {
-		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch messages for %s\n", name);
-		chime_connection_fetch_messages_async(PURPLE_CHIME_CXN(conn), obj, NULL, last_seen, NULL, fetch_msgs_cb, msgs);
+		GTimeVal before_tv;
+		const gchar *start_from = last_seen;
+
+		if (!start_from) {
+			if (CHIME_IS_ROOM(obj))
+				start_from = chime_room_get_created_on(CHIME_ROOM(obj));
+			else
+				start_from = chime_conversation_get_created_on(CHIME_CONVERSATION(obj));
+		}
+		if (g_time_val_from_iso8601(start_from, &before_tv)) {
+			before_tv.tv_sec += FETCH_TIME_CHUNK;
+			if (before_tv.tv_sec < time(NULL) - 86400)
+				msgs->fetch_until = g_time_val_to_iso8601(&before_tv);
+		}
+		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch messages for %s from %s until %s\n", name, msgs->last_seen, msgs->fetch_until);
+		chime_connection_fetch_messages_async(PURPLE_CHIME_CXN(conn), obj, msgs->fetch_until,
+						      msgs->last_seen, NULL, fetch_msgs_cb, msgs);
 	}
 
 	if (!msgs->msgs_done || !msgs->members_done)
@@ -277,7 +336,7 @@ void cleanup_msgs(struct chime_msgs *msgs)
 	/* Caller disconnects all signals with 'msgs' as user_data */
 	g_clear_pointer(&msgs->last_seen, g_free);
 	g_clear_object(&msgs->obj);
-
+	g_free(msgs->fetch_until);
 	/* If msgs->msgs_done then we can free immediately. This
 	 * actually frees the entire containing chat/im struct, not
 	 * just the msgs. Otherwise, fetch_msgs_cb() is still pending

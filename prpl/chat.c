@@ -1041,12 +1041,18 @@ static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConne
 	const gchar *msg_time;
 	GTimeVal msg_tv;
 
-	if (chime_read_last_msg(conn, CHIME_OBJECT(room), &msg_time, NULL) &&
-	    g_time_val_from_iso8601(msg_time, &msg_tv) &&
-	    (mention_tv.tv_sec < msg_tv.tv_sec ||
-	     (mention_tv.tv_sec == msg_tv.tv_sec && mention_tv.tv_usec <= msg_tv.tv_usec))) {
-		/* LastMentioned is older than we've already seen. Nothing to do. */
-		return;
+	/* For a new installation which hasn't seen this room at all yet,
+	 * use the server's idea of LastRead instead of the local one. Otherwise
+	 * we end up spending hours fetching *all* old rooms and messages. */
+	if ( (chime_read_last_msg(conn, CHIME_OBJECT(room), &msg_time, NULL) &&
+	      g_time_val_from_iso8601(msg_time, &msg_tv)) ||
+	     ((msg_time = chime_room_get_last_read(room)) &&
+	      g_time_val_from_iso8601(msg_time, &msg_tv)) ) {
+		if (mention_tv.tv_sec < msg_tv.tv_sec ||
+		    (mention_tv.tv_sec == msg_tv.tv_sec && mention_tv.tv_usec <= msg_tv.tv_usec)) {
+			/* LastMentioned is older than we've already seen. Nothing to do. */
+			return;
+		}
 	}
 
 	/* We have been mentioned since we last looked at this room. Open it now. */

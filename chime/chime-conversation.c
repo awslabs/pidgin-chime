@@ -272,7 +272,14 @@ const gchar *chime_conversation_get_updated_on(ChimeConversation *self)
 {
 	g_return_val_if_fail(CHIME_IS_CONVERSATION(self), FALSE);
 
-	return self->last_sent;
+	return self->updated_on;
+}
+
+const gchar *chime_conversation_get_created_on(ChimeConversation *self)
+{
+	g_return_val_if_fail(CHIME_IS_CONVERSATION(self), FALSE);
+
+	return self->created_on;
 }
 
 static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNode *data_node)

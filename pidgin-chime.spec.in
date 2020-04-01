@@ -47,6 +47,7 @@ BuildRequires:  pkgconfig(libprotobuf-c)
 BuildRequires:  pkgconfig(json-glib-1.0)
 BuildRequires:  pkgconfig(libxml-2.0)
 BuildRequires:  pkgconfig(libsoup-2.4) >= 2.50
+BuildRequires:  pkgconfig(libmarkdown)
 BuildRequires:  ImageMagick
 %if %{with evolution}
 BuildRequires:  pkgconfig(evolution-calendar-3.0)

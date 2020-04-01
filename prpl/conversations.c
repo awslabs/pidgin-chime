@@ -218,6 +218,15 @@ struct im_send_data {
 	PurpleMessageFlags flags;
 };
 
+static void free_imd(struct im_send_data *imd)
+{
+	if (imd->contact)
+		g_object_unref(imd->contact);
+	g_free(imd->who);
+	g_free(imd->message);
+	g_free(imd);
+}
+
 static void im_send_error(ChimeConnection *cxn, struct im_send_data *imd,
 			  const gchar *format, ...)
 {
@@ -269,11 +278,7 @@ static void sent_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 		g_clear_error(&error);
 	}
 
-	if (imd->contact)
-		g_object_unref(imd->contact);
-	g_free(imd->who);
-	g_free(imd->message);
-	g_free(imd);
+	free_imd(imd);
 }
 
 
@@ -293,16 +298,15 @@ static void create_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 			goto bad;
 		}
 
-		chime_connection_send_message_async(cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd, NULL);
+		if (imd->message)
+			chime_connection_send_message_async(cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd, NULL);
+		else
+			free_imd(imd);
 		return;
 	}
  bad:
 	im_send_error(cxn, imd, _("Failed to create IM conversation"));
-	if (imd->contact)
-		g_object_unref(imd->contact);
-	g_free(imd->who);
-	g_free(imd->message);
-	g_free(imd);
+	free_imd(imd);
 }
 
 static void find_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
@@ -318,12 +322,12 @@ static void find_im_cb(GObject *source, GAsyncResult *result, gpointer _imd)
 		imd->im = g_hash_table_lookup(pc->ims_by_email, imd->who);
 		if (!imd->im) {
 			purple_debug(PURPLE_DEBUG_INFO, "chime", "No im for %s\n", imd->who);
-			g_object_unref(imd->contact);
-			g_free(imd->who);
-			g_free(imd->message);
-			g_free(imd);
+			free_imd(imd);
 		} else {
-			chime_connection_send_message_async(cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd, NULL);
+			if (imd->message)
+				chime_connection_send_message_async(cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd, NULL);
+			else
+				free_imd(imd);
 		}
 		return;
 	}
@@ -354,9 +358,7 @@ static void autocomplete_im_cb(GObject *source, GAsyncResult *result, gpointer _
 	}
 
 	im_send_error(cxn, imd, _("Failed to find user"));
-	g_free(imd->who);
-	g_free(imd->message);
-	g_free(imd);
+	free_imd(imd);
 }
 
 int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *message, PurpleMessageFlags flags)
@@ -365,13 +367,17 @@ int chime_purple_send_im(PurpleConnection *gc, const char *who, const char *mess
 
 	struct im_send_data *imd = g_new0(struct im_send_data, 1);
 	imd->conn = gc;
-	purple_markup_html_to_xhtml(message, NULL, &imd->message);
+	if (message)
+		purple_markup_html_to_xhtml(message, NULL, &imd->message);
 	imd->who = g_strdup(who);
 	imd->flags = flags;
 
 	imd->im = g_hash_table_lookup(pc->ims_by_email, who);
 	if (imd->im) {
-		chime_connection_send_message_async(pc->cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd, NULL);
+		if (message)
+			chime_connection_send_message_async(pc->cxn, imd->im->m.obj, imd->message, NULL, sent_im_cb, imd, NULL);
+		else
+			free_imd(imd);
 		return 0;
 	}
 
@@ -556,17 +562,45 @@ static void im_destroy(gpointer _im)
 	/* im == &im->m, and it's freed by cleanup_msgs */
 }
 
+static void chime_conv_created_cb(PurpleConversation *conv, PurpleConnection *conn)
+{
+	if (conv->account != conn->account)
+		return;
+
+	if (purple_conversation_get_type(conv) != PURPLE_CONV_TYPE_CHAT)
+		return;
+
+	purple_debug(PURPLE_DEBUG_INFO, "chime",
+		     "Conversation '%s' created\n", conv->name);
+
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	/* If the conversation isn't already known, find or create it.
+	 * Use the chime_purple_send_im() call chain to do that, with
+	 * a NULL message. */
+	if (!g_hash_table_lookup(pc->ims_by_email, conv->name))
+		chime_purple_send_im(conn, conv->name, NULL, 0);
+}
+
 void purple_chime_init_conversations(PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 
 	pc->ims_by_email = g_hash_table_new(g_str_hash, g_str_equal);
 	pc->ims_by_profile_id = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, im_destroy);
+
+	purple_signal_connect(purple_conversations_get_handle(),
+			      "conversation-created", conn,
+			      PURPLE_CALLBACK(chime_conv_created_cb), conn);
 }
 
 void purple_chime_destroy_conversations(PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	purple_signal_disconnect(purple_conversations_get_handle(),
+				 "conversation-created", conn,
+				 PURPLE_CALLBACK(chime_conv_created_cb));
 
 	g_clear_pointer(&pc->ims_by_email, g_hash_table_destroy);
 	g_clear_pointer(&pc->ims_by_profile_id, g_hash_table_destroy);

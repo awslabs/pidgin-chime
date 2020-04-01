@@ -75,6 +75,17 @@ PKG_CHECK_MODULES(SOUP, [libsoup-2.4 >= 2.50])
 if $PKG_CONFIG --atleast-version 2.59 libsoup-2.4; then
    AC_DEFINE(USE_LIBSOUP_WEBSOCKETS, 1, [Use libsoup websockets])
 fi
+PKG_CHECK_MODULES(MARKDOWN, [libmarkdown], [],
+		  [oldLIBS="$LIBS"
+		   LIBS="$LIBS -lmarkdown"
+		   AC_MSG_CHECKING([for libmarkdown without pkg-config])
+		   AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <mkdio.h>],[mkd_initialize();])],
+				  [AC_MSG_RESULT(yes)
+				   AC_SUBST([MARKDOWN_LIBS], ["-lmarkdown"])
+				   AC_SUBST([MARKDOWN_CFLAGS], [])],
+				  [AC_MSG_RESULT(no)
+				   AC_ERROR([Could not build against libmarkdown])])
+		   LIBS="$oldLIBS"])
 
 PKG_CHECK_MODULES(X11, [x11], [have_x11=yes], [have_x11=no])
 PKG_CHECK_MODULES(GSTBASE, [gstreamer-base-1.0], [have_gstbase=yes], [have_gstbase=no])

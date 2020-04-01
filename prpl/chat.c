@@ -32,6 +32,7 @@
 #include "chime.h"
 #include "chime-room.h"
 #include "chime-meeting.h"
+#include "markdown.h"
 
 #include <libsoup/soup.h>
 
@@ -192,6 +193,14 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 		} else
 			parsed = escaped;
 
+		/* Process markdown */
+		if (g_str_has_prefix(parsed, "/md") && (parsed[3] == ' ' || parsed[3] == '\n')) {
+			gchar *processed;
+			if (!do_markdown(parsed + 4, &processed)) {
+				g_free(parsed);
+				parsed = processed;
+			}
+		}
 		serv_got_chat_in(conn, id, from, msg_flags, parsed, msg_time);
 		g_free(parsed);
 	}

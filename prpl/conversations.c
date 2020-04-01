@@ -25,6 +25,7 @@
 #include <debug.h>
 
 #include "chime.h"
+#include "markdown.h"
 
 #include <libsoup/soup.h>
 
@@ -70,10 +71,20 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		/* The attachment and context structs will be owned by the code doing the download and will be disposed of at the end. */
 		download_attachment(cxn, att, ctx);
 	}
+
 	// Download messages don't have 'content' but normal messages do.
 	// if you receive one, parse it:
 	if (parse_string(record, "Content", &message)) {
 		gchar *escaped = g_markup_escape_text(message, -1);
+
+		/* Process markdown */
+		if (g_str_has_prefix(escaped, "/md") && (escaped[3] == ' ' || escaped[3] == '\n')) {
+			gchar *processed;
+			if (!do_markdown(escaped + 4, &processed)) {
+				g_free(escaped);
+				escaped = processed;
+			}
+		}
 
 		if (!strcmp(sender, chime_connection_get_profile_id(cxn))) {
 			/* Ick, how do we inject a message from ourselves? */

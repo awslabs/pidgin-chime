@@ -136,8 +136,10 @@ void on_chime_new_contact(ChimeConnection *cxn, ChimeContact *contact, PurpleCon
 			 G_CALLBACK(on_contact_disposed), conn);
 
 	/* Refresh status for transient buddies on reconnect */
-	if (purple_find_buddy(conn->account, chime_contact_get_email(contact)))
+	if (purple_find_buddy(conn->account, chime_contact_get_email(contact))) {
+		on_contact_display_name(contact, NULL, conn);
 		on_contact_availability(contact, NULL, conn);
+	}
 
 	/* When invoked for all contacts on the CONNECTED signal, we don't immediately
 	   get the above signal invoked because they're not actually *new* contacts.

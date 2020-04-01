@@ -138,7 +138,7 @@ static gchar *parse_outbound_mentions(ChimeRoom *room, const gchar *message)
 }
 
 static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
-				JsonNode *node, time_t msg_time)
+				JsonNode *node, time_t msg_time, gboolean new_msg)
 {
 	struct chime_chat *chat = (struct chime_chat *)msgs;
 	PurpleConnection *conn = chat->conv->account->gc;
@@ -175,7 +175,7 @@ static void do_chat_deliver_msg(ChimeConnection *cxn, struct chime_msgs *msgs,
 	}
 
 	/* If the message is over a day old, don't beep for it. */
-	if (msg_time + 86400 < time(NULL))
+	if (!new_msg)
 		msg_flags |= PURPLE_MESSAGE_DELAYED;
 
 	if (parse_string(node, "Content", &content)) {

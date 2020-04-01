@@ -96,11 +96,18 @@ void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 		JsonNode *node = ms->node;
 		gboolean seen_one = FALSE;
 
-		if (is_msg_unseen(msgs->seen_msgs, id)) {
-			seen_one = TRUE;
-			msgs->cb(cxn, msgs, node, ms->tm.tv_sec);
-		}
 		l = g_list_remove(l, ms);
+
+		if (is_msg_unseen(msgs->seen_msgs, id)) {
+			gboolean new_msg = FALSE;
+			/* Only treat it as a new message if it is the last one,
+			 * and it was sent within the last day */
+			if (!l && !msgs->fetch_until && ms->tm.tv_sec + 86400 < time(NULL))
+				new_msg = TRUE;
+
+			seen_one = TRUE;
+			msgs->cb(cxn, msgs, node, ms->tm.tv_sec, new_msg);
+		}
 		g_free(ms);
 
 		/* Last message, note down the received time */
@@ -179,7 +186,7 @@ static void on_message_received(ChimeObject *obj, JsonNode *node, struct chime_m
 		chime_update_last_msg(cxn, msgs, created, id);
 
 	if (is_msg_unseen(msgs->seen_msgs, id))
-		msgs->cb(cxn, msgs, node, tv.tv_sec);
+		msgs->cb(cxn, msgs, node, tv.tv_sec, TRUE);
 }
 
 /* Once the message fetching is complete, we can play the fetched messages in order */

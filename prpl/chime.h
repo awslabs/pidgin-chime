@@ -124,7 +124,7 @@ extern PurpleDBusBinding chime_purple_dbus_bindings[];
 struct chime_msgs;
 
 typedef void (*chime_msg_cb)(ChimeConnection *cxn, struct chime_msgs *msgs,
-			     JsonNode *node, time_t tm);
+			     JsonNode *node, time_t tm, gboolean new_msg);
 struct chime_msgs {
 	PurpleConnection *conn;
 	ChimeObject *obj;

@@ -35,7 +35,7 @@ struct chime_im {
 
 /* Called for all deliveries of incoming conversation messages, at startup and later */
 static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
-				    JsonNode *record, time_t msg_time)
+				    JsonNode *record, time_t msg_time, gboolean new_msg)
 {
 	const gchar *sender, *message;
 	gint64 sys;
@@ -43,12 +43,10 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 	    !parse_int(record, "IsSystemMessage", &sys))
 		return FALSE;
 
-
 	PurpleMessageFlags flags = 0;
 	if (sys)
 		flags |= PURPLE_MESSAGE_SYSTEM;
-	/* If the message is over a day old, don't beep for it. */
-	if (msg_time + 86400 < time(NULL))
+	if (!new_msg)
 		flags |= PURPLE_MESSAGE_DELAYED;
 
 	const gchar *email = chime_contact_get_email(im->peer);

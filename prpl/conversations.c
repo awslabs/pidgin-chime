@@ -567,7 +567,7 @@ static void chime_conv_created_cb(PurpleConversation *conv, PurpleConnection *co
 	if (conv->account != conn->account)
 		return;
 
-	if (purple_conversation_get_type(conv) != PURPLE_CONV_TYPE_CHAT)
+	if (purple_conversation_get_type(conv) != PURPLE_CONV_TYPE_IM)
 		return;
 
 	purple_debug(PURPLE_DEBUG_INFO, "chime",

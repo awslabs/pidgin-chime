@@ -379,6 +379,9 @@ static GstFlowReturn screen_appsink_new_sample(GstAppSink* self, gpointer data)
 	if (!sample)
 		return GST_FLOW_OK;
 
+	if (!screen)
+		return GST_FLOW_ERROR;
+
 	if (screen->state == CHIME_SCREEN_STATE_SENDING && screen->viewer_present) {
 		GstBuffer *buffer = gst_sample_get_buffer(sample);
 		gsize len = gst_buffer_get_size(buffer);

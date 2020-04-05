@@ -14,6 +14,7 @@ do_markdown (const gchar *message, gchar **outbound) {
 	int flags = MKD_NOTABLES | MKD_NOIMAGE | MKD_NOTABLES; /* Disable unsupported tags */
 	int nbytes, rc;
 	gchar *res;
+	char *p;
 
 	/* make a mkd doc */
 	doc = mkd_string(message, strlen(message), flags);
@@ -45,7 +46,7 @@ do_markdown (const gchar *message, gchar **outbound) {
 	/* TODO It'd be nice to improve this, e.g. by switching the UI to something that can render HTML or by replacing
 	 *      the renderer with something that can produce properly formatted output for a GtkTextBuffer directly.
 	 */
-	for (char *p = *outbound; *p; p++) {
+	for (p = *outbound; *p; p++) {
 		/* Code tags are not supported, replace with documented <tt> */
 		if (!strncmp(p, "<code>", 6)) {
 			memcpy(p, "  <tt>", 6);

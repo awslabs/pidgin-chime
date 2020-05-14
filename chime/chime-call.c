@@ -81,10 +81,10 @@ G_DEFINE_TYPE(ChimeCall, chime_call, CHIME_TYPE_OBJECT)
 
 #define CHIME_PARTICIPATION_VALUES					  \
 	{ CHIME_PARTICIPATION_PRESENT,		"present",	N_("present") }, \
-	{ CHIME_PARTICIPATION_CHECKED_IN,	"checked_in",	N_("checked in") }, \
-	{ CHIME_PARTICIPATION_HUNG_UP,		"hung_up",	N_("hung up") }, \
+	{ CHIME_PARTICIPATION_CHECKED_IN,	"checked_in",	N_("checkedin") }, \
+	{ CHIME_PARTICIPATION_HUNG_UP,		"hung_up",	N_("hungup") }, \
 	{ CHIME_PARTICIPATION_DROPPED,		"dropped",	N_("dropped") }, \
-	{ CHIME_PARTICIPATION_RUNNING_LATE,	"running_late",	N_("running late") }, \
+	{ CHIME_PARTICIPATION_RUNNING_LATE,	"running_late",	N_("runninglate") }, \
 	{ CHIME_PARTICIPATION_INVITED,		"invited",	N_("invited") }, \
 	{ CHIME_PARTICIPATION_DECLINED,		"declined",	N_("declined") }, \
 	{ CHIME_PARTICIPATION_INACTIVE,		"inactive",	N_("inactive") },

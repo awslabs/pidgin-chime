@@ -53,6 +53,8 @@
  *   - GLib: everything else
  */
 
+#include <config.h>
+
 #include <glib/gi18n.h>
 #include <libxml/HTMLparser.h>
 #include <libxml/tree.h>

@@ -53,14 +53,14 @@ struct _ChimeContact {
 G_DEFINE_TYPE(ChimeContact, chime_contact, CHIME_TYPE_OBJECT)
 
 #define CHIME_AVAILABILITY_VALUES \
-       { CHIME_AVAILABILITY_UNKNOWN,	"unknown",	N_("Unknown") },\
-       { CHIME_AVAILABILITY_OFFLINE,	"offline",	N_("Offline") },\
-       { CHIME_AVAILABILITY_AVAILABLE,	"available",	N_("Available") },\
-       { CHIME_AVAILABILITY_AWAY,	"away",		N_("Away") },\
-       { CHIME_AVAILABILITY_BUSY,	"busy",		N_("Busy") },\
-       { CHIME_AVAILABILITY_MOBILE,	"mobile",	N_("Mobile") },\
-       { CHIME_AVAILABILITY_PRIVATE,	"private",	N_("Private") },\
-       { CHIME_AVAILABILITY_DO_NOT_DISTURB, "dnd",	N_("Do Not Disturb") },
+       { CHIME_AVAILABILITY_UNKNOWN,	"unknown",	"Unknown" },\
+       { CHIME_AVAILABILITY_OFFLINE,	"offline",	"Offline" },\
+       { CHIME_AVAILABILITY_AVAILABLE,	"available",	"Available" },\
+       { CHIME_AVAILABILITY_AWAY,	"away",		"Away" },\
+       { CHIME_AVAILABILITY_BUSY,	"busy",		"Busy" },\
+       { CHIME_AVAILABILITY_MOBILE,	"mobile",	"Mobile" },\
+       { CHIME_AVAILABILITY_PRIVATE,	"private",	"Private" },\
+       { CHIME_AVAILABILITY_DO_NOT_DISTURB, "dnd",	"DoNotDisturb" },
 
 CHIME_DEFINE_ENUM_TYPE(ChimeAvailability, chime_availability, CHIME_AVAILABILITY_VALUES)
 

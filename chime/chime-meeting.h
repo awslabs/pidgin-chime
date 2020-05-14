@@ -51,7 +51,7 @@ const gchar *chime_meeting_get_screen_share_url(ChimeMeeting *self);
 const gchar *chime_meeting_get_start_at(ChimeMeeting *self);
 const gchar *chime_meeting_get_channel(ChimeMeeting *self);
 const gchar *chime_meeting_get_roster_channel(ChimeMeeting *self);
-ChimeRoom *chime_meeting_get_chat_room(ChimeMeeting *self);;
+ChimeRoom *chime_meeting_get_chat_room(ChimeMeeting *self);
 ChimeCall *chime_meeting_get_call(ChimeMeeting *self);
 
 gboolean chime_meeting_match_pin(ChimeMeeting *self, const gchar *pin);

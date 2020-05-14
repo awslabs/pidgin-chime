@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2014 Florian Müllner <fmuellner@gnome.org> -->
+<component type="desktop">
+  <id>org.gnome.Polari.desktop</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0+ and LGPL-2.1+</project_license>
+  <name>Polari</name>
+  <summary>An Internet Relay Chat Client for GNOME</summary>
+  <description>
+    <p>
+      A simple Internet Relay Chat (IRC) client that is designed to integrate
+      seamlessly with GNOME; it features a simple and beautiful interface which
+      allows you to focus on your conversations.
+    </p>
+    <p>
+      You can use Polari to publicly chat with people in a channel, and to
+      have private one-to-one conversations. Notifications make sure that
+      you never miss an important message — for private conversations,
+      they even allow you to reply instantly without switching back to the
+      application!
+    </p>
+  </description>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://gitlab.gnome.org/GNOME/polari/raw/gnome-3-28/data/appdata/polari-main.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://gitlab.gnome.org/GNOME/polari/raw/gnome-3-28/data/appdata/polari-user-list.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://gitlab.gnome.org/GNOME/polari/raw/gnome-3-28/data/appdata/polari-join-dialog.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://gitlab.gnome.org/GNOME/polari/raw/gnome-3-28/data/appdata/polari-connection.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://gitlab.gnome.org/GNOME/polari/raw/gnome-3-28/data/appdata/polari-connection-properties.png</image>
+    </screenshot>
+  </screenshots>
+  <url type="homepage">https://wiki.gnome.org/Apps/Polari</url>
+  <url type="bugtracker">https://gitlab.gnome.org/GNOME/polari/issues/new</url>
+  <url type="help">https://help.gnome.org/users/polari/stable/</url>
+  <url type="donation">http://www.gnome.org/friends/</url>
+  <url type="translate">https://wiki.gnome.org/TranslationProject</url>
+  <update_contact>fmuellner@gnome.org</update_contact>
+  <project_group>GNOME</project_group>
+  <developer_name>The GNOME Project</developer_name>
+  <kudos>
+    <kudo>AppMenu</kudo>
+    <kudo>HiDpiIcon</kudo>
+    <kudo>HighContrast</kudo>
+    <kudo>ModernToolkit</kudo>
+    <kudo>Notifications</kudo>
+    <kudo>UserDocs</kudo>
+  </kudos>
+  <translation type="gettext">polari</translation>
+  <releases>
+    <release version="3.28.1" date="2018-07-18">
+      <description>
+        <p>
+          The first 3.28 stable update brings with it a series of
+          updated translations and bug fixes.
+        </p>
+      </description>
+    </release>
+    <release version="3.28.0" date="2018-03-12">
+      <description>
+        <p>
+          GNOME 3.28 brings with it a brand new Polari release with bug fixes,
+          performance improvements and new features:
+        </p>
+        <ul>
+          <li>Rooms now indicate when joining them takes a while to show at
+              a glance when they are ready</li>
+          <li>It is now possible to disconnect from networks to disable
+              them temporarily</li>
+          <li>Developing Polari got easier – test changes from GNOME Builder
+              without leaving your chats first</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-chat">intense</content_attribute>
+    <content_attribute id="social-contacts">intense</content_attribute>
+  </content_rating>
+</component>

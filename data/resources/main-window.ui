@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <object class="Gjs_UserListPopover" id="userListPopover">
+    <property name="position">bottom</property>
+    <property name="border-width">6</property>
+    <property name="width-request">250</property>
+    <property name="relative-to">showUserListButton</property>
+    <style>
+      <class name="polari-user-list"/>
+    </style>
+  </object>
+  <object class="GtkMessageDialog" id="closeConfirmationDialog">
+    <property name="message-type">question</property>
+    <property name="text" translatable="yes">Run Polari in the Background?</property>
+    <property name="secondary-text" translatable="yes">Polari will continue to run when closed and will be automatically started on login.</property>
+    <property name="destroy-with-parent">true</property>
+    <property name="modal">true</property>
+    <signal name="delete-event" handler="hide_on_delete"/>
+    <child type="action">
+      <object class="GtkButton" id="quitButton">
+        <property name="label" translatable="yes">_Quit</property>
+        <property name="visible">true</property>
+        <property name="use-underline">true</property>
+      </object>
+    </child>
+    <child type="action">
+      <object class="GtkButton" id="backgroundButton">
+        <property name="label" translatable="yes">_Run in background</property>
+        <property name="visible">true</property>
+        <property name="use-underline">true</property>
+      </object>
+    </child>
+    <action-widgets>
+      <action-widget response="close">quitButton</action-widget>
+      <action-widget response="accept">backgroundButton</action-widget>
+    </action-widgets>
+  </object>
+  <template class="Gjs_MainWindow">
+    <property name="title" translatable="yes">Polari</property>
+    <property name="icon-name">org.gnome.Polari</property>
+    <child type="titlebar">
+      <object class="GtkBox">
+        <property name="visible">True</property>
+        <child>
+          <object class="GtkHeaderBar" id="titlebarLeft">
+            <property name="visible">True</property>
+            <property name="hexpand">False</property>
+            <property name="show-close-button">True</property>
+            <child>
+              <object class="GtkButton" id="joinButton">
+                <property name="visible">True</property>
+                <property name="halign">end</property>
+                <property name="valign">center</property>
+                <property name="action_name">app.show-join-dialog</property>
+                <property name="tooltip-text" translatable="yes">Add rooms and networks</property>
+                <style>
+                  <class name="image-button"/>
+                </style>
+                <child>
+                  <object class="GtkImage">
+                    <property name="visible">True</property>
+                    <property name="icon-name">list-add-symbolic</property>
+                    <property name="icon-size">1</property>
+                  </object>
+                </child>
+                <child internal-child="accessible">
+                  <object class="AtkObject">
+                    <property name="AtkObject::accessible-name"
+                              translatable="yes">Add rooms and networks</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="pack-type">start</property>
+              </packing>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkSeparator">
+            <property name="visible">True</property>
+            <property name="orientation">vertical</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkHeaderBar" id="titlebarRight">
+            <property name="visible">True</property>
+            <property name="hexpand">True</property>
+            <property name="show-close-button">True</property>
+            <!-- Use a custom title widget to enable markup for subtitles
+                 (for URLs in channel topics); other than that, we want
+                 the default GtkHeaderBar behavior, e.g. the subtitle may
+                 be hidden, but is always included in the size request.
+                 We replicate this by using a stack which will only ever show
+                 its first child, but still consider the second one's size -->
+            <child type="title">
+              <object class="GtkStack">
+                <property name="visible">True</property>
+                <property name="margin-start">24</property>
+                <property name="margin-end">24</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="orientation">vertical</property>
+                    <property name="valign">center</property>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="single-line-mode">True</property>
+                        <property name="ellipsize">end</property>
+                        <property name="label" bind-source="Gjs_MainWindow"
+                                  bind-property="title" bind-flags="sync-create"/>
+                        <style>
+                          <class name="title"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible" bind-source="Gjs_MainWindow"
+                                  bind-property="subtitle-visible"
+                                  bind-flags="sync-create"/>
+                        <property name="single-line-mode">True</property>
+                        <property name="ellipsize">end</property>
+                        <property name="use-markup">True</property>
+                        <property name="label" bind-source="Gjs_MainWindow"
+                                  bind-property="subtitle" bind-flags="sync-create"/>
+                        <property name="has-tooltip" bind-source="Gjs_MainWindow"
+                                  bind-property="subtitle-visible" bind-flags="sync-create" />
+                        <property name="tooltip-markup" bind-source="Gjs_MainWindow"
+                                  bind-property="subtitle" bind-flags="sync-create" />
+                        <style>
+                          <class name="subtitle"/>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="orientation">vertical</property>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="single-line-mode">True</property>
+                        <property name="ellipsize">end</property>
+                        <style>
+                          <class name="title"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="single-line-mode">True</property>
+                        <property name="ellipsize">end</property>
+                        <property name="use-markup">True</property>
+                        <style>
+                          <class name="subtitle"/>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkToggleButton" id="showUserListButton">
+                <property name="visible">True</property>
+                <property name="focus-on-click">False</property>
+                <property name="action-name">app.user-list</property>
+                <property name="tooltip-text" translatable="yes">Show connected users</property>
+                <style>
+                  <class name="polari-user-list-button"/>
+                  <class name="text-button"/>
+                </style>
+              </object>
+              <packing>
+                <property name="pack-type">end</property>
+              </packing>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkBox">
+        <property name="visible">True</property>
+        <child>
+          <object class="GtkRevealer" id="roomListRevealer">
+            <property name="visible">True</property>
+            <property name="hexpand">False</property>
+            <property name="transition-type">slide-right</property>
+            <child>
+              <object class="Gjs_FixedSizeFrame" id="roomSidebar">
+                <property name="visible">True</property>
+                <property name="hexpand">False</property>
+                <property name="width">200</property>
+                <property name="shadow-type">none</property>
+                <style>
+                  <class name="polari-room-list"/>
+                </style>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="visible">True</property>
+                    <property name="hscrollbar-policy">never</property>
+                    <property name="vexpand">True</property>
+                    <property name="hexpand">True</property>
+                    <child>
+                      <object class="Gjs_RoomList">
+                        <property name="visible">True</property>
+                        <property name="selection-mode">browse</property>
+                        <style>
+                          <class name="sidebar"/>
+                        </style>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkOverlay" id="overlay">
+            <property name="visible">True</property>
+            <property name="vexpand">True</property>
+            <child>
+              <object class="Gjs_RoomStack" id="roomStack">
+                <property name="visible">True</property>
+                <property name="homogeneous">True</property>
+                <property name="transition-type">crossfade</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+  <object class="GtkSizeGroup">
+      <widgets>
+        <widget name="titlebarLeft"/>
+        <widget name="roomSidebar"/>
+      </widgets>
+  </object>
+</interface>

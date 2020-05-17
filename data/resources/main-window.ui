@@ -6,13 +6,13 @@
     <property name="width-request">250</property>
     <property name="relative-to">showUserListButton</property>
     <style>
-      <class name="polari-user-list"/>
+      <class name="chime-user-list"/>
     </style>
   </object>
   <object class="GtkMessageDialog" id="closeConfirmationDialog">
     <property name="message-type">question</property>
-    <property name="text" translatable="yes">Run Polari in the Background?</property>
-    <property name="secondary-text" translatable="yes">Polari will continue to run when closed and will be automatically started on login.</property>
+    <property name="text" translatable="yes">Run Chime in the Background?</property>
+    <property name="secondary-text" translatable="yes">Chime will continue to run when closed and will be automatically started on login.</property>
     <property name="destroy-with-parent">true</property>
     <property name="modal">true</property>
     <signal name="delete-event" handler="hide_on_delete"/>
@@ -36,8 +36,8 @@
     </action-widgets>
   </object>
   <template class="Gjs_MainWindow">
-    <property name="title" translatable="yes">Polari</property>
-    <property name="icon-name">org.gnome.Polari</property>
+    <property name="title" translatable="yes">Chime</property>
+    <property name="icon-name">org.gnome.Chime</property>
     <child type="titlebar">
       <object class="GtkBox">
         <property name="visible">True</property>
@@ -174,7 +174,7 @@
                 <property name="action-name">app.user-list</property>
                 <property name="tooltip-text" translatable="yes">Show connected users</property>
                 <style>
-                  <class name="polari-user-list-button"/>
+                  <class name="chime-user-list-button"/>
                   <class name="text-button"/>
                 </style>
               </object>
@@ -201,7 +201,7 @@
                 <property name="width">200</property>
                 <property name="shadow-type">none</property>
                 <style>
-                  <class name="polari-room-list"/>
+                  <class name="chime-room-list"/>
                 </style>
                 <child>
                   <object class="GtkScrolledWindow">

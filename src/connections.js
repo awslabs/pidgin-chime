@@ -251,7 +251,7 @@ var ConnectionsList = GObject.registerClass({
 });
 
 var ConnectionDetails = GObject.registerClass({
-    Template: 'resource:///org/gnome/Polari/ui/connection-details.ui',
+    Template: 'resource:///org/gnome/Chime/ui/connection-details.ui',
     InternalChildren: ['nameEntry',
                        'serverEntry',
                        'nickEntry',
@@ -482,7 +482,7 @@ var ConnectionDetails = GObject.registerClass({
 
 
 var ConnectionProperties = GObject.registerClass({
-    Template: 'resource:///org/gnome/Polari/ui/connection-properties.ui',
+    Template: 'resource:///org/gnome/Chime/ui/connection-properties.ui',
     InternalChildren: ['details',
                        'errorBox',
                        'errorLabel'],
@@ -533,7 +533,7 @@ var ConnectionProperties = GObject.registerClass({
             case Tp.error_get_dbus_name(Tp.Error.CONNECTION_REFUSED):
             case Tp.error_get_dbus_name(Tp.Error.NETWORK_ERROR):
                 this._errorBox.show();
-                this._errorLabel.label = _("Polari disconnected due to a network error. Please check if the address field is correct.");
+                this._errorLabel.label = _("Chime disconnected due to a network error. Please check if the address field is correct.");
                 this._details.setErrorHint(ErrorHint.SERVER);
                 break;
         }

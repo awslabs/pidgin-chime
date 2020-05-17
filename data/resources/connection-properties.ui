@@ -39,7 +39,7 @@
           <object class="GtkBox" id="errorBox">
             <property name="visible">True</property>
             <style>
-              <class name="polari-error-information"/>
+              <class name="chime-error-information"/>
             </style>
             <child>
               <object class="GtkImage" id="image1">

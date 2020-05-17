@@ -4,7 +4,7 @@ const GLib = imports.gi.GLib;
 const GObject = imports.gi.GObject;
 const Gtk = imports.gi.Gtk;
 const Mainloop = imports.mainloop;
-const Polari = imports.gi.Polari;
+const Chime = imports.gi.Chime;
 const Tp = imports.gi.TelepathyGLib;
 
 const {AccountsMonitor} = imports.accountsMonitor;
@@ -83,7 +83,7 @@ var FixedSizeFrame = GObject.registerClass({
 });
 
 var MainWindow = GObject.registerClass({
-    Template: 'resource:///org/gnome/Polari/ui/main-window.ui',
+    Template: 'resource:///org/gnome/Chime/ui/main-window.ui',
     InternalChildren: ['titlebarRight',
                        'titlebarLeft',
                        'joinButton',
@@ -108,7 +108,7 @@ var MainWindow = GObject.registerClass({
                                                 'active-room',
                                                 'active-room',
                                                 GObject.ParamFlags.READWRITE,
-                                                Polari.Room.$gtype)
+                                                Chime.Room.$gtype)
     },
     Signals: { 'active-room-state-changed': {} },
 }, class MainWindow extends Gtk.ApplicationWindow {
@@ -126,7 +126,7 @@ var MainWindow = GObject.registerClass({
 
         super._init(params);
 
-        this._settings = new Gio.Settings({ schema_id: 'org.gnome.Polari' });
+        this._settings = new Gio.Settings({ schema_id: 'org.gnome.Chime' });
         this._gtkSettings = Gtk.Settings.get_default();
 
         this._currentSize = [-1, -1];
@@ -262,7 +262,7 @@ var MainWindow = GObject.registerClass({
 
     _onDeleteEvent() {
         let f = Gio.File.new_for_path(GLib.get_user_cache_dir() +
-                                      '/polari/close-confirmation-shown');
+                                      '/chime/close-confirmation-shown');
         try {
             this._touchFile(f);
         } catch(e) {
@@ -355,7 +355,7 @@ var MainWindow = GObject.registerClass({
         let account = this._accountsMonitor.lookupAccount(selectedRoom.account);
         let channelName = selectedRoom.channel;
         if (account && account.visible && channelName)
-            roomId = Polari.create_room_id(account, channelName, Tp.HandleType.ROOM);
+            roomId = Chime.create_room_id(account, channelName, Tp.HandleType.ROOM);
 
         this.active_room = this._roomManager.lookupRoom(roomId) ||
                            this._roomManager.rooms.shift();

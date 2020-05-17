@@ -1,6 +1,6 @@
 const Gio = imports.gi.Gio;
 const GObject = imports.gi.GObject;
-const Polari = imports.gi.Polari;
+const Chime = imports.gi.Chime;
 const Signals = imports.signals;
 const Tp = imports.gi.TelepathyGLib;
 
@@ -55,8 +55,8 @@ var AccountsMonitor = class {
         if (settings)
             return settings;
 
-        let path = '/org/gnome/Polari/Accounts/%s/'.format(account.get_path_suffix());
-        settings = new Gio.Settings({ schema_id: 'org.gnome.Polari.Account',
+        let path = '/org/gnome/Chime/Accounts/%s/'.format(account.get_path_suffix());
+        settings = new Gio.Settings({ schema_id: 'org.gnome.Chime.Account',
                                       path: path });
         this._accountSettings.set(accountPath, settings);
         return settings;
@@ -160,16 +160,16 @@ var AccountsMonitor = class {
 Signals.addSignalMethods(AccountsMonitor.prototype);
 
 const ClientFactory = GObject.registerClass(
-class ClientFactory extends Polari.ClientFactory {
+class ClientFactory extends Chime.ClientFactory {
     vfunc_create_account(objectPath) {
-        return new PolariAccount({ factory: this,
+        return new ChimeAccount({ factory: this,
                                    dbus_daemon: this.dbus_daemon,
                                    bus_name: Tp.ACCOUNT_MANAGER_BUS_NAME,
                                    object_path: objectPath });
     }
 });
 
-const PolariAccount = GObject.registerClass({
+const ChimeAccount = GObject.registerClass({
     Properties: {
         visible: GObject.ParamSpec.boolean('visible',
                                            'visible',
@@ -178,7 +178,7 @@ const PolariAccount = GObject.registerClass({
                                            GObject.ParamFlags.EXPLICIT_NOTIFY,
                                            true)
     }
-}, class PolariAccount extends Tp.Account {
+}, class ChimeAccount extends Tp.Account {
     _init(params) {
         this._visible = true;
 

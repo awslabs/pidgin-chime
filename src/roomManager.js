@@ -1,6 +1,6 @@
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
-const Polari = imports.gi.Polari;
+const Chime = imports.gi.Chime;
 const Signals = imports.signals;
 const Tp = imports.gi.TelepathyGLib;
 
@@ -15,7 +15,7 @@ var RoomManager = class {
 
     constructor() {
         this._rooms = new Map();
-        this._settings = new Gio.Settings({ schema_id: 'org.gnome.Polari' })
+        this._settings = new Gio.Settings({ schema_id: 'org.gnome.Chime' })
 
         this._accountsMonitor = AccountsMonitor.getDefault();
 
@@ -63,7 +63,7 @@ var RoomManager = class {
     lookupRoomByChannel(channel) {
         let account = channel.connection.get_account();
         let channelName = channel.identifier;
-        let id = Polari.create_room_id(account, channelName, channel.handle_type);
+        let id = Chime.create_room_id(account, channelName, channel.handle_type);
         return this._rooms.get(id);
     }
 
@@ -167,10 +167,10 @@ var RoomManager = class {
         if (!account.visible)
             return null;
 
-        let id = Polari.create_room_id(account, channelName, type);
+        let id = Chime.create_room_id(account, channelName, type);
         let room = this._rooms.get(id);
         if (!room) {
-            room = new Polari.Room({ account: account,
+            room = new Chime.Room({ account: account,
                                      channel_name: channelName,
                                      type: type });
             this._rooms.set(room.id, room);

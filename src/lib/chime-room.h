@@ -24,29 +24,29 @@
 
 G_BEGIN_DECLS
 
-#define POLARI_TYPE_ROOM            (polari_room_get_type())
-G_DECLARE_FINAL_TYPE (PolariRoom, polari_room, POLARI, ROOM, GObject)
+#define CHIME_TYPE_ROOM            (chime_room_get_type())
+G_DECLARE_FINAL_TYPE (ChimeRoom, chime_room, CHIME, ROOM, GObject)
 
-gboolean polari_room_should_highlight_message (PolariRoom *room,
+gboolean chime_room_should_highlight_message (ChimeRoom *room,
                                                const char *sender,
                                                const char *message);
 
-void  polari_room_set_topic (PolariRoom *room, const char *topic);
+void  chime_room_set_topic (ChimeRoom *room, const char *topic);
 
-void  polari_room_add_member    (PolariRoom *room, TpContact *member);
-void  polari_room_remove_member (PolariRoom *room, TpContact *member);
+void  chime_room_add_member    (ChimeRoom *room, TpContact *member);
+void  chime_room_remove_member (ChimeRoom *room, TpContact *member);
 
-void polari_room_send_identify_message_async (PolariRoom          *room,
+void chime_room_send_identify_message_async (ChimeRoom          *room,
                                               const char          *command,
                                               const char          *username,
                                               const char          *password,
                                               GAsyncReadyCallback  callback,
                                               gpointer             user_data);
-gboolean polari_room_send_identify_message_finish (PolariRoom    *room,
+gboolean chime_room_send_identify_message_finish (ChimeRoom    *room,
                                                    GAsyncResult  *res,
                                                    GError       **error);
 
-char *polari_create_room_id (TpAccount    *account,
+char *chime_create_room_id (TpAccount    *account,
                              const char   *name,
                              TpHandleType  type);
 

@@ -19,7 +19,7 @@ const GLib = imports.gi.GLib;
 
 const {Application} = imports.application;
 
-var LOG_DOMAIN = 'Polari';
+var LOG_DOMAIN = 'Chime';
 
 function _makeLogFunction(level) {
     return message => {
@@ -29,7 +29,7 @@ function _makeLogFunction(level) {
         let [, func, file, line] = new RegExp('(.+)?@(.+):(\\d+)').exec(caller);
         GLib.log_variant(LOG_DOMAIN, level, new GLib.Variant('a{sv}', {
             'MESSAGE': new GLib.Variant('s', message),
-            'SYSLOG_IDENTIFIER': new GLib.Variant('s', 'org.gnome.Polari'),
+            'SYSLOG_IDENTIFIER': new GLib.Variant('s', 'org.gnome.Chime'),
             'CODE_FILE': new GLib.Variant('s', file),
             'CODE_FUNC': new GLib.Variant('s', func),
             'CODE_LINE': new GLib.Variant('s', line)
@@ -50,7 +50,7 @@ function main(args) {
         GLib.setenv('G_MESSAGES_DEBUG', LOG_DOMAIN, false);
 
     let application = new Application();
-    if (GLib.getenv('POLARI_PERSIST'))
+    if (GLib.getenv('CHIME_PERSIST'))
         application.hold();
     return application.run(args);
 }

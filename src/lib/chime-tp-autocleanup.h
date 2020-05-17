@@ -1,4 +1,4 @@
-/* polari-tp-autocleanup.h
+/* chime-tp-autocleanup.h
  *
  * Copyright © 2017 Florian Müllner <fmuellner@gnome.org>
  *

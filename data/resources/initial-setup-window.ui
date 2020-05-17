@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <template class="Gjs_InitialSetupWindow">
-    <property name="icon-name">org.gnome.Polari</property>
+    <property name="icon-name">org.gnome.Chime</property>
     <property name="default-width">800</property>
     <property name="default-height">600</property>
     <child type="titlebar">
       <object class="GtkHeaderBar">
         <property name="visible">True</property>
-        <property name="title" translatable="yes">Polari Setup</property>
+        <property name="title" translatable="yes">Chime Setup</property>
         <child>
           <object class="GtkButton" id="prevButton">
             <property name="visible">True</property>
@@ -59,7 +59,7 @@
                 <property name="halign">start</property>
                 <property name="label" translatable="yes">Not connected</property>
                 <style>
-                  <class name="polari-setup-title"/>
+                  <class name="chime-setup-title"/>
                 </style>
               </object>
               <packing>
@@ -95,7 +95,7 @@
             <property name="vexpand">True</property>
             <property name="spacing">24</property>
             <style>
-              <class name="polari-setup-page"/>
+              <class name="chime-setup-page"/>
             </style>
             <child>
               <object class="GtkBox">
@@ -106,9 +106,9 @@
                 <child>
                   <object class="GtkLabel">
                     <property name="visible">True</property>
-                    <property name="label" translatable="yes">Welcome to Polari</property>
+                    <property name="label" translatable="yes">Welcome to Chime</property>
                     <style>
-                      <class name="polari-setup-title"/>
+                      <class name="chime-setup-title"/>
                     </style>
                   </object>
                 </child>
@@ -118,7 +118,7 @@
                     <property name="max-width-chars">42</property>
                     <property name="wrap">True</property>
                     <property name="justify">center</property>
-                    <property name="label" translatable="yes">Polari is an easy way to chat using IRC. Select a network to get started.</property>
+                    <property name="label" translatable="yes">Chime is an easy way to chat using IRC. Select a network to get started.</property>
                     <style>
                       <class name="dim-label"/>
                     </style>
@@ -145,7 +145,7 @@
             <property name="visible">True</property>
             <property name="spacing">24</property>
             <style>
-              <class name="polari-setup-page"/>
+              <class name="chime-setup-page"/>
             </style>
             <child>
               <object class="GtkBox">
@@ -156,9 +156,9 @@
                 <child>
                   <object class="GtkLabel">
                     <property name="visible">True</property>
-                    <property name="label" translatable="yes">Welcome to Polari</property>
+                    <property name="label" translatable="yes">Welcome to Chime</property>
                     <style>
-                      <class name="polari-setup-title"/>
+                      <class name="chime-setup-title"/>
                     </style>
                   </object>
                 </child>

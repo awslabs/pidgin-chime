@@ -4,7 +4,7 @@ const GObject = imports.gi.GObject;
 const Gtk = imports.gi.Gtk;
 const Mainloop = imports.mainloop;
 const Pango = imports.gi.Pango;
-const Polari = imports.gi.Polari;
+const Chime = imports.gi.Chime;
 const Tp = imports.gi.TelepathyGLib;
 
 const READWRITE = GObject.ParamFlags.READABLE | GObject.ParamFlags.WRITABLE;
@@ -96,7 +96,7 @@ class UserListPopover extends Gtk.Popover {
 });
 
 var UserDetails = GObject.registerClass({
-    Template: 'resource:///org/gnome/Polari/ui/user-details.ui',
+    Template: 'resource:///org/gnome/Chime/ui/user-details.ui',
     InternalChildren: ['spinnerBox',
                        'spinner',
                        'detailsGrid',
@@ -319,7 +319,7 @@ var UserDetails = GObject.registerClass({
 });
 
 var UserPopover = GObject.registerClass({
-    Template: 'resource:///org/gnome/Polari/ui/user-popover.ui',
+    Template: 'resource:///org/gnome/Chime/ui/user-popover.ui',
     InternalChildren: ['nickLabel',
                        'statusLabel',
                        'notifyButton',
@@ -366,7 +366,7 @@ var UserPopover = GObject.registerClass({
         let actionName = this._userTracker.getNotifyActionName(this._nickname);
         this._notifyButton.action_name = actionName;
 
-        this._setBasenick(Polari.util_get_basenick(nickname));
+        this._setBasenick(Chime.util_get_basenick(nickname));
     }
 
     _setBasenick(basenick) {

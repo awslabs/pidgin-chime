@@ -37,7 +37,7 @@ function getEmojis() {
     if (_emojis != null)
         return _emojis;
 
-    let uri = 'resource:///org/gnome/Polari/data/emoji.json';
+    let uri = 'resource:///org/gnome/Chime/data/emoji.json';
     let file = Gio.file_new_for_uri(uri);
     try {
         let [success, data] = file.load_contents(null);

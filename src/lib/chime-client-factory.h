@@ -1,4 +1,4 @@
-/* polari-client-factory.h
+/* chime-client-factory.h
  *
  * Copyright © 2017 Florian Müllner <fmuellner@gnome.org>
  *
@@ -18,25 +18,25 @@
 #pragma once
 
 #include <telepathy-glib/telepathy-glib.h>
-#include "polari-tp-autocleanup.h"
+#include "chime-tp-autocleanup.h"
 
 G_BEGIN_DECLS
 
-#define POLARI_TYPE_CLIENT_FACTORY (polari_client_factory_get_type())
+#define CHIME_TYPE_CLIENT_FACTORY (chime_client_factory_get_type())
 
-G_DECLARE_DERIVABLE_TYPE (PolariClientFactory, polari_client_factory, POLARI, CLIENT_FACTORY, TpAutomaticClientFactory)
+G_DECLARE_DERIVABLE_TYPE (ChimeClientFactory, chime_client_factory, CHIME, CLIENT_FACTORY, TpAutomaticClientFactory)
 
-struct _PolariClientFactoryClass
+struct _ChimeClientFactoryClass
 {
   TpAutomaticClientFactoryClass parent;
 
-  TpAccount * (*create_account) (PolariClientFactory  *self,
+  TpAccount * (*create_account) (ChimeClientFactory  *self,
                                  const char           *object_path,
                                  GError              **error);
 };
 
-PolariClientFactory *polari_client_factory_new (void);
-TpAccount *polari_client_factory_create_account (PolariClientFactory  *self,
+ChimeClientFactory *chime_client_factory_new (void);
+TpAccount *chime_client_factory_create_account (ChimeClientFactory  *self,
                                                  const char           *object_path,
                                                  GError              **error);
 

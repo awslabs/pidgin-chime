@@ -42,7 +42,7 @@
                     <property name="icon-size">1</property>
                     <property name="icon-name">content-loading-symbolic</property>
                     <style>
-                      <class name="polari-room-loading"/>
+                      <class name="chime-room-loading"/>
                     </style>
                   </object>
                   <packing>

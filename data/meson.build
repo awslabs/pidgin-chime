@@ -23,7 +23,7 @@ service_conf = configuration_data()
 service_conf.set('bindir', bindir)
 
 services = [
-  'org.freedesktop.Telepathy.Client.Polari.service',
+  'org.freedesktop.Telepathy.Client.Chime.service',
   app_id + '.service'
 ]
 
@@ -38,4 +38,4 @@ endforeach
 
 install_data(app_id + '.gschema.xml', install_dir: schemadir)
 install_data(app_id + '.Autostart.desktop', install_dir: pkgdatadir)
-install_data('Polari.client', install_dir: tpclientdir)
+install_data('Chime.client', install_dir: tpclientdir)

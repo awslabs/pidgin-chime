@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.";
  */
 
-#include "polari-drag-helper.h"
+#include "chime-drag-helper.h"
 
 void
-polari_drag_dest_request_data (GtkWidget      *widget,
+chime_drag_dest_request_data (GtkWidget      *widget,
                                GdkDragContext *context,
                                guint32         time_)
 {
@@ -33,14 +33,14 @@ polari_drag_dest_request_data (GtkWidget      *widget,
 }
 
 gboolean
-polari_drag_dest_supports_target (GtkWidget      *widget,
+chime_drag_dest_supports_target (GtkWidget      *widget,
                                   GdkDragContext *context)
 {
   return gtk_drag_dest_find_target (widget, context, NULL) != GDK_NONE;
 }
 
 guint
-polari_drag_dest_find_target (GtkWidget      *widget,
+chime_drag_dest_find_target (GtkWidget      *widget,
                               GdkDragContext *context)
 {
   GdkAtom target;

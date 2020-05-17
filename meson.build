@@ -6,7 +6,7 @@ project('chime', 'c',
 
 chime_version = meson.project_version()
 
-app_id = 'org.gnome.Polari'
+app_id = 'org.gnome.Chime'
 
 gnome = import('gnome')
 i18n = import('i18n')

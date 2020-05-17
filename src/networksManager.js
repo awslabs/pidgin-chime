@@ -13,7 +13,7 @@ var NetworksManager = class {
         this._networks = [];
         this._networksById = new Map();
 
-        let uri = 'resource:///org/gnome/Polari/data/networks.json';
+        let uri = 'resource:///org/gnome/Chime/data/networks.json';
         let file = Gio.File.new_for_uri(uri);
         let success, data;
         try {

@@ -129,7 +129,7 @@
             </child>
             <child>
               <object class="GtkImage">
-                <property name="icon-name">polari-user-notify-symbolic</property>
+                <property name="icon-name">chime-user-notify-symbolic</property>
                 <property name="visible" bind-source="notificationLabel"
                           bind-property="visible" bind-flags="sync-create"/>
                 <property name="opacity" bind-source="notificationLabel"

@@ -5,7 +5,7 @@
     <property name="valign">end</property>
     <property name="transition-type">crossfade</property>
     <style>
-      <class name="polari-entry-area"/>
+      <class name="chime-entry-area"/>
       <class name="view"/>
     </style>
     <child>
@@ -21,7 +21,7 @@
             <property name="focus-on-click">False</property>
             <style>
               <class name="flat"/>
-              <class name="polari-nick-button"/>
+              <class name="chime-nick-button"/>
             </style>
             <child>
               <object class="GtkLabel" id="nickLabel">
@@ -58,7 +58,7 @@
         <property name="shadow-type">none</property>
         <style>
           <class name="background"/>
-          <class name="polari-paste-confirmation"/>
+          <class name="chime-paste-confirmation"/>
         </style>
         <child>
           <object class="GtkBox" id="pasteBox">

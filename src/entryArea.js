@@ -139,7 +139,7 @@ var ChatEntry = GObject.registerClass({
 });
 
 var NickPopover = GObject.registerClass({
-    Template: 'resource:///org/gnome/Polari/ui/nick-popover.ui',
+    Template: 'resource:///org/gnome/Chime/ui/nick-popover.ui',
     InternalChildren: ['nickEntry',
                        'changeButton'],
     Properties: {
@@ -185,7 +185,7 @@ var NickPopover = GObject.registerClass({
 });
 
 var EntryArea = GObject.registerClass({
-    Template: 'resource:///org/gnome/Polari/ui/entry-area.ui',
+    Template: 'resource:///org/gnome/Chime/ui/entry-area.ui',
     InternalChildren: ['chatEntry',
                        'nickButton',
                        'nickLabel',

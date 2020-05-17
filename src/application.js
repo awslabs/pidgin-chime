@@ -3,7 +3,7 @@ const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const GObject = imports.gi.GObject;
 const Gtk = imports.gi.Gtk;
-const Polari = imports.gi.Polari;
+const Chime = imports.gi.Chime;
 const Tp = imports.gi.TelepathyGLib;
 
 const {AccountsMonitor} = imports.accountsMonitor;
@@ -24,18 +24,18 @@ const MAX_RETRIES = 3;
 const IRC_SCHEMA_REGEX = /^(irc?:\/\/)([\da-z\.-]+):?(\d+)?\/(?:%23)?([\w\.\+-]+)/i;
 
 const AUTOSTART_DIR = GLib.get_user_config_dir() + '/autostart';
-const AUTOSTART_FILE = '/org.gnome.Polari.Autostart.desktop';
+const AUTOSTART_FILE = '/org.gnome.Chime.Autostart.desktop';
 
 var Application = GObject.registerClass({
     Signals: { 'prepare-shutdown': {},
                'room-focus-changed': {} },
 }, class Application extends Gtk.Application {
     _init() {
-        super._init({ application_id: 'org.gnome.Polari',
+        super._init({ application_id: 'org.gnome.Chime',
                       flags: Gio.ApplicationFlags.HANDLES_OPEN });
 
-        GLib.set_application_name('Polari');
-        GLib.set_prgname('org.gnome.Polari');
+        GLib.set_application_name('Chime');
+        GLib.set_prgname('org.gnome.Chime');
         this._retryData = new Map();
         this._nickTrackData = new Map();
         this._demons = [];
@@ -70,7 +70,7 @@ var Application = GObject.registerClass({
 
             v = dict.lookup_value('version', null);
             if (v && v.get_boolean()) {
-                print("Polari %s".format(pkg.version));
+                print("Chime %s".format(pkg.version));
                 return 0;
             }
 
@@ -265,7 +265,7 @@ var Application = GObject.registerClass({
             this.add_action(action);
         });
 
-        this._settings = new Gio.Settings({ schema_id: 'org.gnome.Polari' });
+        this._settings = new Gio.Settings({ schema_id: 'org.gnome.Chime' });
         let action = this._settings.create_action('run-in-background');
         this.add_action(action);
 
@@ -306,7 +306,7 @@ var Application = GObject.registerClass({
         this.commandOutputQueue = new AppNotifications.CommandOutputQueue();
 
         let provider = new Gtk.CssProvider();
-        let uri = 'resource:///org/gnome/Polari/css/application.css';
+        let uri = 'resource:///org/gnome/Chime/css/application.css';
         let file = Gio.File.new_for_uri(uri);
         try {
             provider.load_from_file(Gio.File.new_for_uri(uri));
@@ -472,13 +472,13 @@ var Application = GObject.registerClass({
     }
 
     _needsInitialSetup() {
-        if (GLib.getenv('POLARI_FORCE_INITIAL_SETUP')) {
-            GLib.unsetenv('POLARI_FORCE_INITIAL_SETUP');
+        if (GLib.getenv('CHIME_FORCE_INITIAL_SETUP')) {
+            GLib.unsetenv('CHIME_FORCE_INITIAL_SETUP');
             return true;
         }
 
         let f = Gio.File.new_for_path(GLib.get_user_cache_dir() +
-                                      '/polari/initial-setup-completed');
+                                      '/chime/initial-setup-completed');
         try {
             this._touchFile(f);
         } catch(e) {
@@ -535,7 +535,7 @@ var Application = GObject.registerClass({
             return;
 
         let nominalNick = this._getTrimmedAccountName(account);
-        let baseNick = Polari.util_get_basenick(nominalNick);
+        let baseNick = Chime.util_get_basenick(nominalNick);
 
         let tracker = this._userStatusMonitor.getUserTrackerForAccount(account);
         let contactsChangedId = tracker.connect('contacts-changed::' + baseNick,
@@ -765,7 +765,7 @@ var Application = GObject.registerClass({
             return;
 
         let params = {
-            name: 'Polari',
+            name: 'Chime',
             account_manager: this._accountsMonitor.accountManager,
             uniquify_name: this.isTestInstance
         };
@@ -773,7 +773,7 @@ var Application = GObject.registerClass({
     }
 
     _onShowHelp() {
-        Utils.openURL('help:org.gnome.Polari', Gtk.get_current_event_time());
+        Utils.openURL('help:org.gnome.Chime', Gtk.get_current_event_time());
     }
 
     _onShowAbout() {
@@ -806,12 +806,12 @@ var Application = GObject.registerClass({
             ],
             translator_credits: _("translator-credits"),
             comments: _("An Internet Relay Chat Client for GNOME"),
-            copyright: 'Copyright © 2013-2018 The Polari authors',
+            copyright: 'Copyright © 2013-2018 The Chime authors',
             license_type: Gtk.License.GPL_2_0,
-            logo_icon_name: 'org.gnome.Polari',
+            logo_icon_name: 'org.gnome.Chime',
             version: pkg.version,
-            website_label: _("Learn more about Polari"),
-            website: 'https://wiki.gnome.org/Apps/Polari',
+            website_label: _("Learn more about Chime"),
+            website: 'https://wiki.gnome.org/Apps/Chime',
 
             transient_for: this.active_window,
             modal: true

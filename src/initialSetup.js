@@ -12,7 +12,7 @@ const SetupPage = {
 };
 
 var InitialSetupWindow = GObject.registerClass({
-    Template: 'resource:///org/gnome/Polari/ui/initial-setup-window.ui',
+    Template: 'resource:///org/gnome/Chime/ui/initial-setup-window.ui',
     InternalChildren: ['contentStack',
                        'connectionsList',
                        'nextButton',

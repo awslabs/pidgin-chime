@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Exec=gapplication action org.gnome.Chime start-client
+NoDisplay=True

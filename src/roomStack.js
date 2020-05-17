@@ -151,19 +151,19 @@ class ChatPlaceholder extends Gtk.Overlay {
     _init(sizeGroup) {
         this._accountsMonitor = AccountsMonitor.getDefault();
 
-        let image = new Gtk.Image({ icon_name: 'org.gnome.Polari-symbolic',
+        let image = new Gtk.Image({ icon_name: 'org.gnome.Chime-symbolic',
                                       pixel_size: 96, halign: Gtk.Align.END,
                                       margin_end: 14 });
 
         let title = new Gtk.Label({ use_markup: true, halign: Gtk.Align.START,
                                     margin_start: 14 });
-        title.label = '<span letter_spacing="4500">%s</span>'.format(_("Polari"));
-        title.get_style_context().add_class('polari-background-title');
+        title.label = '<span letter_spacing="4500">%s</span>'.format(_("Chime"));
+        title.get_style_context().add_class('chime-background-title');
 
         let description = new Gtk.Label({ label: _("Join a room using the + button."),
                                           halign: Gtk.Align.CENTER, wrap: true,
                                           margin_top: 24, use_markup: true });
-        description.get_style_context().add_class('polari-background-description');
+        description.get_style_context().add_class('chime-background-description');
 
         let inputPlaceholder = new Gtk.Box({ valign: Gtk.Align.END });
         sizeGroup.add_widget(inputPlaceholder);
@@ -172,7 +172,7 @@ class ChatPlaceholder extends Gtk.Overlay {
         let grid = new Gtk.Grid({ column_homogeneous: true, can_focus: false,
                                   column_spacing: 18, hexpand: true, vexpand: true,
                                   valign: Gtk.Align.CENTER });
-        grid.get_style_context().add_class('polari-background');
+        grid.get_style_context().add_class('chime-background');
         grid.attach(image, 0, 0, 1, 1);
         grid.attach(title, 1, 0, 1, 1);
         grid.attach(description, 0, 1, 2, 1);

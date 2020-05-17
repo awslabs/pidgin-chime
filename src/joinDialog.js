@@ -13,7 +13,7 @@ const DialogPage = {
 };
 
 var JoinDialog = GObject.registerClass({
-    Template: 'resource:///org/gnome/Polari/ui/join-room-dialog.ui',
+    Template: 'resource:///org/gnome/Chime/ui/join-room-dialog.ui',
     InternalChildren: ['cancelButton',
                        'joinButton',
                        'mainStack',

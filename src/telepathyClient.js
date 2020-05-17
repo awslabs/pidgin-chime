@@ -1,7 +1,7 @@
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const GObject = imports.gi.GObject;
-const Polari = imports.gi.Polari;
+const Chime = imports.gi.Chime;
 const Tp = imports.gi.TelepathyGLib;
 
 const {AccountsMonitor} = imports.accountsMonitor;
@@ -263,7 +263,7 @@ class TelepathyClient extends Tp.BaseClient {
         if (!account || !account.enabled)
             return;
 
-        let roomId = Polari.create_room_id(account,  targetId, targetType);
+        let roomId = Chime.create_room_id(account,  targetId, targetType);
 
         let cancellable = new Gio.Cancellable();
         this._pendingRequests.set(roomId, cancellable);
@@ -277,7 +277,7 @@ class TelepathyClient extends Tp.BaseClient {
         req.set_target_id(targetType, targetId);
         req.set_delegate_to_preferred_handler(true);
 
-        let preferredHandler = Tp.CLIENT_BUS_NAME_BASE + 'Polari';
+        let preferredHandler = Tp.CLIENT_BUS_NAME_BASE + 'Chime';
         req.ensure_and_observe_channel_async(preferredHandler, cancellable,
             (o, res) => {
                 let channel = null;

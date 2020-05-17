@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2011 Red Hat, Inc.
  *
- * Polari is free software; you can redistribute it and/or modify
+ * Chime is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by the
  * Free Software Foundation; either version 2 of the License, or (at your
  * option) any later version.
  *
- * Polari is distributed in the hope that it will be useful, but
+ * Chime is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
  * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  * for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with Polari; if not, write to the Free Software Foundation,
+ * with Chime; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * Authors: Cosimo Cecchi <cosimoc@redhat.com>
@@ -31,11 +31,11 @@ const Tp = imports.gi.TelepathyGLib;
 const AppNotifications = imports.appNotifications;
 
 const SECRET_SCHEMA_ACCOUNT = new Secret.Schema(
-    'org.gnome.Polari.Account', Secret.SchemaFlags.NONE,
+    'org.gnome.Chime.Account', Secret.SchemaFlags.NONE,
     { 'account-id': Secret.SchemaAttributeType.STRING }
 );
 const SECRET_SCHEMA_IDENTIFY = new Secret.Schema(
-    'org.gnome.Polari.Identify', Secret.SchemaFlags.NONE,
+    'org.gnome.Chime.Identify', Secret.SchemaFlags.NONE,
     { 'account-id': Secret.SchemaAttributeType.STRING }
 );
 
@@ -103,12 +103,12 @@ function getTpEventTime() {
 }
 
 function storeAccountPassword(account, password, callback) {
-    let label = _("Polari server password for %s").format(account.display_name);
+    let label = _("Chime server password for %s").format(account.display_name);
     _storePassword(SECRET_SCHEMA_ACCOUNT, label, account, password, callback);
 }
 
 function storeIdentifyPassword(account, password, callback) {
-    let label = _("Polari NickServ password for %s").format(account.display_name);
+    let label = _("Chime NickServ password for %s").format(account.display_name);
     _storePassword(SECRET_SCHEMA_IDENTIFY, label, account, password, callback);
 }
 

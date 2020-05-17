@@ -1,7 +1,7 @@
 script_conf = configuration_data()
 script_conf.set('GJS', gjs_console.path())
 
-script = 'polari-accounts'
+script = 'chime-accounts'
 configure_file(
   input: script + '.in',
   output: script,
@@ -70,56 +70,56 @@ src_resources = gnome.compile_resources(
 )
 
 exeargs = [
-  '-DPACKAGE_NAME="polari"',
+  '-DPACKAGE_NAME="chime"',
   '-DPACKAGE_VERSION="@0@"'.format(meson.project_version()),
   '-DPREFIX="@0@"'.format(prefix),
   '-DLIBDIR="@0@"'.format(libdir),
   '-DPKGLIBDIR="@0@"'.format(pkglibdir)
 ]
-polari = executable('polari', ['polari.c', src_resources, data_resources],
+chime = executable('chime', ['chime.c', src_resources, data_resources],
   dependencies: [gio, girepository, gjs],
   c_args: exeargs,
   install: true
 )
 
 libsources = [
-  'lib/polari-client-factory.c',
-  'lib/polari-client-factory.h',
-  'lib/polari-drag-helper.c',
-  'lib/polari-drag-helper.h',
-  'lib/polari-room.c',
-  'lib/polari-room.h',
-  'lib/polari-util.c',
-  'lib/polari-util.h'
+  'lib/chime-client-factory.c',
+  'lib/chime-client-factory.h',
+  'lib/chime-drag-helper.c',
+  'lib/chime-drag-helper.h',
+  'lib/chime-room.c',
+  'lib/chime-room.h',
+  'lib/chime-util.c',
+  'lib/chime-util.h'
 ]
 
 lib_nongir_sources = [
-  'lib/polari-tp-autocleanup.h',
+  'lib/chime-tp-autocleanup.h',
 ]
 
 libargs = [
   '-DG_LOG_USE_STRUCTURED',
-  '-DG_LOG_DOMAIN="Polari"'
+  '-DG_LOG_DOMAIN="Chime"'
 ]
-libpolari = shared_library('polari-1.0', libsources + lib_nongir_sources,
+libchime = shared_library('chime-1.0', libsources + lib_nongir_sources,
   dependencies: [gio, gtk3, telepathy_glib],
   c_args: libargs,
   install: true,
   install_dir: pkglibdir
 )
 
-libpolari_dep = declare_dependency(
+libchime_dep = declare_dependency(
   include_directories: include_directories('lib'),
   dependencies: [gio, gtk3, telepathy_glib],
-  link_with: libpolari
+  link_with: libchime
 )
 
-gnome.generate_gir(libpolari,
+gnome.generate_gir(libchime,
   sources: libsources,
   nsversion: '1.0',
-  namespace: 'Polari',
-  symbol_prefix: 'polari',
-  identifier_prefix: 'Polari',
+  namespace: 'Chime',
+  symbol_prefix: 'chime',
+  identifier_prefix: 'Chime',
   includes: ['Gio-2.0', 'Gtk-3.0', 'TelepathyGLib-0.12'],
   extra_args: '--quiet',
   install_dir_gir: girdir,

@@ -12,19 +12,19 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    inkscape:export-ydpi="96"
    inkscape:export-xdpi="96"
-   inkscape:export-filename="/home/sam/polari.png"
+   inkscape:export-filename="/home/sam/chime.png"
    width="680"
    height="560"
    id="svg11300"
    sodipodi:version="0.32"
    inkscape:version="0.92pre3 r"
-   sodipodi:docname="org.gnome.Polari.svg"
+   sodipodi:docname="org.gnome.Chime.svg"
    inkscape:output_extension="org.inkscape.output.svg.inkscape"
    version="1.0"
    style="display:inline;enable-background:new"
    viewBox="0 0 680 560">
   <title
-     id="title5817">Polari Icon</title>
+     id="title5817">Chime Icon</title>
   <defs
      id="defs3">
     <linearGradient
@@ -774,7 +774,7 @@
         <dc:source />
         <cc:license
            rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-        <dc:title>Polari Icon</dc:title>
+        <dc:title>Chime Icon</dc:title>
         <dc:subject>
           <rdf:Bag />
         </dc:subject>
@@ -819,7 +819,7 @@
   </metadata>
   <g
      id="layer1"
-     inkscape:label="artwork:polari"
+     inkscape:label="artwork:chime"
      inkscape:groupmode="layer"
      style="display:inline"
      transform="translate(0,260)">
@@ -889,7 +889,7 @@
            y="-277.90063"
            x="31.264769"
            id="tspan3023"
-           sodipodi:role="line">org.gnome.Polari</tspan></text>
+           sodipodi:role="line">org.gnome.Chime</tspan></text>
       <rect
          style="display:inline;overflow:visible;visibility:visible;fill:#eeeeec;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:2;marker:none;enable-background:accumulate"
          id="rect13805"

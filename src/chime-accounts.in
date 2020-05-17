@@ -92,9 +92,9 @@ class AccountsWindow extends Gtk.ApplicationWindow {
     }
 });
 
-GLib.set_application_name("Polari Accounts");
+GLib.set_application_name("Chime Accounts");
 
-let app = new Gtk.Application({ application_id: 'org.gnome.Polari.Accounts' });
+let app = new Gtk.Application({ application_id: 'org.gnome.Chime.Accounts' });
 app.connect('activate', () => {
     let window = app.active_window;
     if (!window)

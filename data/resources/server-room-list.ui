@@ -31,7 +31,7 @@
       <object class="GtkBox">
         <property name="visible">True</property>
         <style>
-          <class name="polari-listbox-filterbar"/>
+          <class name="chime-listbox-filterbar"/>
         </style>
         <child>
           <object class="GtkSearchEntry" id="filterEntry">
@@ -67,7 +67,7 @@
             <property name="enable-grid-lines">horizontal</property>
             <property name="headers-visible">False</property>
             <style>
-              <class name="polari-server-room-list"/>
+              <class name="chime-server-room-list"/>
             </style>
             <child>
               <object class="GtkTreeViewColumn">

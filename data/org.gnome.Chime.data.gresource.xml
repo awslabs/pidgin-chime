@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/org/gnome/Polari">
+  <gresource prefix="/org/gnome/Chime">
     <file alias="css/application.css">resources/application.css</file>
     <file alias="data/emoji.json">resources/emoji.json</file>
     <file alias="data/networks.json">resources/networks.json</file>
     <file alias="gtk/help-overlay.ui" preprocess="xml-stripblanks">resources/help-overlay.ui</file>
     <file alias="gtk/menus.ui" preprocess="xml-stripblanks">resources/menus.ui</file>
-    <file alias="icons/polari-user-notify-symbolic.svg" preprocess="xml-stripblanks">resources/polari-user-notify-symbolic.svg</file>
+    <file alias="icons/chime-user-notify-symbolic.svg" preprocess="xml-stripblanks">resources/chime-user-notify-symbolic.svg</file>
     <file alias="ui/connection-details.ui" preprocess="xml-stripblanks">resources/connection-details.ui</file>
     <file alias="ui/connection-properties.ui" preprocess="xml-stripblanks">resources/connection-properties.ui</file>
     <file alias="ui/entry-area.ui" preprocess="xml-stripblanks">resources/entry-area.ui</file>

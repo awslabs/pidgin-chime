@@ -6,7 +6,7 @@ const Gtk = imports.gi.Gtk;
 const Mainloop = imports.mainloop;
 const Pango = imports.gi.Pango;
 const PangoCairo = imports.gi.PangoCairo;
-const Polari = imports.gi.Polari;
+const Chime = imports.gi.Chime;
 const Tp = imports.gi.TelepathyGLib;
 const Tpl = imports.gi.TelepathyLogger;
 
@@ -286,7 +286,7 @@ var ChatView = GObject.registerClass({
     _init(room) {
         super._init({ hscrollbar_policy: Gtk.PolicyType.NEVER, vexpand: true });
 
-        this.get_style_context().add_class('polari-chat-view');
+        this.get_style_context().add_class('chime-chat-view');
 
         this._view = new TextView({ editable: false, cursor_visible: false,
                                     wrap_mode: Gtk.WrapMode.WORD_CHAR,
@@ -881,7 +881,7 @@ var ChatView = GObject.registerClass({
     }
 
     _getNickTagName(nick) {
-        return NICKTAG_PREFIX + Polari.util_get_basenick(nick);
+        return NICKTAG_PREFIX + Chime.util_get_basenick(nick);
     }
 
     _getNickFromTagName(tagName) {
@@ -1270,7 +1270,7 @@ var ChatView = GObject.registerClass({
         // mask identify passwords in private chats
         if (this._room.type == Tp.HandleType.CONTACT) {
             let [isIdentify, command, username, password] =
-                Polari.util_match_identify_message(text);
+                Chime.util_match_identify_message(text);
 
             if (isIdentify)
                 text = text.replace(password, (p) => p.replace(/./g, '●'));

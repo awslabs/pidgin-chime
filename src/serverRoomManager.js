@@ -110,7 +110,7 @@ function _strBaseEqual(str1, str2) {
 };
 
 var ServerRoomList = GObject.registerClass({
-    Template: 'resource:///org/gnome/Polari/ui/server-room-list.ui',
+    Template: 'resource:///org/gnome/Chime/ui/server-room-list.ui',
     InternalChildren: ['filterEntry',
                        'list',
                        'spinner',

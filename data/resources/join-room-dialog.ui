@@ -120,7 +120,7 @@
                           <object class="GtkBox">
                             <property name="visible">True</property>
                             <style>
-                              <class name="polari-listbox-filterbar"/>
+                              <class name="chime-listbox-filterbar"/>
                             </style>
                             <child>
                               <object class="GtkSearchEntry" id="filterEntry">

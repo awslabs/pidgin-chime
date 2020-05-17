@@ -4,7 +4,7 @@ const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const GObject = imports.gi.GObject;
 const Gtk = imports.gi.Gtk;
-const Polari = imports.gi.Polari;
+const Chime = imports.gi.Chime;
 
 const Utils = imports.utils;
 
@@ -114,10 +114,10 @@ var DropTargetIface = GObject.registerClass({
         if (!this.can_drop)
             return Gdk.EVENT_PROPAGATE;
 
-        if (!Polari.drag_dest_supports_target(widget, context))
+        if (!Chime.drag_dest_supports_target(widget, context))
             return Gdk.EVENT_PROPAGATE;
 
-        Polari.drag_dest_request_data(widget, context, time);
+        Chime.drag_dest_request_data(widget, context, time);
         return Gdk.EVENT_STOP;
     }
 
@@ -130,10 +130,10 @@ var DropTargetIface = GObject.registerClass({
         if (!this.can_drop)
             return Gdk.EVENT_PROPAGATE;
 
-        if (!Polari.drag_dest_supports_target(widget, context))
+        if (!Chime.drag_dest_supports_target(widget, context))
             return Gdk.EVENT_PROPAGATE;
 
-        let info = Polari.drag_dest_find_target(widget, context);
+        let info = Chime.drag_dest_find_target(widget, context);
         switch (info) {
             case DndTargetType.TEXT:
             case DndTargetType.IMAGE:

@@ -12,7 +12,7 @@ const char *src =
 int
 main (int argc, char *argv[])
 {
-  const char *search_path[] = { "resource:///org/gnome/Polari/js", NULL };
+  const char *search_path[] = { "resource:///org/gnome/Chime/js", NULL };
   g_autoptr (GError) error = NULL;
   g_autoptr (GjsContext) context = NULL;
   int status;

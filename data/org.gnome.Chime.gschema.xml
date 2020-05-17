@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<schemalist gettext-domain="polari">
-  <schema path="/org/gnome/polari/" id="org.gnome.Polari">
+<schemalist gettext-domain="chime">
+  <schema path="/org/gnome/chime/" id="org.gnome.Chime">
     <key type="aa{sv}" name="saved-channel-list">
       <default>[]</default>
       <summary>Saved channel list</summary>
@@ -28,7 +28,7 @@
     </key>
   </schema>
 
-  <schema id="org.gnome.Polari.Account">
+  <schema id="org.gnome.Chime.Account">
     <key type="s" name="identify-botname">
       <default>"NickServ"</default>
       <summary>Identify botname</summary>

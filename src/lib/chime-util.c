@@ -18,12 +18,12 @@
 
 #include <string.h>
 
-#include "polari-util.h"
+#include "chime-util.h"
 
 #include <glib.h>
 
 /**
- * polari_util_get_basenick:
+ * chime_util_get_basenick:
  * @nick: (transfer none): the original nick
  *
  * Returns: (transfer full): the "base nick" of @nick, which can be used to
@@ -31,7 +31,7 @@
  *   "nick|bbl")
  */
 char *
-polari_util_get_basenick (const char *nick)
+chime_util_get_basenick (const char *nick)
 {
   int len;
 
@@ -53,7 +53,7 @@ polari_util_get_basenick (const char *nick)
 #endif
 
 gboolean
-polari_util_match_nick (const char *text,
+chime_util_match_nick (const char *text,
                         const char *nick)
 {
   g_autofree char *folded_text = NULL;
@@ -89,7 +89,7 @@ polari_util_match_nick (const char *text,
 }
 
 /**
- * polari_util_match_identify_message:
+ * chime_util_match_identify_message:
  * @message: a text message
  * @command: (optional) (out): the parsed command if the @message is an
  *                             identify command
@@ -101,7 +101,7 @@ polari_util_match_nick (const char *text,
  * Returns: %TRUE if @message is an identify command
  */
 gboolean
-polari_util_match_identify_message (const char  *message,
+chime_util_match_identify_message (const char  *message,
                                     char       **command,
                                     char       **username,
                                     char       **password)

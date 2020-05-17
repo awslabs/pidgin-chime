@@ -20,14 +20,14 @@
 
 #include <locale.h>
 
-#include "polari-util.h"
+#include "chime-util.h"
 
 static void
 test_base_nick_basic (void)
 {
   g_autofree char *res = NULL;
 
-  res = polari_util_get_basenick ("nick");
+  res = chime_util_get_basenick ("nick");
   g_assert_cmpstr (res, ==, "nick");
 }
 
@@ -36,7 +36,7 @@ test_base_nick_trailing (void)
 {
   g_autofree char *res = NULL;
 
-  res = polari_util_get_basenick ("nick_");
+  res = chime_util_get_basenick ("nick_");
   g_assert_cmpstr (res, ==, "nick");
 }
 
@@ -45,7 +45,7 @@ test_base_nick_numeric (void)
 {
   g_autofree char *res = NULL;
 
-  res = polari_util_get_basenick ("nick42");
+  res = chime_util_get_basenick ("nick42");
   g_assert_cmpstr (res, ==, "nick42");
 }
 
@@ -54,7 +54,7 @@ test_match_nick_nomatch (void)
 {
   gboolean res;
 
-  res = polari_util_match_nick ("Hello, world!", "nick");
+  res = chime_util_match_nick ("Hello, world!", "nick");
   g_assert_false (res);
 }
 
@@ -63,7 +63,7 @@ test_match_nick_match (void)
 {
   gboolean res;
 
-  res = polari_util_match_nick ("Hello, nick!", "nick");
+  res = chime_util_match_nick ("Hello, nick!", "nick");
   g_assert_true (res);
 }
 
@@ -72,7 +72,7 @@ test_match_nick_match2 (void)
 {
   gboolean res;
 
-  res = polari_util_match_nick ("nick: Hello!", "nick");
+  res = chime_util_match_nick ("nick: Hello!", "nick");
   g_assert_true (res);
 }
 
@@ -81,7 +81,7 @@ test_match_nick_trailing_junk (void)
 {
   gboolean res;
 
-  res = polari_util_match_nick ("Hello nicky!", "nick");
+  res = chime_util_match_nick ("Hello nicky!", "nick");
   g_assert_false (res);
 }
 
@@ -90,7 +90,7 @@ test_match_nick_leading_junk (void)
 {
   gboolean res;
 
-  res = polari_util_match_nick ("knick!", "nick");
+  res = chime_util_match_nick ("knick!", "nick");
   g_assert_false (res);
 }
 
@@ -99,7 +99,7 @@ test_match_nick_numeric (void)
 {
   gboolean res;
 
-  res = polari_util_match_nick ("nick42: Hi", "nick");
+  res = chime_util_match_nick ("nick42: Hi", "nick");
   g_assert_false (res);
 }
 
@@ -108,7 +108,7 @@ test_match_nick_numeric2 (void)
 {
   gboolean res;
 
-  res = polari_util_match_nick ("nick42: Hi", "nick42");
+  res = chime_util_match_nick ("nick42: Hi", "nick42");
   g_assert_true (res);
 }
 
@@ -117,7 +117,7 @@ test_match_nick_mixed_case (void)
 {
   gboolean res;
 
-  res = polari_util_match_nick ("Hello Nick", "nick");
+  res = chime_util_match_nick ("Hello Nick", "nick");
   g_assert_true (res);
 }
 
@@ -126,7 +126,7 @@ test_match_nick_mixed_case2 (void)
 {
   gboolean res;
 
-  res = polari_util_match_nick ("Hello nick", "Nick");
+  res = chime_util_match_nick ("Hello nick", "Nick");
   g_assert_true (res);
 }
 
@@ -135,7 +135,7 @@ test_match_nick_away (void)
 {
   gboolean res;
 
-  res = polari_util_match_nick ("nick-away: Hi", "nick");
+  res = chime_util_match_nick ("nick-away: Hi", "nick");
   g_assert_true (res);
 }
 
@@ -147,7 +147,7 @@ test_match_identify_nomatch (void)
   g_autofree char *user = NULL;
   g_autofree char *password = NULL;
 
-  res = polari_util_match_identify_message ("regular message",
+  res = chime_util_match_identify_message ("regular message",
                                             &command, &user, &password);
   g_assert_false (res);
   g_assert_null (command);
@@ -163,7 +163,7 @@ test_match_identify_match (void)
   g_autofree char *user = NULL;
   g_autofree char *password = NULL;
 
-  res = polari_util_match_identify_message ("identify nick pass",
+  res = chime_util_match_identify_message ("identify nick pass",
                                             &command, &user, &password);
   g_assert_true (res);
   g_assert_cmpstr (command, ==, "identify");
@@ -179,7 +179,7 @@ test_match_identify_no_user (void)
   g_autofree char *user = NULL;
   g_autofree char *password = NULL;
 
-  res = polari_util_match_identify_message ("identify pass",
+  res = chime_util_match_identify_message ("identify pass",
                                             &command, &user, &password);
   g_assert_true (res);
   g_assert_cmpstr (command, ==, "identify");
@@ -195,7 +195,7 @@ test_match_identify_login (void)
   g_autofree char *user = NULL;
   g_autofree char *password = NULL;
 
-  res = polari_util_match_identify_message ("login nick pass",
+  res = chime_util_match_identify_message ("login nick pass",
                                             &command, &user, &password);
   g_assert_true (res);
   g_assert_cmpstr (command, ==, "login");
@@ -211,7 +211,7 @@ test_match_identify_case (void)
   g_autofree char *user = NULL;
   g_autofree char *password = NULL;
 
-  res = polari_util_match_identify_message ("IDENTify nick pass",
+  res = chime_util_match_identify_message ("IDENTify nick pass",
                                             &command, &user, &password);
   g_assert_true (res);
   g_assert_cmpstr (command, ==, "IDENTify");

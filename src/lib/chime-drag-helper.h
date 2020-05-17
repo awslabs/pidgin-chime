@@ -1,6 +1,6 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /*
- * Copyright (C) 2015 Red Hat, Inc.
+ * Copyright (C) 2013 Red Hat, Inc.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -18,14 +18,18 @@
 
 #pragma once
 
-#include <glib.h>
+#include <gtk/gtk.h>
 
-char *polari_util_get_basenick (const char *nick);
+G_BEGIN_DECLS
 
-gboolean polari_util_match_nick (const char *text,
-		                 const char *nick);
+void     chime_drag_dest_request_data (GtkWidget      *widget,
+                                        GdkDragContext *context,
+                                        guint32         time_);
 
-gboolean polari_util_match_identify_message (const char  *message,
-                                             char       **command,
-                                             char       **username,
-                                             char       **password);
+gboolean chime_drag_dest_supports_target (GtkWidget      *widget,
+                                           GdkDragContext *context);
+
+guint    chime_drag_dest_find_target (GtkWidget      *widget,
+                                       GdkDragContext *context);
+
+G_END_DECLS

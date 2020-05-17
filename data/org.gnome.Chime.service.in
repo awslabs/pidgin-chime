@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.gnome.Chime
+Exec=@bindir@/chime --gapplication-service

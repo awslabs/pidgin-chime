@@ -1,7 +1,7 @@
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const GObject = imports.gi.GObject;
-const Polari = imports.gi.Polari;
+const Chime = imports.gi.Chime;
 const Tp = imports.gi.TelepathyGLib;
 
 const {AccountsMonitor} = imports.accountsMonitor;
@@ -174,7 +174,7 @@ var UserTracker = GObject.registerClass({
     }
 
     _runHandlers(room, member, status) {
-        let baseNick = Polari.util_get_basenick(member.alias);
+        let baseNick = Chime.util_get_basenick(member.alias);
         let roomHandlers = this._getRoomHandlers(room);
         for (let [id, info] of roomHandlers)
             if (!info.nickName || info.nickName == baseNick)
@@ -189,7 +189,7 @@ var UserTracker = GObject.registerClass({
     }
 
     _trackMember(member, room) {
-        let baseNick = Polari.util_get_basenick(member.alias);
+        let baseNick = Chime.util_get_basenick(member.alias);
         let status = Tp.ConnectionPresenceType.AVAILABLE;
 
         let roomMap = this._getRoomContacts(room);
@@ -225,7 +225,7 @@ var UserTracker = GObject.registerClass({
     }
 
     _untrackMember(member, room) {
-        let baseNick = Polari.util_get_basenick(member.alias);
+        let baseNick = Chime.util_get_basenick(member.alias);
         let status = Tp.ConnectionPresenceType.OFFLINE;
 
         let roomMap = this._getRoomContacts(room);
@@ -253,7 +253,7 @@ var UserTracker = GObject.registerClass({
     }
 
     getNickStatus(nickName) {
-        let baseNick = Polari.util_get_basenick(nickName);
+        let baseNick = Chime.util_get_basenick(nickName);
 
         let contacts = this._baseNickContacts.get(baseNick) || [];
         return contacts.length == 0 ? Tp.ConnectionPresenceType.OFFLINE
@@ -261,7 +261,7 @@ var UserTracker = GObject.registerClass({
     }
 
     getNickRoomStatus(nickName, room) {
-        let baseNick = Polari.util_get_basenick(nickName);
+        let baseNick = Chime.util_get_basenick(nickName);
 
         this._ensureRoomMappingForRoom(room);
 
@@ -271,7 +271,7 @@ var UserTracker = GObject.registerClass({
     }
 
     lookupContact(nickName) {
-        let baseNick = Polari.util_get_basenick(nickName);
+        let baseNick = Chime.util_get_basenick(nickName);
 
         let contacts = this._baseNickContacts.get(baseNick) || [];
         if (!contacts.length)
@@ -314,7 +314,7 @@ var UserTracker = GObject.registerClass({
 
         this._app.send_notification(this._getNotifyActionNameInternal(member.alias), notification);
 
-        let baseNick = Polari.util_get_basenick(member.alias);
+        let baseNick = Chime.util_get_basenick(member.alias);
     }
 
     _shouldNotifyNick(nickName) {
@@ -334,7 +334,7 @@ var UserTracker = GObject.registerClass({
     _getNotifyActionNameInternal(nickName) {
         return 'notify-user-' +
                this._account.get_path_suffix() + '-' +
-               Polari.util_get_basenick(nickName);
+               Chime.util_get_basenick(nickName);
     }
 
     getNotifyActionName(nickName) {

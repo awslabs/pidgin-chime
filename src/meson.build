@@ -101,23 +101,23 @@ libargs = [
   '-DG_LOG_USE_STRUCTURED',
   '-DG_LOG_DOMAIN="Chime"'
 ]
-libchime = shared_library('chime-1.0', libsources + lib_nongir_sources,
+libchimeutils = shared_library('chime-utils-1.0', libsources + lib_nongir_sources,
   dependencies: [gio, gtk3, telepathy_glib],
   c_args: libargs,
   install: true,
   install_dir: pkglibdir
 )
 
-libchime_dep = declare_dependency(
+libchimeutils_dep = declare_dependency(
   include_directories: include_directories('lib'),
   dependencies: [gio, gtk3, telepathy_glib],
-  link_with: libchime
+  link_with: libchimeutils
 )
 
-gnome.generate_gir(libchime,
+gnome.generate_gir(libchimeutils,
   sources: libsources,
   nsversion: '1.0',
-  namespace: 'Chime',
+  namespace: 'ChimeUtils',
   symbol_prefix: 'chime',
   identifier_prefix: 'Chime',
   includes: ['Gio-2.0', 'Gtk-3.0', 'TelepathyGLib-0.12'],

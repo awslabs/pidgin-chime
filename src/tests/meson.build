@@ -5,6 +5,6 @@ test_env = [
 
 test_util = executable('test-util',
   'test-util.c',
-  dependencies: libchime_dep
+  dependencies: libchimeutils_dep
 )
 test('Testing utility functions', test_util, env: test_env)

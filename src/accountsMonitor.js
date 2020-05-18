@@ -1,6 +1,6 @@
 const Gio = imports.gi.Gio;
 const GObject = imports.gi.GObject;
-const Chime = imports.gi.Chime;
+const Chime = imports.gi.ChimeUtils;
 const Signals = imports.signals;
 const Tp = imports.gi.TelepathyGLib;
 

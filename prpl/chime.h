@@ -173,5 +173,6 @@ ChimeAttachment *extract_attachment(JsonNode *record);
 
 void download_attachment(ChimeConnection *cxn, ChimeAttachment *att, AttachmentContext *ctx);
 void chime_send_file(PurpleConnection *gc, const char *who, const char *filename);
+void chime_send_file_chat(PurpleConnection *gc, ChimeObject *obj, const char *who, const char *filename);
 
 #endif /* __CHIME_H__ */

@@ -1250,6 +1250,14 @@ static void leave_room(PurpleBuddy *buddy, gpointer _chat)
 	chime_connection_remove_room_member_async(cxn, room, me, NULL, leave_room_cb, chat);
 }
 
+void chime_purple_chat_send_file(PurpleConnection *conn, int id, const char *filename)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+	struct chime_chat *chat = g_hash_table_lookup(pc->live_chats, GUINT_TO_POINTER(id));
+
+	chime_send_file_object(conn, chat->m.obj, purple_conversation_get_name(chat->conv), filename);
+}
+
 GList *chime_purple_chat_menu(PurpleChat *pchat)
 {
 

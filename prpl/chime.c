@@ -394,10 +394,11 @@ static PurplePluginProtocolInfo chime_prpl_info = {
 	.send_file = chime_send_file,
 	.get_media_caps = chime_purple_get_media_caps,
 	.initiate_media = chime_purple_initiate_media,
-	.add_buddies_with_invite = NULL, /* We *really* depend on 2.8.0, and this is
-					  * immediately before .get_cb_alias() */
 #ifdef PRPL_HAS_GET_CB_ALIAS
 	.get_cb_alias = chime_purple_get_cb_alias,
+#endif
+#ifdef HAVE_CHAT_SEND_FILE
+	.chat_send_file = chime_purple_chat_send_file,
 #endif
 };
 
@@ -518,15 +519,21 @@ static void chime_purple_init_plugin(PurplePlugin *plugin)
 
 	chime_prpl_info.protocol_options = opts;
 
-#ifndef PRPL_HAS_GET_CB_ALIAS
-	PurplePluginProtocolInfo *i = g_malloc0(sizeof (*i) + sizeof(void *));
+#ifndef HAVE_CHAT_SEND_FILE
+	/* If built against a Pidgin that doesn't yet support chat_send_file(),
+	 * or indeed get_cb_alias(), copy the struct and extend it manually. */
+	PurplePluginProtocolInfo *i = g_malloc0(sizeof (*i) + 3 * sizeof(void *));
 	memcpy(i, &chime_prpl_info, sizeof(*i));
 	chime_plugin_info.extra_info = i;
 
-	/* Now add the .get_cb_alias method */
-	i->struct_size += sizeof(void *);
-	i++;
-	*(void **)i = chime_purple_get_cb_alias;
+	/* ->add_buddies_with_invite() was 2.8.0; We know we have that */
+	void **p = (void **)&i->add_buddies_with_invite;
+	p++;
+	*p++ = chime_purple_get_cb_alias;
+	*p++ = NULL; /* chat_can_receive_file() but they all can */
+	*p++ = chime_purple_chat_send_file;
+
+	i->struct_size += (unsigned long)p - (unsigned long)i;
 #endif
 }
 

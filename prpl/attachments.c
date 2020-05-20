@@ -249,6 +249,8 @@ static void deep_free_upload_data(PurpleXfer *xfer)
 		purple_xfer_cancel_local(xfer);
 	}
 
+	g_clear_object(&data->obj);
+
 	g_free(data->content);
 	g_free(data->content_type);
 	g_free(data->upload_id);
@@ -549,7 +551,8 @@ static void chime_send_init(PurpleXfer *xfer)
 	purple_debug_info("chime", "Starting to handle upload of file '%s'\n", xfer->local_filename);
 
 	struct purple_chime *pc = purple_connection_get_protocol_data(xfer->account->gc);
-	struct chime_im *im = g_hash_table_lookup(pc->ims_by_email, xfer->who);
+	ChimeObject *obj = CHIME_OBJECT (xfer->data);
+	xfer->data = NULL;
 
 	g_return_if_fail(CHIME_IS_CONNECTION(pc->cxn));
 	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(pc->cxn);
@@ -562,11 +565,12 @@ static void chime_send_init(PurpleXfer *xfer)
 		purple_debug_error("chime", _("Could not read file '%s' (errno=%d, errstr=%s)\n"),
 				   xfer->local_filename, error->code, error->message);
 		g_clear_error(&error);
+		g_object_unref(obj);
 		return;
 	}
 	AttachmentUpload *data = g_new0(AttachmentUpload, 1);
 	data->conn = pc->cxn;
-	data->obj = im->m.obj;
+	data->obj = obj;
 	data->content = file_contents;
 	data->content_length = length;
 	get_mime_type(xfer->local_filename, &data->content_type);
@@ -599,7 +603,20 @@ static void chime_send_cancel(PurpleXfer *xfer)
 
 void chime_send_file(PurpleConnection *gc, const char *who, const char *filename)
 {
+	struct purple_chime *pc = purple_connection_get_protocol_data(gc);
+	struct chime_im *im = g_hash_table_lookup(pc->ims_by_email, who);
+
 	purple_debug_info("chime", "chime_send_file(who=%s, file=%s\n", who, filename);
+
+	if (!im)
+		return;
+
+	chime_send_file_object(gc, im->m.obj, who, filename);
+}
+
+void chime_send_file_object(PurpleConnection *gc, ChimeObject *obj, const char *who, const char *filename)
+{
+	purple_debug_info("chime", "chime_send_file_object(who=%s, file=%s\n", who, filename);
 
 	PurpleXfer *xfer;
 	xfer = purple_xfer_new(gc->account, PURPLE_XFER_SEND, who);
@@ -608,6 +625,9 @@ void chime_send_file(PurpleConnection *gc, const char *who, const char *filename
 		purple_xfer_set_start_fnc(xfer, chime_send_start);
 		purple_xfer_set_cancel_send_fnc(xfer, chime_send_cancel);
 	}
+
+	/* This is only in xfer->data until chime_send_init() runs. */
+	xfer->data = g_object_ref(obj);
 
 	if (filename) {
 		purple_xfer_request_accepted(xfer, filename);

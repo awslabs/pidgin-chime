@@ -102,6 +102,7 @@ fi
 
 LIBS="$LIBS $PURPLE_LIBS"
 AC_CHECK_FUNC(purple_request_screenshare_media, [AC_DEFINE(HAVE_SCREENSHARE, 1, [Have purple_request_screenshare_media()])], [])
+AC_CHECK_FUNC(serv_chat_send_file, [AC_DEFINE(HAVE_CHAT_SEND_FILE, 1, [Have serv_chat_send_file()])], [])
 LIBS="$oldLIBS"
 
 gstplugindir="$($PKG_CONFIG --variable=pluginsdir gstreamer-1.0)"

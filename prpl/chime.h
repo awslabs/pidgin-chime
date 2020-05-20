@@ -108,6 +108,7 @@ struct chime_chat *do_join_chat(PurpleConnection *conn, ChimeConnection *cxn, Ch
 void chime_purple_chat_join_audio(struct chime_chat *chat);
 GList *chime_purple_chat_menu(PurpleChat *chat);
 char *chime_purple_get_cb_alias(PurpleConnection *conn, int id, const gchar *who);
+void chime_purple_chat_send_file(PurpleConnection *gc, int id, const char *filename);
 
 /* conversations.c */
 void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn);
@@ -173,5 +174,6 @@ ChimeAttachment *extract_attachment(JsonNode *record);
 
 void download_attachment(ChimeConnection *cxn, ChimeAttachment *att, AttachmentContext *ctx);
 void chime_send_file(PurpleConnection *gc, const char *who, const char *filename);
+void chime_send_file_object(PurpleConnection *gc, ChimeObject *obj, const char *who, const char *filename);
 
 #endif /* __CHIME_H__ */

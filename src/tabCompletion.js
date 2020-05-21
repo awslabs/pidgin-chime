@@ -2,8 +2,6 @@ const Gdk = imports.gi.Gdk;
 const Gtk = imports.gi.Gtk;
 const Pango = imports.gi.Pango;
 
-const IrcParser = imports.ircParser;
-
 var TabCompletion = class {
     constructor(entry) {
         this._entry = entry;
@@ -36,7 +34,7 @@ var TabCompletion = class {
         this._widgetMap = new Map();
         this._previousWasCommand = false;
 
-        let commands = Object.keys(IrcParser.knownCommands);
+        /*let commands = Object.keys(IrcParser.knownCommands);
         for (let i = 0; i < commands.length; i++) {
             let row = new Gtk.ListBoxRow();
             row._text = '/' + commands[i];
@@ -46,7 +44,7 @@ var TabCompletion = class {
                                     margin_start: 6,
                                     margin_end: 6 }));
             this._list.add(row);
-        }
+        }*/
     }
 
     _showPopup() {

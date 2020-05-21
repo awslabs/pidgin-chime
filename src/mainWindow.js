@@ -5,7 +5,6 @@ const GObject = imports.gi.GObject;
 const Gtk = imports.gi.Gtk;
 const Mainloop = imports.mainloop;
 const Chime = imports.gi.Chime;
-const Tp = imports.gi.TelepathyGLib;
 
 const {AccountsMonitor} = imports.accountsMonitor;
 const {JoinDialog} = imports.joinDialog;
@@ -133,73 +132,10 @@ var MainWindow = GObject.registerClass({
         this._isMaximized = false;
         this._isFullscreen = false;
 
-        let app = this.application;
-        this._overlay.add_overlay(app.notificationQueue);
-        this._overlay.add_overlay(app.commandOutputQueue);
-
-        if (app.isTestInstance)
-            this.get_style_context().add_class('test-instance');
-
-        // command output notifications should not pop up over
-        // the input area, but appear to emerge from it, so
-        // set up an appropriate margin
-        this._roomStack.bind_property('entry-area-height',
-                                      app.commandOutputQueue, 'margin-bottom',
-                                      GObject.BindingFlags.SYNC_CREATE);
-
-        // Make sure user-list button is at least as wide as icon buttons
-        this._joinButton.connect('size-allocate', (w, rect) => {
-            let width = rect.width;
-            Mainloop.idle_add(() => {
-                this._showUserListButton.width_request = width;
-                return GLib.SOURCE_REMOVE;
-            });
-        });
-
-        this._accountsMonitor = AccountsMonitor.getDefault();
-        this._accountsMonitor.connect('accounts-changed',
-                                      this._onAccountsChanged.bind(this));
-        this._onAccountsChanged(this._accountsMonitor);
-
-        this._roomManager = RoomManager.getDefault();
-        this._roomManager.connect('rooms-loaded',
-                                  this._onRoomsLoaded.bind(this));
-        this._roomManager.connect('room-removed',
-                                  this._onRoomRemoved.bind(this));
-        this._onRoomsLoaded();
-
-        this._updateUserListLabel();
-
-        this._userListAction = app.lookup_action('user-list');
-
-        app.connect('action-state-changed::user-list', (group, name, value) => {
-            this._userListPopover.visible = value.get_boolean();
-        });
-        this._userListPopover.connect('notify::visible', () => {
-            if (!this._userListPopover.visible)
-                this._userListAction.change_state(GLib.Variant.new('b', false));
-        });
-
-        this._gtkSettings.connect('notify::gtk-decoration-layout',
-                                  this._updateDecorations.bind(this));
-        this._updateDecorations();
-
-        this._closeConfirmationDialog.transient_for = this;
-        this._closeConfirmationDialog.connect('response', (w, r) => {
-            if (r == Gtk.ResponseType.DELETE_EVENT)
-                return;
-
-            this._settings.set_boolean('run-in-background', r == Gtk.ResponseType.ACCEPT);
-            this.destroy();
-        });
-
         this.connect('window-state-event', this._onWindowStateEvent.bind(this));
         this.connect('size-allocate', this._onSizeAllocate.bind(this));
         this.connect('destroy', this._onDestroy.bind(this));
         this.connect('delete-event', this._onDeleteEvent.bind(this));
-        this.connect('notify::active-room', () => {
-            this._updateUserListLabel();
-        });
 
         let size = this._settings.get_value('window-size').deep_unpack();
         if (size.length == 2)
@@ -275,11 +211,6 @@ var MainWindow = GObject.registerClass({
         return Gdk.EVENT_STOP;
     }
 
-    _onAccountsChanged(am) {
-        let hasAccounts = this._accountsMonitor.visibleAccounts.length > 0;
-        this._roomListRevealer.reveal_child = hasAccounts;
-    }
-
     _updateDecorations() {
         let layoutLeft = null;
         let layoutRight = null;
@@ -326,63 +257,11 @@ var MainWindow = GObject.registerClass({
 
         if (!this._room)
             return; // finished
-
-        this._displayNameChangedId =
-            this._room.connect('notify::display-name',
-                               this._updateTitlebar.bind(this));
-        this._topicChangedId =
-            this._room.connect('notify::topic',
-                               this._updateTitlebar.bind(this));
-        this._membersChangedId =
-            this._room.connect('members-changed',
-                               this._updateUserListLabel.bind(this));
-        this._channelChangedId =
-            this._room.connect('notify::channel', () => {
-                this._updateUserListLabel();
-                this.emit('active-room-state-changed');
-            });
-    }
-
-    _onRoomsLoaded(mgr) {
-        if (this.active_room)
-            return;
-
-        let selectedRoom = this._settings.get_value('last-selected-channel').deep_unpack();
-        for (let prop in selectedRoom)
-            selectedRoom[prop] = selectedRoom[prop].deep_unpack();
-
-        let roomId = null;
-        let account = this._accountsMonitor.lookupAccount(selectedRoom.account);
-        let channelName = selectedRoom.channel;
-        if (account && account.visible && channelName)
-            roomId = Chime.create_room_id(account, channelName, Tp.HandleType.ROOM);
-
-        this.active_room = this._roomManager.lookupRoom(roomId) ||
-                           this._roomManager.rooms.shift();
-    }
-
-    _onRoomRemoved(mgr, room) {
-        if (room == this._lastActiveRoom)
-            this._lastActiveRoom = null;
     }
 
     showJoinRoomDialog() {
         let dialog = new JoinDialog({ transient_for: this });
         dialog.show();
-    }
-
-    _updateUserListLabel() {
-        let numMembers = 0;
-
-        if (this._room &&
-            this._room.channel &&
-            this._room.channel.has_interface(Tp.IFACE_CHANNEL_INTERFACE_GROUP))
-            numMembers = this._room.channel.group_dup_members_contacts().length;
-
-        let accessibleName = ngettext("%d user",
-                                      "%d users", numMembers).format(numMembers);
-        this._showUserListButton.get_accessible().set_name(accessibleName);
-        this._showUserListButton.label = '%d'.format(numMembers);
     }
 
     _updateTitlebar() {

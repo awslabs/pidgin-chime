@@ -6,12 +6,10 @@ const GObject = imports.gi.GObject;
 const Gspell = imports.gi.Gspell;
 const Gtk = imports.gi.Gtk;
 const Mainloop = imports.mainloop;
-const Tp = imports.gi.TelepathyGLib;
 
 const ChatView = imports.chatView;
 const {DropTargetIface} = imports.pasteManager;
 const {EmojiPicker} = imports.emojiPicker;
-const {IrcParser} = imports.ircParser;
 const {TabCompletion} = imports.tabCompletion;
 
 const MAX_NICK_UPDATE_TIME = 5; /* s */
@@ -212,7 +210,6 @@ var EntryArea = GObject.registerClass({
         this._room = params.room;
         delete params.room;
 
-        this._ircParser = new IrcParser(this._room);
         this._maxNickChars = ChatView.MAX_NICK_CHARS;
         this._nickChangedId = 0;
 
@@ -282,12 +279,12 @@ var EntryArea = GObject.registerClass({
         this._chatEntry.connect('changed', this._onEntryChanged.bind(this));
 
         this._chatEntry.connect('activate', () => {
-            if (this._ircParser.process(this._chatEntry.text)) {
+            /*if (this._ircParser.process(this._chatEntry.text)) {
                 this._chatEntry.text = '';
             } else {
                 this._chatEntry.get_style_context().add_class('error');
                 this._chatEntry.grab_focus(); // select text
-            }
+            }*/
         });
 
         this._cancelButton.connect('clicked', this._onCancelClicked.bind(this));
@@ -336,8 +333,7 @@ var EntryArea = GObject.registerClass({
 
         if (this._chatEntry.get_mapped() &&
             this._room &&
-            this._room.channel &&
-            this._room.channel.has_interface(Tp.IFACE_CHANNEL_INTERFACE_GROUP)) {
+            this._room.channel) {
             let members = this._room.channel.group_dup_members_contacts();
             nicks = members.map(member => member.alias);
         }
@@ -439,11 +435,12 @@ var EntryArea = GObject.registerClass({
     _onPasteClicked() {
         let title;
         let nick = this._room.channel.connection.self_contact.alias;
-        if (this._room.type == Tp.HandleType.ROOM)
+        //FIXME
+        //if (this._room.type == Tp.HandleType.ROOM)
             /* translators: %s is a nick, #%s a channel */
-            title = _("%s in #%s").format(nick, this._room.display_name);
-        else
-            title = _("Paste from %s").format(nick);
+            //title = _("%s in #%s").format(nick, this._room.display_name);
+        //else
+        title = _("Paste from %s").format(nick);
 
         let app = Gio.Application.get_default();
         try {

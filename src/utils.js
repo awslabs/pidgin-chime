@@ -26,7 +26,6 @@ const GLib = imports.gi.GLib;
 const Gtk = imports.gi.Gtk;
 const Secret = imports.gi.Secret;
 const Soup = imports.gi.Soup;
-const Tp = imports.gi.TelepathyGLib;
 
 const AppNotifications = imports.appNotifications;
 
@@ -93,13 +92,6 @@ function isFlatpakSandbox() {
     if (_inFlatpakSandbox === undefined)
         _inFlatpakSandbox = GLib.file_test('/.flatpak-info', GLib.FileTest.EXISTS);
     return _inFlatpakSandbox;
-}
-
-function getTpEventTime() {
-    let time = Gtk.get_current_event_time ();
-    if (time == 0)
-      return GLib.MAXUINT32;
-    return Tp.user_action_time_from_x11 (time);
 }
 
 function storeAccountPassword(account, password, callback) {

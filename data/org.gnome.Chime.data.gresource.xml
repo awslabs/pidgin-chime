@@ -3,7 +3,6 @@
   <gresource prefix="/org/gnome/Chime">
     <file alias="css/application.css">resources/application.css</file>
     <file alias="data/emoji.json">resources/emoji.json</file>
-    <file alias="data/networks.json">resources/networks.json</file>
     <file alias="gtk/help-overlay.ui" preprocess="xml-stripblanks">resources/help-overlay.ui</file>
     <file alias="gtk/menus.ui" preprocess="xml-stripblanks">resources/menus.ui</file>
     <file alias="icons/chime-user-notify-symbolic.svg" preprocess="xml-stripblanks">resources/chime-user-notify-symbolic.svg</file>
@@ -15,9 +14,7 @@
     <file alias="ui/nick-popover.ui" preprocess="xml-stripblanks">resources/nick-popover.ui</file>
     <file alias="ui/room-list-header.ui" preprocess="xml-stripblanks">resources/room-list-header.ui</file>
     <file alias="ui/room-list-row.ui" preprocess="xml-stripblanks">resources/room-list-row.ui</file>
-    <file alias="ui/server-room-list.ui" preprocess="xml-stripblanks">resources/server-room-list.ui</file>
     <file alias="ui/user-details.ui" preprocess="xml-stripblanks">resources/user-details.ui</file>
     <file alias="ui/user-popover.ui" preprocess="xml-stripblanks">resources/user-popover.ui</file>
-    <file alias="ui/initial-setup-window.ui" preprocess="xml-stripblanks">resources/initial-setup-window.ui</file>
   </gresource>
 </gresources>

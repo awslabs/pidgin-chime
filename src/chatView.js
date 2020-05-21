@@ -7,8 +7,6 @@ const Mainloop = imports.mainloop;
 const Pango = imports.gi.Pango;
 const PangoCairo = imports.gi.PangoCairo;
 const Chime = imports.gi.Chime;
-const Tp = imports.gi.TelepathyGLib;
-const Tpl = imports.gi.TelepathyLogger;
 
 const {DropTargetIface} = imports.pasteManager;
 const {UserPopover} = imports.userList;
@@ -346,14 +344,7 @@ var ChatView = GObject.registerClass({
         });
         this._updateMaxNickChars(this._room.account.nickname.length);
 
-        let isRoom = room.type == Tp.HandleType.ROOM;
-        let target = new Tpl.Entity({ type: isRoom ? Tpl.EntityType.ROOM
-                                                   : Tpl.EntityType.CONTACT,
-                                      identifier: room.channel_name });
-        let logManager = Tpl.LogManager.dup_singleton();
-        this._logWalker =
-            logManager.walk_filtered_events(room.account, target,
-                                            Tpl.EventTypeMask.TEXT, null);
+        let isRoom = false; //FIXME room.type == Tp.HandleType.ROOM;
 
         this._fetchingBacklog = true;
         this._logWalker.get_events_async(NUM_INITIAL_LOG_EVENTS,
@@ -540,7 +531,7 @@ var ChatView = GObject.registerClass({
     }
 
     _createMessage(source) {
-        if (source instanceof Tp.Message) {
+        /*if (source instanceof Tp.Message) {
             let [text, ] = source.to_text();
             let [id, valid] = source.get_pending_message_id();
             return { nick: source.sender.alias,
@@ -555,6 +546,7 @@ var ChatView = GObject.registerClass({
                      timestamp: source.timestamp,
                      messageType: source.get_message_type() };
         }
+        FIXME */
 
         throw new Error('Cannot create message from source ' + source);
     }
@@ -975,7 +967,7 @@ var ChatView = GObject.registerClass({
     }
 
     _onMessageReceived(channel, tpMessage) {
-        this._insertTpMessage(tpMessage);
+        //this._insertTpMessage(tpMessage);
         this._resetStatusCompressed();
         let nick = tpMessage.sender.alias;
         let nickTag = this._lookupTag('nick' + nick);
@@ -985,7 +977,7 @@ var ChatView = GObject.registerClass({
     }
 
     _onMessageSent(channel, tpMessage) {
-        this._insertTpMessage(tpMessage);
+        //this._insertTpMessage(tpMessage);
         this._resetStatusCompressed();
     }
 
@@ -1201,7 +1193,7 @@ var ChatView = GObject.registerClass({
     }
 
     _insertMessage(iter, message, state) {
-        let isAction = message.messageType == Tp.ChannelTextMessageType.ACTION;
+        let isAction = false; //message.messageType == Tp.ChannelTextMessageType.ACTION;
         let needsGap = message.nick != state.lastNick || isAction;
         let highlight = this._room.should_highlight_message(message.nick,
                                                             message.text);
@@ -1268,13 +1260,13 @@ var ChatView = GObject.registerClass({
         let text = message.text;
 
         // mask identify passwords in private chats
-        if (this._room.type == Tp.HandleType.CONTACT) {
+        /*if (this._room.type == Tp.HandleType.CONTACT) {
             let [isIdentify, command, username, password] =
                 Chime.util_match_identify_message(text);
 
             if (isIdentify)
                 text = text.replace(password, (p) => p.replace(/./g, '●'));
-        }
+        }*/
 
         let channels = Utils.findChannels(text, server);
         let urls = Utils.findUrls(text).concat(channels).sort((u1,u2) => u1.pos - u2.pos);
@@ -1300,12 +1292,12 @@ var ChatView = GObject.registerClass({
     }
 
     _onNickStatusChanged(baseNick, status) {
-        if (this._room.type == Tp.HandleType.CONTACT &&
+        /*if (this._room.type == Tp.HandleType.CONTACT &&
             status == Tp.ConnectionPresenceType.OFFLINE &&
             this._room.channel)
             this._room.channel.ack_all_pending_messages_async(() => {
                 this._room.channel.close_async(null);
-            });
+            });*/
 
         let nickTagName = this._getNickTagName(baseNick);
         let nickTag = this._lookupTag(nickTagName);
@@ -1317,10 +1309,11 @@ var ChatView = GObject.registerClass({
     }
 
     _updateNickTag(tag, status) {
+        /* FIXME
         if (status == Tp.ConnectionPresenceType.AVAILABLE)
             tag.foreground_rgba = this._activeNickColor;
         else
-            tag.foreground_rgba = this._inactiveNickColor;
+            tag.foreground_rgba = this._inactiveNickColor;*/
     }
 
     _onNickTagClicked(tag) {

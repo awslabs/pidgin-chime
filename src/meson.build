@@ -1,13 +1,3 @@
-script_conf = configuration_data()
-script_conf.set('GJS', gjs_console.path())
-
-script = 'chime-accounts'
-configure_file(
-  input: script + '.in',
-  output: script,
-  configuration: script_conf
-)
-
 data_resources = gnome.compile_resources(
   'data-resources',
   '../data/@0@.data.gresource.xml'.format(app_id),
@@ -20,22 +10,16 @@ js_sources = [
   'application.js',
   'appNotifications.js',
   'chatView.js',
-  'connections.js',
   'emojiPicker.js',
   'entryArea.js',
-  'initialSetup.js',
-  'ircParser.js',
   'joinDialog.js',
   'main.js',
   'mainWindow.js',
-  'networksManager.js',
   'pasteManager.js',
   'roomList.js',
   'roomManager.js',
   'roomStack.js',
-  'serverRoomManager.js',
   'tabCompletion.js',
-  'telepathyClient.js',
   'userList.js',
   'utils.js',
   'userTracker.js'
@@ -99,7 +83,7 @@ lib_nongir_sources = [
 
 libargs = [
   '-DG_LOG_USE_STRUCTURED',
-  '-DG_LOG_DOMAIN="Chime"'
+  '-DG_LOG_DOMAIN="ChimeUtils"'
 ]
 libchimeutils = shared_library('chime-utils-1.0', libsources + lib_nongir_sources,
   dependencies: [gio, gtk3, telepathy_glib],

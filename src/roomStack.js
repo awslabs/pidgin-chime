@@ -24,20 +24,6 @@ var RoomStack = GObject.registerClass({
 
         this._sizeGroup = new Gtk.SizeGroup({ mode: Gtk.SizeGroupMode.VERTICAL });
         this._rooms = new Map();
-
-        this._roomManager = RoomManager.getDefault();
-
-        this._roomManager.connect('room-added', this._roomAdded.bind(this));
-        this._roomManager.connect('room-removed', this._roomRemoved.bind(this));
-        this._roomManager.rooms.forEach(r => { this._roomAdded(this._roomManager, r); });
-
-        this.add_named(new ChatPlaceholder(this._sizeGroup), 'placeholder');
-
-        this._entryAreaHeight = 0;
-        this._sizeGroup.get_widgets()[0].connect('size-allocate', (w, rect) => {
-            this._entryAreaHeight = rect.height - 1;
-            this.notify('entry-area-height');
-        });
     }
 
     vfunc_realize() {

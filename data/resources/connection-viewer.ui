@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.20.0 -->
+<interface>
+  <requires lib="gtk+" version="3.18"/>
+  <template class="Gjs_ConnectionViewer" parent="GtkBin">
+    <child>
+      <object class="GtkStack" id="stack">
+        <property name="visible">True</property>
+        <property name="transition_type">crossfade</property>
+        <property name="visible_child">mainFrame</property>
+        <child>
+          <object class="GtkFrame" id="mainFrame">
+            <property name="visible">True</property>
+            <property name="shadow_type">none</property>
+            <child>
+              <object class="GtkGrid" id="mainGrid">
+                <property name="visible">True</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+                <property name="halign">center</property>
+                <property name="valign">center</property>
+                <property name="orientation">vertical</property>
+                <property name="column_spacing">18</property>
+                <property name="row_spacing">18</property>
+                <child>
+                  <object class="GtkImage" id="chimeLogo">
+                    <property name="visible">True</property>
+                    <property name="icon_name">org.gnome.Chime-symbolic</property>
+                    <property name="pixel_size">256</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkStack" id="connectStack">
+                    <property name="visible">True</property>
+                    <property name="transition_type">crossfade</property>
+                    <property name="visible_child">loginGrid</property>
+                    <child>
+                      <object class="GtkGrid" id="loginGrid">
+                        <property name="visible">True</property>
+                        <property name="hexpand">True</property>
+                        <property name="vexpand">True</property>
+                        <property name="halign">center</property>
+                        <property name="valign">center</property>
+                        <property name="orientation">vertical</property>
+                        <property name="column_spacing">18</property>
+                        <property name="row_spacing">18</property>
+                        <child>
+                          <object class="GtkLabel" id="loginExplanation">
+                            <property name="visible">True</property>
+                            <property name="justify">center</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkGrid" id="loginGridGroup">
+                            <property name="visible">True</property>
+                            <property name="halign">center</property>
+                            <property name="valign">center</property>
+                            <property name="hexpand">True</property>
+                            <property name="vexpand">True</property>
+                            <property name="orientation">vertical</property>
+                            <property name="column_spacing">18</property>
+                            <property name="row_spacing">18</property>
+                            <property name="width_request">350</property>
+                            <child>
+                              <object class="GtkEntry" id="loginUsernameEntry">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="width_request">350</property>
+                                <property name="placeholder_text" translatable="yes">Username</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="loginPasswordEntry">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="placeholder_text" translatable="yes">Password</property>
+                                <property name="visibility">False</property>
+                                <property name="input_purpose">password</property>
+                                <property name="width_request">350</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="loginButton">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="sensitive">True</property>
+                                <property name="label" translatable="yes">Login</property>
+                                <style>
+                                  <class name="suggested-action"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="cancelLoginButton">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="sensitive">True</property>
+                                <property name="relief">none</property>
+                                <property name="label" translatable="yes">Cancel</property>
+                                <style>
+                                  <class name="empty-button"/>
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkGrid" id="disconnectingSpinnerGrid">
+                        <property name="visible">True</property>
+                        <property name="hexpand">True</property>
+                        <property name="vexpand">True</property>
+                        <property name="halign">center</property>
+                        <property name="valign">center</property>
+                        <property name="orientation">vertical</property>
+                        <property name="column_spacing">18</property>
+                        <property name="row_spacing">18</property>
+                        <child>
+                          <object class="GtkSpinner" id="disconnectingSpinner">
+                            <property name="visible">True</property>
+                            <property name="hexpand">True</property>
+                            <property name="vexpand">True</property>
+                            <property name="halign">center</property>
+                            <property name="valign">center</property>
+                            <property name="width_request">50</property>
+                            <property name="height_request">50</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="disconnectingSpinnerLabel">
+                            <property name="visible">True</property>
+                            <property name="label" translatable="yes">Disonnecting</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkFrame" id="spinnerFrame">
+            <property name="visible">True</property>
+            <property name="hexpand">True</property>
+            <property name="vexpand">True</property>
+            <property name="shadow_type">none</property>
+            <child>
+              <object class="GtkSpinner" id="spinner">
+                <property name="visible">True</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+                <property name="halign">center</property>
+                <property name="valign">center</property>
+                <property name="width_request">50</property>
+                <property name="height_request">50</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox" id="connectedBox">
+            <property name="visible">True</property>
+            <child>
+              <object class="GtkRevealer" id="roomListRevealer">
+                <property name="visible">True</property>
+                <property name="hexpand">False</property>
+                <property name="transition-type">slide-right</property>
+                <child>
+                  <object class="Gjs_FixedSizeFrame" id="roomSidebar">
+                    <property name="visible">True</property>
+                    <property name="hexpand">False</property>
+                    <property name="width">200</property>
+                    <property name="shadow-type">none</property>
+                    <style>
+                      <class name="chime-room-list"/>
+                    </style>
+                    <child>
+                      <object class="GtkScrolledWindow">
+                        <property name="visible">True</property>
+                        <property name="hscrollbar-policy">never</property>
+                        <property name="vexpand">True</property>
+                        <property name="hexpand">True</property>
+                        <child>
+                          <object class="Gjs_RoomList">
+                            <property name="visible">True</property>
+                            <property name="selection-mode">browse</property>
+                            <style>
+                              <class name="sidebar"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkOverlay" id="overlay">
+                <property name="visible">True</property>
+                <property name="vexpand">True</property>
+                <child>
+                  <object class="Gjs_RoomStack" id="roomStack">
+                    <property name="visible">True</property>
+                    <property name="homogeneous">True</property>
+                    <property name="transition-type">crossfade</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

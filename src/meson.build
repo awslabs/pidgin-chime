@@ -10,6 +10,7 @@ js_sources = [
   'application.js',
   'appNotifications.js',
   'chatView.js',
+  'connectionViewer.js',
   'emojiPicker.js',
   'entryArea.js',
   'joinDialog.js',

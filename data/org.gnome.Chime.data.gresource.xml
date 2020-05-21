@@ -8,6 +8,7 @@
     <file alias="icons/chime-user-notify-symbolic.svg" preprocess="xml-stripblanks">resources/chime-user-notify-symbolic.svg</file>
     <file alias="ui/connection-details.ui" preprocess="xml-stripblanks">resources/connection-details.ui</file>
     <file alias="ui/connection-properties.ui" preprocess="xml-stripblanks">resources/connection-properties.ui</file>
+    <file alias="ui/connection-viewer.ui" preprocess="xml-stripblanks">resources/connection-viewer.ui</file>
     <file alias="ui/entry-area.ui" preprocess="xml-stripblanks">resources/entry-area.ui</file>
     <file alias="ui/join-room-dialog.ui" preprocess="xml-stripblanks">resources/join-room-dialog.ui</file>
     <file alias="ui/main-window.ui" preprocess="xml-stripblanks">resources/main-window.ui</file>

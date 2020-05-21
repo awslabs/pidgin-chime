@@ -187,63 +187,9 @@
       </object>
     </child>
     <child>
-      <object class="GtkBox">
+      <object class="Gjs_ConnectionViewer" id="connectionViewer">
         <property name="visible">True</property>
-        <child>
-          <object class="GtkRevealer" id="roomListRevealer">
-            <property name="visible">True</property>
-            <property name="hexpand">False</property>
-            <property name="transition-type">slide-right</property>
-            <child>
-              <object class="Gjs_FixedSizeFrame" id="roomSidebar">
-                <property name="visible">True</property>
-                <property name="hexpand">False</property>
-                <property name="width">200</property>
-                <property name="shadow-type">none</property>
-                <style>
-                  <class name="chime-room-list"/>
-                </style>
-                <child>
-                  <object class="GtkScrolledWindow">
-                    <property name="visible">True</property>
-                    <property name="hscrollbar-policy">never</property>
-                    <property name="vexpand">True</property>
-                    <property name="hexpand">True</property>
-                    <child>
-                      <object class="Gjs_RoomList">
-                        <property name="visible">True</property>
-                        <property name="selection-mode">browse</property>
-                        <style>
-                          <class name="sidebar"/>
-                        </style>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-              </object>
-            </child>
-          </object>
-        </child>
-        <child>
-          <object class="GtkOverlay" id="overlay">
-            <property name="visible">True</property>
-            <property name="vexpand">True</property>
-            <child>
-              <object class="Gjs_RoomStack" id="roomStack">
-                <property name="visible">True</property>
-                <property name="homogeneous">True</property>
-                <property name="transition-type">crossfade</property>
-              </object>
-            </child>
-          </object>
-        </child>
       </object>
     </child>
   </template>
-  <object class="GtkSizeGroup">
-      <widgets>
-        <widget name="titlebarLeft"/>
-        <widget name="roomSidebar"/>
-      </widgets>
-  </object>
 </interface>

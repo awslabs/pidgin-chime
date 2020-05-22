@@ -63,10 +63,9 @@
                             <property name="row_spacing">18</property>
                             <property name="width_request">350</property>
                             <child>
-                              <object class="GtkEntry" id="connectEntry">
+                              <object class="GtkEntry" id="emailEntry">
                                 <property name="visible">True</property>
                                 <property name="hexpand">True</property>
-                                <property name="enable_completion">True</property>
                                 <property name="placeholder_text" translatable="yes">E-mail address</property>
                               </object>
                             </child>
@@ -74,6 +73,7 @@
                               <object class="GtkButton" id="connectButton">
                                 <property name="visible">True</property>
                                 <property name="hexpand">True</property>
+                                <property name="sensitive">False</property>
                                 <property name="label" translatable="yes">Login</property>
                                 <style>
                                   <class name="suggested-action"/>

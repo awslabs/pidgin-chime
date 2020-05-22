@@ -80,18 +80,32 @@ var ConnectionViewer = GObject.registerClass({
     Template: 'resource:///org/gnome/Chime/ui/connection-viewer.ui',
     InternalChildren: ['stack',
                        'mainFrame',
+                       'connectStack',
+                       'emailEntry',
+                       'connectButton',
+                       'connectSpinnerGrid',
+                       'connectSpinner',
+                       'loginGrid',
                        'loginUsernameEntry',
                        'loginPasswordEntry',
-                       'loginButton'],
+                       'loginButton',
+                       'spinnerFrame',
+                       'spinner'],
 }, class ConnectionViewer extends Gtk.Bin {
     _init(params) {
         super._init(params);
 
         this._settings = new Gio.Settings({ schema_id: 'org.gnome.Chime.Account' });
 
+        this._emailEntry.connect('changed', this._onEmailEntryChanged.bind(this));
+        this._connectButton.connect('clicked', this._onConnectButtonClicked.bind(this));
         this._loginUsernameEntry.connect('changed', this._onLoginUsernameEntryChanged.bind(this));
         this._loginPasswordEntry.connect('changed', this._onLoginPasswordEntryChanged.bind(this));
         this._loginButton.connect('clicked', this._onLoginButtonClicked.bind(this));
+    }
+
+    _onEmailEntryChanged() {
+        this._connectButton.sensitive = (this._emailEntry.text != '');
     }
 
     _updateLoginButtonSensitivity() {
@@ -106,33 +120,45 @@ var ConnectionViewer = GObject.registerClass({
         this._updateLoginButtonSensitivity();
     }
 
-    _onLoginButtonClicked(widget) {
-        this._username = this._loginUsernameEntry.text;
-        if (this._username == '')
+    _onConnectButtonClicked(widget) {
+        this._email = this._emailEntry.text;
+        if (this._email == '')
             return;
 
         this._devtoken = this._settings.get_string('devtoken');
         if (this._devtoken == "") {
-            this._devtoken = ChimeUtils.util_generate_dev_token(this._username);
+            this._devtoken = ChimeUtils.util_generate_dev_token(this._email);
             log('dev token ' + this._devtoken);
         }
 
-        log('connecting user ' + this._username);
+        log('connecting email ' + this._email);
 
-        this._connection = new Chime.Connection({ account_email: this._username, device_token: this._devtoken });
+        this._connection = new Chime.Connection({ account_email: this._email, device_token: this._devtoken });
         GObject.signal_connect(this._connection, 'authenticate', this._onConnectionAuthenticate.bind(this));
         GObject.signal_connect(this._connection, 'connected', this._onConnectionConnected.bind(this));
         GObject.signal_connect(this._connection, 'disconnected', this._onConnectionDisconnected.bind(this));
         GObject.signal_connect(this._connection, 'log-message', this._onConnectionLogMessage.bind(this));
 
         this._connection.connect();
+        this._connectSpinner.start();
+        this._connectStack.visible_child = this._connectSpinnerGrid;
     }
 
-     _onConnectionAuthenticate(connection, user_required) {
-        log('chime authenticate');
+    _onLoginButtonClicked(widget) {
+        let username = this._loginUsernameEntry.text;
         let password = this._loginPasswordEntry.text;
 
-        connection.authenticate(this._username, password);
+        log('authenticating ' + username);
+
+        this._spinner.start();
+        this._stack.visible_child = this._spinnerFrame;
+        this._connection.authenticate(username, password);
+    }
+
+    _onConnectionAuthenticate(connection, user_required) {
+        log('chime authenticate');
+        this._connectSpinner.stop();
+        this._connectStack.visible_child = this._loginGrid;
     }
 
      _onConnectionConnected(connection, display_name) {

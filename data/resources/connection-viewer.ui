@@ -90,18 +90,6 @@
                                 </style>
                               </object>
                             </child>
-                            <child>
-                              <object class="GtkButton" id="cancelLoginButton">
-                                <property name="visible">True</property>
-                                <property name="hexpand">True</property>
-                                <property name="sensitive">True</property>
-                                <property name="relief">none</property>
-                                <property name="label" translatable="yes">Cancel</property>
-                                <style>
-                                  <class name="empty-button"/>
-                                </style>
-                              </object>
-                            </child>
                           </object>
                         </child>
                       </object>

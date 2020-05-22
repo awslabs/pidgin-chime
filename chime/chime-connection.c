@@ -21,6 +21,8 @@
 
 #include <glib/gi18n.h>
 
+#define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
+
 enum
 {
     PROP_0,
@@ -218,7 +220,7 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 		g_param_spec_string("server",
 				    "server",
 				    "server",
-				    NULL,
+				    SIGNIN_DEFAULT,
 				    G_PARAM_READWRITE |
 				    G_PARAM_CONSTRUCT_ONLY |
 				    G_PARAM_STATIC_STRINGS);
@@ -378,8 +380,6 @@ chime_connection_init(ChimeConnection *self)
 	priv->msgs_queued = g_queue_new();
 	priv->state = CHIME_STATE_DISCONNECTED;
 }
-
-#define SIGNIN_DEFAULT "https://signin.id.ue1.app.chime.aws/"
 
 ChimeConnection *
 chime_connection_new(const gchar *email, const gchar *server,

@@ -88,7 +88,7 @@ void             chime_connection_set_session_token          (ChimeConnection  *
 
 
 void chime_connection_signin (ChimeConnection *self);
-void chime_connection_authenticate (gpointer opaque,
+void chime_connection_authenticate (ChimeConnection *self,
 				    const gchar *username,
 				    const gchar *password);
 void chime_connection_log_out_async (ChimeConnection    *self,

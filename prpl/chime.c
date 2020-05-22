@@ -91,9 +91,9 @@ static void chime_purple_set_idle(PurpleConnection *conn, int idle_time)
 						 NULL);
 }
 
-static void on_chime_authenticate(ChimeConnection *cxn, gpointer state, gboolean user_required, PurpleConnection *conn)
+static void on_chime_authenticate(ChimeConnection *cxn, gboolean user_required, PurpleConnection *conn)
 {
-	purple_request_credentials(conn, state, user_required);
+	purple_request_credentials(conn, cxn, user_required);
 }
 
 static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, PurpleConnection *conn)

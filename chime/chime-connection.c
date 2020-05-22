@@ -239,7 +239,7 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 	signals[AUTHENTICATE] =
 		g_signal_new ("authenticate",
 			      G_OBJECT_CLASS_TYPE (object_class), G_SIGNAL_RUN_FIRST,
-			      0, NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_BOOLEAN);
+			      0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_BOOLEAN);
 
 	signals[CONNECTED] =
 		g_signal_new ("connected",

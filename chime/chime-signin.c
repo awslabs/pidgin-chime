@@ -137,6 +137,7 @@ static void free_signin(struct signin *s)
 	soup_session_abort(s->session);
 	g_object_unref(s->session);
 	g_object_unref(s->connection);
+	g_free(s);
 }
 
 static void fail(struct signin *state, GError *error)
@@ -661,7 +662,7 @@ static void amazon_signin_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 	amazon_prepare_signin_form(state, dom, msg);
 	if (state->form) {
 		if (state->form->email_name && state->form->password_name)
-			g_signal_emit_by_name(state->connection, "authenticate", state, FALSE);
+			g_signal_emit_by_name(state->connection, "authenticate", FALSE);
 		else
 			fail_bad_response(state, _("Unexpected Amazon sign-in form during retry"));
 	} else {
@@ -677,7 +678,7 @@ static void amazon_send_credentials(struct signin *state, const gchar *password)
 	SoupMessage *msg;
 
 	if (!(password && *password)) {
-		g_signal_emit_by_name(state->connection, "authenticate", state, FALSE);
+		g_signal_emit_by_name(state->connection, "authenticate", FALSE);
 		return;
 	}
 
@@ -707,7 +708,7 @@ static void amazon_signin_cb(SoupSession *session, SoupMessage *msg, gpointer da
 	if (!(state->form && state->form->email_name && state->form->password_name))
 		fail_bad_response(state, _("Could not find Amazon sign in form"));
 	else
-		g_signal_emit_by_name(state->connection, "authenticate", state, FALSE);
+		g_signal_emit_by_name(state->connection, "authenticate", FALSE);
 	free_dom(dom);
 }
 
@@ -728,7 +729,7 @@ static void wd_credentials_response_cb(SoupSession *session, SoupMessage *msg, g
 	}
 	if (!ok) {
 		if (count > 3 && !g_strcmp0(response[3], "AuthenticationFailedException"))
-			g_signal_emit_by_name(state->connection, "authenticate", state, TRUE);
+			g_signal_emit_by_name(state->connection, "authenticate", TRUE);
 		else
 			fail_bad_response(state, _("Unexpected corporate authentication failure"));
 		goto out;
@@ -785,7 +786,7 @@ static void gwt_region_cb(SoupSession *session, SoupMessage *msg, gpointer data)
 		goto out;
 	}
 
-	g_signal_emit_by_name(state->connection, "authenticate", state, TRUE);
+	g_signal_emit_by_name(state->connection, "authenticate", TRUE);
  out:
 	g_strfreev(response);
 }
@@ -1019,6 +1020,8 @@ void chime_connection_signin(ChimeConnection *self)
 						       "libchime " PACKAGE_VERSION " ",
 						       NULL);
 
+	g_object_set_data(G_OBJECT(state->connection), "signin-state", state);
+
 	g_object_get(self, "account-email", &state->email, NULL);
 	if (!(state->email && *state->email)) {
 		chime_debug("The ChimeConnection object does not indicate an account name\n");
@@ -1050,10 +1053,10 @@ void chime_connection_signin(ChimeConnection *self)
  * If the credentials are NULL, it is interpreted as an error and the sign-in
  * procedure is canceled.
  */
-void chime_connection_authenticate(gpointer opaque, const gchar *user, const gchar *password)
+void chime_connection_authenticate(ChimeConnection *self, const gchar *user, const gchar *password)
 {
-	struct signin *state = opaque;
-	g_assert(opaque != NULL);
+	struct signin *state = g_object_get_data(G_OBJECT(self), "signin-state");
+	g_assert(state != NULL);
 
 	if (state->region && user && *user && password && *password)
 		wd_send_credentials(state, user, password);

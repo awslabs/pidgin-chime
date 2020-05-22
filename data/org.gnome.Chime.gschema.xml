@@ -28,7 +28,7 @@
     </key>
   </schema>
 
-  <schema id="org.gnome.Chime.Account">
+  <schema path="/org/gnome/chime/account/" id="org.gnome.Chime.Account">
     <key type="s" name="username">
       <default>""</default>
       <summary>Username</summary>

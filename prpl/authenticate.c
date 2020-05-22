@@ -38,7 +38,7 @@ struct auth_data {
 
 static void send_credentials(struct auth_data *data)
 {
-	chime_connection_authenticate(data->state, data->username, data->password);
+	chime_connection_authenticate(data->conn, data->username, data->password);
 	g_free(data->username);
 	g_free(data->password);
 	g_free(data);
@@ -118,11 +118,10 @@ static void request_username_with_input(struct auth_data *data)
 		request_password_with_input(data, NULL);
 }
 
-void purple_request_credentials(PurpleConnection *conn, gpointer state, gboolean user_required)
+void purple_request_credentials(PurpleConnection *conn, gboolean user_required)
 {
 	struct auth_data *data = g_new0(struct auth_data, 1);
 	data->conn = conn;
-	data->state = state;
 	data->user_required = user_required;
 	if (purple_request_get_ui_ops()->request_fields)
 		request_credentials_with_fields(data);

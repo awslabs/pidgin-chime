@@ -83,7 +83,7 @@
                               <object class="GtkButton" id="loginButton">
                                 <property name="visible">True</property>
                                 <property name="hexpand">True</property>
-                                <property name="sensitive">True</property>
+                                <property name="sensitive">False</property>
                                 <property name="label" translatable="yes">Login</property>
                                 <style>
                                   <class name="suggested-action"/>

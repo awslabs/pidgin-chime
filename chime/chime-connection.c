@@ -390,6 +390,8 @@ chime_connection_new(const gchar *email, const gchar *server,
 	if (!server || !*server)
 		server = SIGNIN_DEFAULT;
 
+	g_message("%s", server);
+
 	return g_object_new (CHIME_TYPE_CONNECTION,
 			     "account-email", email,
 			     "server", server,

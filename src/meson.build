@@ -72,8 +72,6 @@ libsources = [
   'lib/chime-client-factory.h',
   'lib/chime-drag-helper.c',
   'lib/chime-drag-helper.h',
-  'lib/chime-room.c',
-  'lib/chime-room.h',
   'lib/chime-util.c',
   'lib/chime-util.h'
 ]

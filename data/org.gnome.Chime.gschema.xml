@@ -29,15 +29,15 @@
   </schema>
 
   <schema path="/org/gnome/chime/account/" id="org.gnome.Chime.Account">
-    <key type="s" name="username">
+    <key type="s" name="email">
       <default>""</default>
-      <summary>Username</summary>
-      <description>The username of chime</description>
+      <summary>Email</summary>
+      <description>The email for chime</description>
     </key>
-    <key type="s" name="devtoken">
+    <key type="s" name="device-token">
       <default>""</default>
-      <summary>The dev token</summary>
-      <description>The dev token</description>
+      <summary>The device token</summary>
+      <description>The device token</description>
     </key>
     <key type="s" name="server">
       <default>""</default>

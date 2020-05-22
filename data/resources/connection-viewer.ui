@@ -33,7 +33,89 @@
                   <object class="GtkStack" id="connectStack">
                     <property name="visible">True</property>
                     <property name="transition_type">crossfade</property>
-                    <property name="visible_child">loginGrid</property>
+                    <property name="visible_child">connectGrid</property>
+                    <child>
+                      <object class="GtkGrid" id="connectGrid">
+                        <property name="visible">True</property>
+                        <property name="hexpand">True</property>
+                        <property name="vexpand">True</property>
+                        <property name="halign">center</property>
+                        <property name="valign">center</property>
+                        <property name="orientation">vertical</property>
+                        <property name="column_spacing">18</property>
+                        <property name="row_spacing">18</property>
+                        <child>
+                          <object class="GtkLabel" id="connectExplanation">
+                            <property name="visible">True</property>
+                            <property name="justify">center</property>
+                            <property name="label" translatable="yes">Please, specify the user e-mail.</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkGrid" id="connectGridGroup">
+                            <property name="visible">True</property>
+                            <property name="halign">center</property>
+                            <property name="valign">center</property>
+                            <property name="hexpand">True</property>
+                            <property name="vexpand">True</property>
+                            <property name="orientation">vertical</property>
+                            <property name="column_spacing">18</property>
+                            <property name="row_spacing">18</property>
+                            <property name="width_request">350</property>
+                            <child>
+                              <object class="GtkEntry" id="connectEntry">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="enable_completion">True</property>
+                                <property name="placeholder_text" translatable="yes">E-mail address</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="connectButton">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Login</property>
+                                <style>
+                                  <class name="suggested-action"/>
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkGrid" id="connectSpinnerGrid">
+                        <property name="visible">True</property>
+                        <property name="hexpand">True</property>
+                        <property name="vexpand">True</property>
+                        <property name="halign">center</property>
+                        <property name="valign">center</property>
+                        <property name="orientation">vertical</property>
+                        <property name="column_spacing">18</property>
+                        <property name="row_spacing">18</property>
+                        <child>
+                          <object class="GtkSpinner" id="connectSpinner">
+                            <property name="visible">True</property>
+                            <property name="hexpand">True</property>
+                            <property name="vexpand">True</property>
+                            <property name="halign">center</property>
+                            <property name="valign">center</property>
+                            <property name="width_request">50</property>
+                            <property name="height_request">50</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="connectSpinnerLabel">
+                            <property name="visible">True</property>
+                            <property name="label" translatable="yes">Connecting</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
                     <child>
                       <object class="GtkGrid" id="loginGrid">
                         <property name="visible">True</property>
@@ -88,6 +170,15 @@
                                 <style>
                                   <class name="suggested-action"/>
                                 </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="cancelLoginButton">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="sensitive">True</property>
+                                <property name="relief">none</property>
+                                <property name="label" translatable="yes">Cancel</property>
                               </object>
                             </child>
                           </object>

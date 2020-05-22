@@ -29,27 +29,25 @@
   </schema>
 
   <schema id="org.gnome.Chime.Account">
-    <key type="s" name="identify-botname">
-      <default>"NickServ"</default>
-      <summary>Identify botname</summary>
-      <description>Nickname of the bot to identify with</description>
-    </key>
-    <key type="s" name="identify-command">
-      <default>"identify"</default>
-      <summary>Identify command</summary>
-      <description>Command used to identify with bot</description>
-    </key>
-    <key type="s" name="identify-username">
+    <key type="s" name="username">
       <default>""</default>
-      <summary>Identify username</summary>
-      <description>Username to use in identify command</description>
+      <summary>Username</summary>
+      <description>The username of chime</description>
     </key>
-    <key type="b" name="identify-username-supported">
-      <default>false</default>
-      <summary>Identify username supported</summary>
-      <description>
-        Whether the identify command is known to support the username parameter
-      </description>
+    <key type="s" name="devtoken">
+      <default>""</default>
+      <summary>The dev token</summary>
+      <description>The dev token</description>
+    </key>
+    <key type="s" name="server">
+      <default>""</default>
+      <summary>The chime server</summary>
+      <description>The Chime server</description>
+    </key>
+    <key type="s" name="token">
+      <default>""</default>
+      <summary>The authentication token</summary>
+      <description>The authentication token</description>
     </key>
   </schema>
 </schemalist>

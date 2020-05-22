@@ -1,4 +1,3 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /*
  * Copyright (C) 2015 Red Hat, Inc.
  *
@@ -132,4 +131,39 @@ chime_util_match_identify_message (const char  *message,
     }
 
   return matched;
+}
+
+/**
+ * chime_util_get_machine_id:
+ *
+ * Returns: (transfer full): a newly allocated string with the machine id
+ */
+gchar *chime_util_get_machine_id(void)
+{
+	gchar *id;
+	int i = 0;
+	int len = 16;
+
+	id = g_new0(char, len);
+
+	gchar *machine_id;
+	if (g_file_get_contents("/etc/machine-id", &machine_id, NULL, NULL)) {
+		while (i < len * 2 && g_ascii_isxdigit(machine_id[i]) &&
+		       g_ascii_isxdigit(machine_id[i+1])) {
+			id[i / 2] = (g_ascii_xdigit_value(machine_id[i]) << 4) + g_ascii_xdigit_value(machine_id[i+1]);
+			i += 2;
+		}
+		g_free(machine_id);
+		return id;
+	}
+#ifdef _WIN32
+	/* XXX: On Windows, try HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography\MachineGuid */
+#endif
+	/* XXX: We could actually try to cobble one together from things like
+	 * the FSID of the root file system (see how OpenConnect does that). */
+	g_warning("No /etc/machine-id; faking");
+	for (i = 0; i < len; i++)
+		id[i] = g_random_int_range(0, 256);
+
+	return id;
 }

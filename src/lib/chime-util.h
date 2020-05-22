@@ -29,3 +29,5 @@ gboolean chime_util_match_identify_message (const char  *message,
                                              char       **command,
                                              char       **username,
                                              char       **password);
+
+gchar *chime_util_get_machine_id (void);

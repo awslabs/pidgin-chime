@@ -133,18 +133,12 @@ chime_util_match_identify_message (const char  *message,
   return matched;
 }
 
-/**
- * chime_util_get_machine_id:
- *
- * Returns: (transfer full): a newly allocated string with the machine id
- */
-gchar *chime_util_get_machine_id(void)
+/* Hm, doesn't GLib have something that'll do this for us? */
+static void get_machine_id(unsigned char *id, int len)
 {
-	gchar *id;
 	int i = 0;
-	int len = 16;
 
-	id = g_new0(char, len);
+	memset(id, 0, len);
 
 	gchar *machine_id;
 	if (g_file_get_contents("/etc/machine-id", &machine_id, NULL, NULL)) {
@@ -153,8 +147,9 @@ gchar *chime_util_get_machine_id(void)
 			id[i / 2] = (g_ascii_xdigit_value(machine_id[i]) << 4) + g_ascii_xdigit_value(machine_id[i+1]);
 			i += 2;
 		}
+
 		g_free(machine_id);
-		return id;
+		return;
 	}
 #ifdef _WIN32
 	/* XXX: On Windows, try HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography\MachineGuid */
@@ -164,6 +159,26 @@ gchar *chime_util_get_machine_id(void)
 	g_warning("No /etc/machine-id; faking");
 	for (i = 0; i < len; i++)
 		id[i] = g_random_int_range(0, 256);
+}
 
-	return id;
+/**
+ * chime_util_generate_dev_token:
+ * username: a username
+ *
+ * Returns: (transfer full): a newly allocated string with the dev token
+ */
+char *chime_util_generate_dev_token(const char *username)
+{
+	unsigned char machine_id[16];
+	get_machine_id(machine_id, sizeof(machine_id));
+
+	GChecksum *sum = g_checksum_new(G_CHECKSUM_SHA1);
+	g_checksum_update(sum, machine_id, sizeof(machine_id));
+
+	g_checksum_update(sum, (void *)username, strlen(username));
+
+	char *dev_token = g_strdup(g_checksum_get_string(sum));
+	g_checksum_free(sum);
+
+	return dev_token;
 }

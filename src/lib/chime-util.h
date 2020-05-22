@@ -30,4 +30,4 @@ gboolean chime_util_match_identify_message (const char  *message,
                                              char       **username,
                                              char       **password);
 
-gchar *chime_util_get_machine_id (void);
+char *chime_util_generate_dev_token (const char *username);

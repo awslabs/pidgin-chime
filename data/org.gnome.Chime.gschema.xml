@@ -44,10 +44,10 @@
       <summary>The chime server</summary>
       <description>The Chime server</description>
     </key>
-    <key type="s" name="token">
+    <key type="s" name="session-token">
       <default>""</default>
-      <summary>The authentication token</summary>
-      <description>The authentication token</description>
+      <summary>The session authentication token</summary>
+      <description>The session authentication token</description>
     </key>
   </schema>
 </schemalist>

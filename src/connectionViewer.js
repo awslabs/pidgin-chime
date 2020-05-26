@@ -102,6 +102,36 @@ var ConnectionViewer = GObject.registerClass({
         this._loginUsernameEntry.connect('changed', this._onLoginUsernameEntryChanged.bind(this));
         this._loginPasswordEntry.connect('changed', this._onLoginPasswordEntryChanged.bind(this));
         this._loginButton.connect('clicked', this._onLoginButtonClicked.bind(this));
+
+        this._tryLogin();
+    }
+
+    _tryLogin() {
+        let email = this._settings.get_string('email');
+        let deviceToken = this._settings.get_string('device-token');
+        let session_token = this._settings.get_string('session-token');
+
+        if (email == '' || deviceToken == '') {
+            log('Requires login');
+            return;
+        }
+
+        this._connection = new Chime.Connection({ account_email: email, device_token: deviceToken, session_token: session_token });
+        GObject.signal_connect(this._connection, 'notify::session-token', this._onConnectionSessionTokenChanged.bind(this));
+        GObject.signal_connect(this._connection, 'authenticate', this._onConnectionAuthenticate.bind(this));
+        GObject.signal_connect(this._connection, 'connected', this._onConnectionConnected.bind(this));
+        GObject.signal_connect(this._connection, 'disconnected', this._onConnectionDisconnected.bind(this));
+        GObject.signal_connect(this._connection, 'log-message', this._onConnectionLogMessage.bind(this));
+
+        if (session_token == '') {
+            this._connectSpinner.start();
+            this._connectStack.visible_child = this._connectSpinnerGrid;
+        } else {
+            this._spinner.start();
+            this._stack.visible_child = this._spinnerFrame;
+        }
+
+        this._connection.connect();
     }
 
     _onEmailEntryChanged() {
@@ -121,35 +151,26 @@ var ConnectionViewer = GObject.registerClass({
     }
 
     _onConnectButtonClicked(widget) {
-        this._email = this._emailEntry.text;
-        if (this._email == '')
+        let email = this._emailEntry.text;
+        if (email == '')
             return;
 
-        this._deviceToken = this._settings.get_string('device-token');
-        if (this._deviceToken == "") {
-            this._deviceToken = ChimeUtils.util_generate_dev_token(this._email);
-            this._settings.set_string('device-token', this._deviceToken);
-            log('dev token ' + this._deviceToken);
+        let deviceToken = this._settings.get_string('device-token');
+        if (deviceToken == "") {
+            deviceToken = ChimeUtils.util_generate_dev_token(email);
+            this._settings.set_string('device-token', deviceToken);
+            log('dev token ' + deviceToken);
         }
 
-        log('connecting email ' + this._email);
-        this._settings.set_string('email', this._email);
+        log('connecting email ' + email);
+        this._settings.set_string('email', email);
 
-        this._connection = new Chime.Connection({ account_email: this._email, device_token: this._deviceToken });
-        GObject.signal_connect(this._connection, 'notify::session-token', this._onConnectionSessionTokenChanged.bind(this));
-        GObject.signal_connect(this._connection, 'authenticate', this._onConnectionAuthenticate.bind(this));
-        GObject.signal_connect(this._connection, 'connected', this._onConnectionConnected.bind(this));
-        GObject.signal_connect(this._connection, 'disconnected', this._onConnectionDisconnected.bind(this));
-        GObject.signal_connect(this._connection, 'log-message', this._onConnectionLogMessage.bind(this));
-
-        this._connection.connect();
-        this._connectSpinner.start();
-        this._connectStack.visible_child = this._connectSpinnerGrid;
+        this._tryLogin();
     }
 
     _onConnectionSessionTokenChanged() {
         log('Session token changed: ' + this._connection.session_token);
-        this._settings.set_string('token', this._connection.session_token);
+        this._settings.set_string('session-token', this._connection.session_token);
     }
 
     _onLoginButtonClicked(widget) {

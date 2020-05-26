@@ -60,7 +60,7 @@
 #define CHIME_PROPS_PARSE STRING_PROPS(_chime_prop_parse_str) BOOL_PROPS(_chime_prop_parse_bool) 0
 
 #define _chime_prop_newobj(low, up, json, name, nick, req) \
-	nick, low,
+	name, low,
 #define CHIME_PROPS_NEWOBJ STRING_PROPS(_chime_prop_newobj) BOOL_PROPS(_chime_prop_newobj)
 
 #define _chime_prop_update_str(low, up, json, name, nick, req)	\

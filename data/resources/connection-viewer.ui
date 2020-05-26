@@ -246,12 +246,12 @@
           <object class="GtkBox" id="connectedBox">
             <property name="visible">True</property>
             <child>
-              <object class="GtkRevealer" id="roomListRevealer">
+              <object class="GtkRevealer" id="sidebarRevealer">
                 <property name="visible">True</property>
                 <property name="hexpand">False</property>
                 <property name="transition-type">slide-right</property>
                 <child>
-                  <object class="Gjs_FixedSizeFrame" id="roomSidebar">
+                  <object class="Gjs_FixedSizeFrame" id="sidebar">
                     <property name="visible">True</property>
                     <property name="hexpand">False</property>
                     <property name="width">200</property>
@@ -266,7 +266,7 @@
                         <property name="vexpand">True</property>
                         <property name="hexpand">True</property>
                         <child>
-                          <object class="Gjs_RoomList">
+                          <object class="Gjs_SidebarList" id="sidebarList">
                             <property name="visible">True</property>
                             <property name="selection-mode">browse</property>
                             <style>

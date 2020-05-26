@@ -20,6 +20,7 @@ js_sources = [
   'roomList.js',
   'roomManager.js',
   'roomStack.js',
+  'sidebarList.js',
   'tabCompletion.js',
   'userList.js',
   'utils.js',

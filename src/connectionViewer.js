@@ -93,6 +93,7 @@ var ConnectionViewer = GObject.registerClass({
                        'spinner',
                        'connectedBox',
                        'sidebarRevealer',
+                       'sidebar',
                        'sidebarList',],
 }, class ConnectionViewer extends Gtk.Bin {
     _init(params) {
@@ -222,5 +223,9 @@ var ConnectionViewer = GObject.registerClass({
 
     _onConnectionNewMeeting(connection, meeting) {
         log('New meeting: ' + meeting.get_name());
+    }
+
+    getSidebar() {
+        return this._sidebar;
     }
 });

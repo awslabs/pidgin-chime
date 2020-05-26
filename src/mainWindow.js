@@ -20,6 +20,7 @@ var MainWindow = GObject.registerClass({
                        'joinButton',
                        'showUserListButton',
                        'userListPopover',
+                       'connectionViewer',
                        'closeConfirmationDialog'],
     Properties: {
         subtitle: GObject.ParamSpec.string('subtitle',
@@ -72,6 +73,10 @@ var MainWindow = GObject.registerClass({
 
         if (this._settings.get_boolean('window-maximized'))
             this.maximize();
+
+        this._sidebarSizeGroup = new Gtk.SizeGroup();
+        this._sidebarSizeGroup.add_widget(this._titlebarLeft);
+        this._sidebarSizeGroup.add_widget(this._connectionViewer.getSidebar());
     }
 
     get subtitle() {

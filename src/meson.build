@@ -6,19 +6,16 @@ data_resources = gnome.compile_resources(
 )
 
 js_sources = [
-  'accountsMonitor.js',
   'application.js',
   'appNotifications.js',
   'chatView.js',
   'connectionViewer.js',
   'emojiPicker.js',
   'entryArea.js',
-  'joinDialog.js',
   'main.js',
   'mainWindow.js',
   'pasteManager.js',
   'roomList.js',
-  'roomManager.js',
   'roomStack.js',
   'sidebarList.js',
   'tabCompletion.js',

@@ -5,10 +5,8 @@ const Gtk = imports.gi.Gtk;
 const Pango = imports.gi.Pango;
 const Tp = imports.gi.TelepathyGLib;
 
-const {AccountsMonitor} = imports.accountsMonitor;
 const {ChatView} = imports.chatView;
 const {EntryArea} = imports.entryArea;
-const {RoomManager} = imports.roomManager;
 
 var RoomStack = GObject.registerClass({
     Properties: {
@@ -46,15 +44,6 @@ var RoomStack = GObject.registerClass({
     _addView(id, view) {
         this._rooms.set(id, view);
         this.add_named(view, id);
-    }
-
-    _roomAdded(roomManager, room) {
-        this._addView(room.id, new RoomView(room, this._sizeGroup));
-    }
-
-    _roomRemoved(roomManager, room) {
-        this._rooms.get(room.id).destroy();
-        this._rooms.delete(room.id);
     }
 
     _activeRoomChanged() {
@@ -135,8 +124,6 @@ class SavePasswordConfirmationBar extends Gtk.Revealer {
 var ChatPlaceholder = GObject.registerClass(
 class ChatPlaceholder extends Gtk.Overlay {
     _init(sizeGroup) {
-        this._accountsMonitor = AccountsMonitor.getDefault();
-
         let image = new Gtk.Image({ icon_name: 'org.gnome.Chime-symbolic',
                                       pixel_size: 96, halign: Gtk.Align.END,
                                       margin_end: 14 });

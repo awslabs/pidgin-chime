@@ -2,48 +2,8 @@ const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const GObject = imports.gi.GObject;
 const Chime = imports.gi.Chime;
-const Tp = imports.gi.TelepathyGLib;
 
-const {AccountsMonitor} = imports.accountsMonitor;
-const {RoomManager} = imports.roomManager;
 const Utils = imports.utils;
-
-var UserStatusMonitor = class {
-    static getDefault() {
-        if (!this._singleton)
-            this._singleton = new UserStatusMonitor();
-        return this._singleton;
-    }
-
-    constructor() {
-        this._userTrackers = new Map();
-        this._accountsMonitor = AccountsMonitor.getDefault();
-
-        this._accountsMonitor.connect('account-added',
-                                      this._onAccountAdded.bind(this));
-        this._accountsMonitor.connect('account-removed',
-                                      this._onAccountRemoved.bind(this));
-
-        this._accountsMonitor.accounts.forEach(
-                    a => { this._onAccountAdded(this._accountsMonitor, a); });
-    }
-
-    _onAccountAdded(accountsMonitor, account) {
-        if (this._userTrackers.has(account))
-            return;
-
-        this._userTrackers.set(account, new UserTracker(account));
-    }
-
-    _onAccountRemoved(accountsMonitor, account) {
-        this._userTrackers.delete(account);
-    }
-
-    getUserTrackerForAccount(account) {
-            return this._userTrackers.get(account);
-    }
-};
-
 
 var UserTracker = GObject.registerClass({
     Signals: {
@@ -68,10 +28,6 @@ var UserTracker = GObject.registerClass({
         this._app = Gio.Application.get_default();
 
         this._app.connect('prepare-shutdown', this._onShutdown.bind(this));
-
-        this._roomManager = RoomManager.getDefault();
-        this._roomManager.connect('room-added', this._onRoomAdded.bind(this));
-        this._roomManager.connect('room-removed', this._onRoomRemoved.bind(this));
     }
 
     _onShutdown() {

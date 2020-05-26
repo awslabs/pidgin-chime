@@ -5,11 +5,9 @@ const GObject = imports.gi.GObject;
 const Gtk = imports.gi.Gtk;
 const Chime = imports.gi.Chime;
 
-const {AccountsMonitor} = imports.accountsMonitor;
 const AppNotifications = imports.appNotifications;
 const {MainWindow} = imports.mainWindow;
 const {PasteManager} = imports.pasteManager;
-const {RoomManager} = imports.roomManager;
 const {UserStatusMonitor} = imports.userTracker;
 const Utils = imports.utils;
 

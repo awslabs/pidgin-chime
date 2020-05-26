@@ -6,9 +6,6 @@ const Gtk = imports.gi.Gtk;
 const Mainloop = imports.mainloop;
 const Chime = imports.gi.Chime;
 
-const {AccountsMonitor} = imports.accountsMonitor;
-const {JoinDialog} = imports.joinDialog;
-const {RoomManager} = imports.roomManager;
 const {ConnectionViewer} = imports.connectionViewer; // used in template
 const Utils = imports.utils;
 

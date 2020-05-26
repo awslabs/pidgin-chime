@@ -122,6 +122,9 @@ var ConnectionViewer = GObject.registerClass({
         GObject.signal_connect(this._connection, 'connected', this._onConnectionConnected.bind(this));
         GObject.signal_connect(this._connection, 'disconnected', this._onConnectionDisconnected.bind(this));
         GObject.signal_connect(this._connection, 'log-message', this._onConnectionLogMessage.bind(this));
+        GObject.signal_connect(this._connection, 'progress', this._onConnectionProgress.bind(this));
+        GObject.signal_connect(this._connection, 'new-conversation', this._onConnectionNewConversation.bind(this));
+        GObject.signal_connect(this._connection, 'new-meeting', this._onConnectionNewMeeting.bind(this));
 
         if (session_token == '') {
             this._connectSpinner.start();
@@ -200,5 +203,17 @@ var ConnectionViewer = GObject.registerClass({
 
     _onConnectionLogMessage(connection, level, str) {
         log('chime: ' + str);
+    }
+
+    _onConnectionProgress(connection, percent, message) {
+        log('Progress %d: %s'.format(percent, message));
+    }
+
+    _onConnectionNewConversation(connection, conversation) {
+        log('New conversation: ' + conversation.get_name());
+    }
+
+    _onConnectionNewMeeting(connection, meeting) {
+        log('New meeting: ' + meeting.get_name());
     }
 });

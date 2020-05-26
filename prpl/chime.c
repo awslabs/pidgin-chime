@@ -178,6 +178,7 @@ static void get_machine_id(unsigned char *id, int len)
 			id[i / 2] = (g_ascii_xdigit_value(machine_id[i]) << 4) + g_ascii_xdigit_value(machine_id[i+1]);
 			i += 2;
 		}
+		g_free(machine_id);
 		return;
 	}
 #ifdef _WIN32

@@ -1,16 +1,16 @@
 @define-color chime_dark_bg_color shade(@theme_bg_color, 0.95);
 
-.chime-room-list .sidebar {
+.chime-sidebar-list .sidebar {
     border-style: solid;
     border-color: @borders;
     border-image: none;
 }
 
-.chime-room-list .sidebar:dir(ltr) {
+.chime-sidebar-list .sidebar:dir(ltr) {
     border-width: 0 1px 0 0;
 }
 
-.chime-room-list .sidebar:dir(rtl) {
+.chime-sidebar-list .sidebar:dir(rtl) {
     border-width: 0 0 0 1px;
 }
 
@@ -38,48 +38,48 @@
     color: alpha(@theme_fg_color, 0.6);
 }
 
-.chime-room-list .room-list-header {
+.chime-sidebar-list .sidebar-list-header {
     font-size: smaller;
     padding: 8px 7px 0;
 }
 
-.chime-room-list .room-list-header label:dir(ltr),
-.chime-room-list .room-list-header stack:dir(rtl) {
+.chime-sidebar-list .sidebar-list-header label:dir(ltr),
+.chime-sidebar-list .sidebar-list-header stack:dir(rtl) {
     padding-left: 8px;
 }
 
-.chime-room-list .room-list-header stack:dir(ltr),
-.chime-room-list .room-list-header label:dir(rtl) {
+.chime-sidebar-list .sidebar-list-header stack:dir(ltr),
+.chime-sidebar-list .sidebar-list-header label:dir(rtl) {
     padding-right: 8px;
 }
 
-.chime-room-list .room-list-header separator {
+.chime-sidebar-list .sidebar-list-header separator {
     background-color: alpha(@borders, 0.55);
 }
 
-.chime-room-list row {
+.chime-sidebar-list row {
     padding-left: 8px;
 }
 
-.chime-room-list row.inactive *,
-.chime-room-list row.inactive:backdrop * {
+.chime-sidebar-list row.inactive *,
+.chime-sidebar-list row.inactive:backdrop * {
     color: mix(@theme_fg_color, @theme_base_color, 0.3);
 }
 
-.chime-room-list row.inactive:selected *,
-.chime-room-list row.inactive:selected:backdrop * {
+.chime-sidebar-list row.inactive:selected *,
+.chime-sidebar-list row.inactive:selected:backdrop * {
     color: mix(@theme_selected_fg_color, @theme_base_color, 0.3);
 }
 
-.chime-room-list row:backdrop * {
+.chime-sidebar-list row:backdrop * {
     color: @theme_fg_color;
 }
 
-.chime-room-list row:backdrop:selected * {
+.chime-sidebar-list row:backdrop:selected * {
     color: @theme_selected_fg_color;
 }
 
-.chime-room-list row .pending-messages-count {
+.chime-sidebar-list row .pending-messages-count {
     color: @theme_selected_fg_color;
     background-color: mix(@theme_selected_bg_color, @theme_selected_fg_color, 0.3);
     font-size: smaller;
@@ -87,12 +87,12 @@
     padding: 0px 4px;
 }
 
-.chime-room-list row .pending-messages-count:backdrop {
+.chime-sidebar-list row .pending-messages-count:backdrop {
     color: @theme_unfocused_selected_fg_color;
     background-color: mix(@theme_unfocused_selected_bg_color, @theme_unfocused_selected_fg_color, 0.1);
 }
 
-treeview.chime-server-room-list {
+treeview.chime-server-sidebar-list {
     padding: 6px 12px;
 }
 

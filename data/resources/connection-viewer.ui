@@ -257,7 +257,7 @@
                     <property name="width">200</property>
                     <property name="shadow-type">none</property>
                     <style>
-                      <class name="chime-room-list"/>
+                      <class name="chime-sidebar-list"/>
                     </style>
                     <child>
                       <object class="GtkScrolledWindow">

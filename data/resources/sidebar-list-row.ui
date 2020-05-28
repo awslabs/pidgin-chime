@@ -48,7 +48,7 @@
                   <packing>
                     <property name="name">connecting</property>
                   </packing>
-'               </child>
+                </child>
                 <child>
                   <object class="GtkAspectFrame">
                     <property name="visible">True</property>

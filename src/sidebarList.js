@@ -23,6 +23,26 @@ var SidebarListRow = GObject.registerClass({
     }
 });
 
+var SidebarListHeader = GObject.registerClass({
+    CssName: 'row',
+    Template: 'resource:///org/gnome/Chime/ui/sidebar-list-header.ui',
+    InternalChildren: ['label'],
+}, class SidebarListHeader extends Gtk.MenuButton {
+    _init(params) {
+        // FIXME: use some kind of enum?
+        this._isRoom = params.isRoom;
+        delete params.isRoom;
+
+        super._init(params);
+
+        if (this._isRoom) {
+            this._label.label = 'Chat rooms';
+        } else {
+            this._label.label = 'Recent messages';
+        }
+    }
+});
+
 var SidebarList = GObject.registerClass({
     Properties: {
         connection: GObject.ParamSpec.object('connection',
@@ -95,15 +115,7 @@ var SidebarList = GObject.registerClass({
             return;
         }
 
-        let header = new Gtk.Label();
-        header.show();
-
-        if (getIsRoom(row)) {
-            header.label = 'Chat rooms';
-        } else {
-            header.label = 'Recent messages';
-        }
-
+        let header = new SidebarListHeader({ isRoom: getIsRoom(row) });
         row.set_header(header);
     }
 });

@@ -17,6 +17,10 @@ var SidebarListRow = GObject.registerClass({
         entity.bind_property('name', this._label, 'label',
                              GObject.BindingFlags.SYNC_CREATE);
     }
+
+    get entity() {
+        return this._entity;
+    }
 });
 
 var SidebarList = GObject.registerClass({
@@ -33,7 +37,7 @@ var SidebarList = GObject.registerClass({
 
         log('New sidebar list');
 
-        //this.set_header_func(this._updateHeader.bind(this));
+        this.set_header_func(this._updateHeader.bind(this));
         //this.set_sort_func(this._sort.bind(this));
 
         this._roomRows = new Map();
@@ -72,5 +76,34 @@ var SidebarList = GObject.registerClass({
         let row = new SidebarListRow(conversation);
         row.show();
         this.add(row);
+    }
+
+    _updateHeader(row, before) {
+        let getIsRoom = row => row ? row.entity instanceof Chime.Room : false;
+        let getIsConversation = row => row ? row.entity instanceof Chime.Conversation : false;
+
+        let oldHeader = row.get_header();
+
+        if ((getIsRoom(before) && getIsRoom(row)) ||
+            (getIsConversation(before) && getIsConversation(row))) {
+            if (oldHeader)
+                oldHeader.destroy();
+            return;
+        }
+
+        if (oldHeader) {
+            return;
+        }
+
+        let header = new Gtk.Label();
+        header.show();
+
+        if (getIsRoom(row)) {
+            header.label = 'Chat rooms';
+        } else {
+            header.label = 'Recent messages';
+        }
+
+        row.set_header(header);
     }
 });

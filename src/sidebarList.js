@@ -5,6 +5,19 @@ const GObject = imports.gi.GObject;
 const Gtk = imports.gi.Gtk;
 const Chime = imports.gi.Chime;
 
+var SidebarListRow = GObject.registerClass({
+    Template: 'resource:///org/gnome/Chime/ui/sidebar-list-row.ui',
+    InternalChildren: ['icon', 'label', 'counter'],
+}, class SidebarListRow extends Gtk.ListBoxRow {
+    _init(entity) {
+        super._init();
+
+        this._entity = entity;
+
+        entity.bind_property('name', this._label, 'label',
+                             GObject.BindingFlags.SYNC_CREATE);
+    }
+});
 
 var SidebarList = GObject.registerClass({
     Properties: {
@@ -46,15 +59,18 @@ var SidebarList = GObject.registerClass({
     }
 
     _onConnectionNewRoom(connection, room) {
-        log('Sidebar: new room: ' + room.get_name());
-        let row = new Gtk.ListBoxRow();
-        row.add(new Gtk.Label({ label: room.get_name() }));
-        row.show_all();
+        log('Sidebar: new room: ' + room.name);
 
+        let row = new SidebarListRow(room);
+        row.show();
         this.add(row);
     }
 
     _onConnectionNewConversation(connection, conversation) {
-        log('New conversation: ' + conversation.get_name());
+        log('New conversation: ' + conversation.name);
+
+        let row = new SidebarListRow(conversation);
+        row.show();
+        this.add(row);
     }
 });

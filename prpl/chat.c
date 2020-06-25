@@ -628,6 +628,43 @@ static void share_screen(gpointer _chat, PurpleMediaElementInfo *info)
 				  GST_DEBUG_GRAPH_SHOW_ALL, "chime share graph");
 }
 
+static void select_cam_ok_cb(gpointer _chat, PurpleRequestFields *fields) {
+	PurpleRequestField *f = purple_request_fields_get_field(fields, "camera");
+	guint choice = purple_request_field_choice_get_value(f);
+	const char *id = (const char*)g_list_nth_data(purple_request_field_choice_get_labels(f), choice);
+
+	PurpleMediaElementInfo *el =
+		purple_media_manager_get_element_info(purple_media_manager_get(), id);
+	share_screen(_chat, el);
+}
+
+static void select_cam_screen_share(PurpleBuddy *buddy, gpointer _chat) {
+	PurpleMediaManager *manager = purple_media_manager_get();
+
+	GList *ellist = purple_media_manager_enumerate_elements(
+			manager, PURPLE_MEDIA_ELEMENT_VIDEO | PURPLE_MEDIA_ELEMENT_SRC);
+	PurpleRequestFields *fields = purple_request_fields_new();
+	PurpleRequestFieldGroup *g = purple_request_field_group_new(NULL);
+	purple_request_fields_add_group(fields, g);
+	PurpleRequestField *f;
+	f = purple_request_field_choice_new("camera", _("Camera"), 0);
+
+	GList *list = ellist;
+	while (list) {
+		PurpleMediaElementInfo *info = list->data;
+		gchar *id = purple_media_element_info_get_id(info);
+		purple_request_field_choice_add(f, id);
+		purple_debug(PURPLE_DEBUG_INFO, "chime-cam-media", " info: %p, id: %s\n",
+				info, id);
+		list = list->next;
+	}
+	g_list_free(ellist);
+	purple_request_field_group_add_field(g, f);
+	purple_request_fields(NULL, _("Select camera"), NULL, NULL, fields,
+			_("Camera"), G_CALLBACK(select_cam_ok_cb), _("Cancel"),
+			NULL, NULL, NULL, NULL, _chat);
+}
+
 static void select_screen_share(PurpleBuddy *buddy, gpointer _chat)
 {
 	static void *(*request_fn)(void *handle, const char *title,
@@ -1295,6 +1332,9 @@ GList *chime_purple_chat_menu(PurpleChat *pchat)
 			items = g_list_append(items,
 					      purple_menu_action_new(chat->screen_title,
 								     PURPLE_CALLBACK(view_screen), chat, NULL));
+		items = g_list_append(items,
+				      purple_menu_action_new(_("Share camera as screen..."),
+							     PURPLE_CALLBACK(select_cam_screen_share), chat, NULL));
 		items = g_list_append(items,
 				      purple_menu_action_new(_("Share screen..."),
 							     PURPLE_CALLBACK(select_screen_share), chat, NULL));

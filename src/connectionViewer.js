@@ -179,7 +179,7 @@ var ConnectionViewer = GObject.registerClass({
 
     _onConnectionSessionTokenChanged() {
         log('Session token changed: ' + this._connection.session_token);
-        this._settings.set_string('session-token', this._connection.session_token);
+        this._settings.set_string('session-token', this._connection.session_token ? this._connection.session_token : '');
     }
 
     _onLoginButtonClicked(widget) {

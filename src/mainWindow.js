@@ -13,8 +13,6 @@ const Utils = imports.utils;
 var MainWindow = GObject.registerClass({
     Template: 'resource:///org/gnome/Chime/ui/main-window.ui',
     InternalChildren: ['titlebarRight',
-                       'titlebarLeft',
-                       'joinButton',
                        'showUserListButton',
                        'userListPopover',
                        'connectionViewer',
@@ -70,10 +68,6 @@ var MainWindow = GObject.registerClass({
 
         if (this._settings.get_boolean('window-maximized'))
             this.maximize();
-
-        this._sidebarSizeGroup = new Gtk.SizeGroup();
-        this._sidebarSizeGroup.add_widget(this._titlebarLeft);
-        this._sidebarSizeGroup.add_widget(this._connectionViewer.getSidebar());
     }
 
     get subtitle() {
@@ -154,7 +148,6 @@ var MainWindow = GObject.registerClass({
             layoutRight = ':' + split[1];
         }
 
-        this._titlebarLeft.set_decoration_layout(layoutLeft);
         this._titlebarRight.set_decoration_layout(layoutRight);
     }
 

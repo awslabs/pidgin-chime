@@ -5,7 +5,6 @@ const Gtk = imports.gi.Gtk;
 const Chime = imports.gi.Chime;
 const ChimeUtils = imports.gi.ChimeUtils;
 
-const SidebarList = imports.sidebarList; // used in template
 const RoomStack = imports.roomStack; // used in template
 const UserList = imports.userList; // used in template
 
@@ -91,10 +90,7 @@ var ConnectionViewer = GObject.registerClass({
                        'loginButton',
                        'spinnerFrame',
                        'spinner',
-                       'connectedBox',
-                       'sidebarRevealer',
-                       'sidebar',
-                       'sidebarList',],
+                       'connectedBox',],
 }, class ConnectionViewer extends Gtk.Bin {
     _init(params) {
         super._init(params);
@@ -137,8 +133,6 @@ var ConnectionViewer = GObject.registerClass({
             this._spinner.start();
             this._stack.visible_child = this._spinnerFrame;
         }
-
-        this._sidebarList.connection = this._connection;
 
         this._connection.connect();
     }
@@ -202,7 +196,6 @@ var ConnectionViewer = GObject.registerClass({
      _onConnectionConnected(connection, display_name) {
         log('chime connected as ' + display_name);
         this._stack.visible_child = this._connectedBox;
-        this._sidebarRevealer.reveal_child = true;
     }
 
      _onConnectionDisconnected(connection, err) {
@@ -223,9 +216,5 @@ var ConnectionViewer = GObject.registerClass({
 
     _onConnectionNewMeeting(connection, meeting) {
         log('New meeting: ' + meeting.get_name());
-    }
-
-    getSidebar() {
-        return this._sidebar;
     }
 });

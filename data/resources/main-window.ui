@@ -42,47 +42,6 @@
       <object class="GtkBox">
         <property name="visible">True</property>
         <child>
-          <object class="GtkHeaderBar" id="titlebarLeft">
-            <property name="visible">True</property>
-            <property name="hexpand">False</property>
-            <property name="show-close-button">True</property>
-            <child>
-              <object class="GtkButton" id="joinButton">
-                <property name="visible">True</property>
-                <property name="halign">end</property>
-                <property name="valign">center</property>
-                <property name="action_name">app.show-join-dialog</property>
-                <property name="tooltip-text" translatable="yes">Add rooms and networks</property>
-                <style>
-                  <class name="image-button"/>
-                </style>
-                <child>
-                  <object class="GtkImage">
-                    <property name="visible">True</property>
-                    <property name="icon-name">list-add-symbolic</property>
-                    <property name="icon-size">1</property>
-                  </object>
-                </child>
-                <child internal-child="accessible">
-                  <object class="AtkObject">
-                    <property name="AtkObject::accessible-name"
-                              translatable="yes">Add rooms and networks</property>
-                  </object>
-                </child>
-              </object>
-              <packing>
-                <property name="pack-type">start</property>
-              </packing>
-            </child>
-          </object>
-        </child>
-        <child>
-          <object class="GtkSeparator">
-            <property name="visible">True</property>
-            <property name="orientation">vertical</property>
-          </object>
-        </child>
-        <child>
           <object class="GtkHeaderBar" id="titlebarRight">
             <property name="visible">True</property>
             <property name="hexpand">True</property>

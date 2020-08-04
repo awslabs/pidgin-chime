@@ -17,7 +17,6 @@ js_sources = [
   'pasteManager.js',
   'roomList.js',
   'roomStack.js',
-  'sidebarList.js',
   'tabCompletion.js',
   'userList.js',
   'utils.js',

@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.20.0 -->
+<interface>
+  <requires lib="gtk+" version="3.18"/>
+  <template class="ChimeConnectionViewer" parent="GtkBin">
+    <child>
+      <object class="GtkStack" id="stack">
+        <property name="visible">True</property>
+        <property name="transition_type">crossfade</property>
+        <property name="visible_child">main_frame</property>
+        <child>
+          <object class="GtkFrame" id="main_frame">
+            <property name="visible">True</property>
+            <property name="shadow_type">none</property>
+            <style>
+              <class name="white-background"/>
+            </style>
+            <child>
+              <object class="GtkGrid" id="main_grid">
+                <property name="visible">True</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+                <property name="halign">center</property>
+                <property name="valign">center</property>
+                <property name="orientation">vertical</property>
+                <property name="column_spacing">18</property>
+                <property name="row_spacing">18</property>
+                <child>
+                  <object class="GtkImage" id="chime_logo">
+                    <property name="visible">True</property>
+                    <property name="resource">/org/gnome/Chime/images/logo.svg</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkStack" id="connect_stack">
+                    <property name="visible">True</property>
+                    <property name="transition_type">crossfade</property>
+                    <property name="visible_child">connect_grid</property>
+                    <child>
+                      <object class="GtkGrid" id="connect_grid">
+                        <property name="visible">True</property>
+                        <property name="hexpand">True</property>
+                        <property name="vexpand">True</property>
+                        <property name="halign">center</property>
+                        <property name="valign">center</property>
+                        <property name="orientation">vertical</property>
+                        <property name="column_spacing">18</property>
+                        <property name="row_spacing">18</property>
+                        <child>
+                          <object class="GtkLabel" id="connect_explanation">
+                            <property name="visible">True</property>
+                            <property name="justify">center</property>
+                            <property name="label" translatable="yes">Please, specify the user e-mail</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkGrid" id="connect_grid_group">
+                            <property name="visible">True</property>
+                            <property name="halign">center</property>
+                            <property name="valign">center</property>
+                            <property name="hexpand">True</property>
+                            <property name="vexpand">True</property>
+                            <property name="orientation">vertical</property>
+                            <property name="column_spacing">18</property>
+                            <property name="row_spacing">18</property>
+                            <property name="width_request">350</property>
+                            <child>
+                              <object class="GtkEntry" id="email_entry">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="placeholder_text" translatable="yes">E-mail address</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="connect_button">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Connect</property>
+                                <style>
+                                  <class name="suggested-action"/>
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkGrid" id="connect_spinner_grid">
+                        <property name="visible">True</property>
+                        <property name="hexpand">True</property>
+                        <property name="vexpand">True</property>
+                        <property name="halign">center</property>
+                        <property name="valign">center</property>
+                        <property name="orientation">vertical</property>
+                        <property name="column_spacing">18</property>
+                        <property name="row_spacing">18</property>
+                        <child>
+                          <object class="GtkSpinner" id="connect_spinner">
+                            <property name="visible">True</property>
+                            <property name="hexpand">True</property>
+                            <property name="vexpand">True</property>
+                            <property name="halign">center</property>
+                            <property name="valign">center</property>
+                            <property name="width_request">50</property>
+                            <property name="height_request">50</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="connect_spinner_label">
+                            <property name="visible">True</property>
+                            <property name="label" translatable="yes">Connecting</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkGrid" id="login_grid">
+                        <property name="visible">True</property>
+                        <property name="hexpand">True</property>
+                        <property name="vexpand">True</property>
+                        <property name="halign">center</property>
+                        <property name="valign">center</property>
+                        <property name="orientation">vertical</property>
+                        <property name="column_spacing">18</property>
+                        <property name="row_spacing">18</property>
+                        <child>
+                          <object class="GtkLabel" id="login_explanation">
+                            <property name="visible">True</property>
+                            <property name="justify">center</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkGrid" id="login_grid_group">
+                            <property name="visible">True</property>
+                            <property name="halign">center</property>
+                            <property name="valign">center</property>
+                            <property name="hexpand">True</property>
+                            <property name="vexpand">True</property>
+                            <property name="orientation">vertical</property>
+                            <property name="column_spacing">18</property>
+                            <property name="row_spacing">18</property>
+                            <property name="width_request">350</property>
+                            <child>
+                              <object class="GtkEntry" id="login_username_entry">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="width_request">350</property>
+                                <property name="placeholder_text" translatable="yes">Username</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="login_password_entry">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="placeholder_text" translatable="yes">Password</property>
+                                <property name="visibility">False</property>
+                                <property name="input_purpose">password</property>
+                                <property name="width_request">350</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="login_button">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="sensitive">True</property>
+                                <property name="label" translatable="yes">Login</property>
+                                <style>
+                                  <class name="suggested-action"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="cancel_login_button">
+                                <property name="visible">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="sensitive">True</property>
+                                <property name="relief">none</property>
+                                <property name="label" translatable="yes">Cancel</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkGrid" id="disconnecting_spinner_grid">
+                        <property name="visible">True</property>
+                        <property name="hexpand">True</property>
+                        <property name="vexpand">True</property>
+                        <property name="halign">center</property>
+                        <property name="valign">center</property>
+                        <property name="orientation">vertical</property>
+                        <property name="column_spacing">18</property>
+                        <property name="row_spacing">18</property>
+                        <child>
+                          <object class="GtkSpinner" id="disconnecting_spinner">
+                            <property name="visible">True</property>
+                            <property name="hexpand">True</property>
+                            <property name="vexpand">True</property>
+                            <property name="halign">center</property>
+                            <property name="valign">center</property>
+                            <property name="width_request">50</property>
+                            <property name="height_request">50</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="disconnecting_spinner_label">
+                            <property name="visible">True</property>
+                            <property name="label" translatable="yes">Disconnecting</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkFrame" id="spinner_frame">
+            <property name="visible">True</property>
+            <property name="hexpand">True</property>
+            <property name="vexpand">True</property>
+            <property name="shadow_type">none</property>
+            <child>
+              <object class="GtkSpinner" id="spinner">
+                <property name="visible">True</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+                <property name="halign">center</property>
+                <property name="valign">center</property>
+                <property name="width_request">50</property>
+                <property name="height_request">50</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkStack" id="connected_stack">
+            <property name="visible">True</property>
+            <child>
+              <object class="ChimeMeetingsView" id="meetings_view">
+                <property name="visible">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkFrame" id="join_meeting_spinner_frame">
+                <property name="visible">True</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+                <property name="shadow_type">none</property>
+                <child>
+                  <object class="GtkSpinner" id="join_meeting_spinner">
+                    <property name="visible">True</property>
+                    <property name="hexpand">True</property>
+                    <property name="vexpand">True</property>
+                    <property name="halign">center</property>
+                    <property name="valign">center</property>
+                    <property name="width_request">50</property>
+                    <property name="height_request">50</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

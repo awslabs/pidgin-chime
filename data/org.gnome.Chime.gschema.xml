@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="chime">
+
+  <schema path="/org/gnome/chime/account/" id="org.gnome.Chime.Account">
+    <key type="s" name="email">
+      <default>""</default>
+      <summary>Email</summary>
+      <description>The email for chime</description>
+    </key>
+    <key type="s" name="device-token">
+      <default>""</default>
+      <summary>The device token</summary>
+      <description>The device token</description>
+    </key>
+    <key type="s" name="server">
+      <default>""</default>
+      <summary>The chime server</summary>
+      <description>The Chime server</description>
+    </key>
+    <key type="s" name="session-token">
+      <default>""</default>
+      <summary>The session authentication token</summary>
+      <description>The session authentication token</description>
+    </key>
+  </schema>
+
+  <schema id="org.gnome.Chime.state.window" path="/org/gnome/chime/state/window/">
+    <key name="state" type="i">
+      <default>0</default>
+    </key>
+
+    <key name="size" type="(ii)">
+      <default>(1024, 768)</default>
+    </key>
+  </schema>
+
+  <schema id="org.gnome.Chime.log" path="/org/gnome/chime/log/">
+    <key name="directory" type="s">
+      <default>''</default>
+      <summary>Log Output Directory</summary>
+      <description>Specify the directory path where logs will be saved</description>
+    </key>
+
+    <key name="level" type="s">
+      <default>'info'</default>
+      <summary>Log Level</summary>
+      <description>Control the verbosity of logs</description>
+    </key>
+
+    <key name="rotate" type="u">
+      <default>10</default>
+      <summary>Number of log file rorations</summary>
+      <description>Number of time log files are rotated before being removed. If the value is 0, old versions are removed rather than rotated.</description>
+    </key>
+  </schema>
+</schemalist>

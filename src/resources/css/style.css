@@ -1,0 +1,152 @@
+/* Palette */
+@define-color dcv_pale_blue #E9F5FA;
+@define-color dcv_blue #249ED5;
+@define-color dcv_dark_blue #196F95;
+@define-color dcv_darkest_blue #0B2F40;
+
+@define-color dcv_pale_grey #EEE;
+@define-color dcv_light_grey #CCC;
+
+@define-color dcv_warning #FCD000;
+@define-color dcv_error #E02C00;
+
+/* Styles */
+DvDisplayCairo,
+DvDisplayGl,
+display {
+    background-color: @dcv_darkest_blue;
+}
+
+.white-background {
+    background-color: white;
+}
+
+.auth-frame {
+    background-color: @dcv_darkest_blue;
+}
+
+.light-blue-frame {
+    background-color: @dcv_blue;
+}
+
+.controls-revealer-button {
+    padding: 0px 10px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+    border-top: none;
+}
+
+.big-entry {
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+.big-button {
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.empty-button {
+    background-image: none;
+}
+
+.blue-spinner {
+    color: @dcv_blue;
+}
+
+.blue-label {
+    color: @dcv_blue;
+}
+
+.about-text-view {
+    padding-top: 16px;
+    padding-bottom: 16px;
+}
+
+.notification-button-image {
+    padding-top: 3px;
+    padding-bottom: 2px;
+}
+
+.notification-button {
+    color: white;
+    background-color: @dcv_blue;
+    border-radius: 10px;
+    padding: 3px;
+}
+
+.notification-button-needs-attention {
+    color: white;
+    background-color: @dcv_error;
+    border-radius: 10px;
+    padding: 3px;
+}
+
+.list-box-row-image-error {
+    color: @dcv_error;
+}
+
+DvChart,
+chart {
+    background-color: white;
+}
+
+DvChart,
+chart .bandwidth{
+    color: @dcv_blue;
+}
+
+DvChart,
+chart .bandwidth:hover{
+    color: alpha(@dcv_blue, 0.4);
+}
+
+DvChart,
+chart .average{
+    color: @dcv_blue;
+}
+
+.streaming-dialog-frame {
+    background-color: white;
+}
+
+.streaming-dialog-frame-stat {
+    padding: 3px;
+    border-width: 0px;
+    border-color: @dcv_blue;
+    background-color: @dcv_light_grey;
+}
+
+.streaming-dialog-frame-stat-current {
+    border-style: solid;
+    border-bottom-width: 3px;
+}
+
+.streaming-dialog-frame-stat-average {
+    border-style: dashed;
+    border-bottom-width: 3px;
+}
+
+.filestorage-header-frame {
+  padding: 15px;
+  background-color: white;
+  border-bottom-color: @dcv_pale_grey;
+  border-width: 1px 0px;
+  border-style: solid;
+}
+
+.filestorage-list {
+  background-color: white;
+}
+
+/* These are for MacOS. On Linux we do not use a dialog action box */
+dialog .dialog-action-box button {
+  padding: 0px 0px;
+  border-radius: 6px;
+}
+
+dialog .dialog-action-box {
+  margin: 12px;
+}

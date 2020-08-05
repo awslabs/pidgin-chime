@@ -21,9 +21,9 @@
 
 #include <libsoup/soup.h>
 
-#include "protobuf/auth_message.pb-c.h"
-#include "protobuf/rt_message.pb-c.h"
-#include "protobuf/data_message.pb-c.h"
+#include "auth_message.pb-c.h"
+#include "rt_message.pb-c.h"
+#include "data_message.pb-c.h"
 
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>

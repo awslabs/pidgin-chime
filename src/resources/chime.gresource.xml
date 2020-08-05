@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/org/gnome/Chime">
+    <file preprocess="xml-stripblanks">gtk/menus.ui</file>
+    <file preprocess="xml-stripblanks">ui/connectionviewer.ui</file>
+    <file preprocess="xml-stripblanks">ui/meetinglistboxrow.ui</file>
+    <file preprocess="xml-stripblanks">ui/meetingsview.ui</file>
+    <file preprocess="xml-stripblanks">ui/window.ui</file>
+    <file>css/style.css</file>
+    <file>images/logo.svg</file>
+  </gresource>
+</gresources>

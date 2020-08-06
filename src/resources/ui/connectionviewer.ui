@@ -247,7 +247,7 @@
           <object class="GtkStack" id="connected_stack">
             <property name="visible">True</property>
             <child>
-              <object class="ChimeMeetingsView" id="meetings_view">
+              <object class="ChimeMeetingListView" id="meeting_list_view">
                 <property name="visible">True</property>
               </object>
             </child>

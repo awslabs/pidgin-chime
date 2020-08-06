@@ -16,7 +16,7 @@
 #define CHIME_LOG_DOMAIN "viewer"
 
 #include "connectionviewer.h"
-#include "meetingsview.h"
+#include "meetinglistview.h"
 
 #include "chime-connection.h"
 #include "chime-contact.h"
@@ -55,7 +55,7 @@ struct _ChimeConnectionViewer
     GtkFrame *spinner_frame;
     GtkSpinner *spinner;
     GtkStack *connected_stack;
-    ChimeMeetingsView *meetings_view;
+    ChimeMeetingListView *meeting_list_view;
     GtkFrame *join_meeting_spinner_frame;
     GtkSpinner *join_meeting_spinner;
 };
@@ -165,7 +165,7 @@ chime_connection_viewer_class_init(ChimeConnectionViewerClass *klass)
     gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, spinner_frame);
     gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, spinner);
     gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, connected_stack);
-    gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, meetings_view);
+    gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, meeting_list_view);
     gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, join_meeting_spinner_frame);
     gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, join_meeting_spinner);
 }
@@ -257,7 +257,7 @@ try_login(ChimeConnectionViewer *viewer)
 
     g_clear_object(&viewer->connection);
     viewer->connection = chime_connection_new(email, SIGNIN_DEFAULT, device_token, session_token);
-    chime_meetings_view_set_connection(viewer->meetings_view, viewer->connection);
+    chime_meeting_list_view_set_connection(viewer->meeting_list_view, viewer->connection);
 
     g_signal_connect(viewer->connection, "notify::session-token",
                      G_CALLBACK(on_connection_session_token_changed), viewer);
@@ -340,7 +340,7 @@ on_cancel_login_button_clicked(GtkButton          *button,
 }
 
 static void
-on_join_meeting(ChimeMeetingsView     *view,
+on_join_meeting(ChimeMeetingListView  *view,
                 ChimeMeeting          *meeting,
                 ChimeConnectionViewer *viewer)
 {
@@ -381,7 +381,7 @@ chime_connection_viewer_init(ChimeConnectionViewer *viewer)
     g_signal_connect(viewer->cancel_login_button, "clicked",
                      G_CALLBACK(on_cancel_login_button_clicked), viewer);
 
-    g_signal_connect(viewer->meetings_view, "join-meeting",
+    g_signal_connect(viewer->meeting_list_view, "join-meeting",
                      G_CALLBACK(on_join_meeting), viewer);
 
     try_login(viewer);

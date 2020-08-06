@@ -8,8 +8,8 @@ app_sources = files(
   'main.c',
   'meetinglistboxrow.c',
   'meetinglistboxrow.h',
-  'meetingsview.c',
-  'meetingsview.h',
+  'meetinglistview.c',
+  'meetinglistview.h',
   'window.c',
   'window.h',
 )

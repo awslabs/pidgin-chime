@@ -5,6 +5,7 @@
     <file preprocess="xml-stripblanks">ui/connectionviewer.ui</file>
     <file preprocess="xml-stripblanks">ui/meetinglistboxrow.ui</file>
     <file preprocess="xml-stripblanks">ui/meetinglistview.ui</file>
+    <file preprocess="xml-stripblanks">ui/meetingview.ui</file>
     <file preprocess="xml-stripblanks">ui/window.ui</file>
     <file>css/style.css</file>
     <file>images/logo.svg</file>

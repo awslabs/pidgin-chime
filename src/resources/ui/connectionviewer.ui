@@ -270,6 +270,11 @@
                 </child>
               </object>
             </child>
+            <child>
+              <object class="ChimeMeetingView" id="meeting_view">
+                <property name="visible">True</property>
+              </object>
+            </child>
           </object>
         </child>
       </object>

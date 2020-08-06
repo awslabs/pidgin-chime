@@ -17,6 +17,7 @@
 
 #include "connectionviewer.h"
 #include "meetinglistview.h"
+#include "meetingview.h"
 
 #include "chime-connection.h"
 #include "chime-contact.h"
@@ -58,6 +59,7 @@ struct _ChimeConnectionViewer
     ChimeMeetingListView *meeting_list_view;
     GtkFrame *join_meeting_spinner_frame;
     GtkSpinner *join_meeting_spinner;
+    ChimeMeetingView *meeting_view;
 };
 
 enum
@@ -168,6 +170,7 @@ chime_connection_viewer_class_init(ChimeConnectionViewerClass *klass)
     gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, meeting_list_view);
     gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, join_meeting_spinner_frame);
     gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, join_meeting_spinner);
+    gtk_widget_class_bind_template_child(widget_class, ChimeConnectionViewer, meeting_view);
 }
 
 static void
@@ -340,6 +343,32 @@ on_cancel_login_button_clicked(GtkButton          *button,
 }
 
 static void
+join_meeting_ready(GObject      *source,
+                   GAsyncResult *result,
+                   gpointer      user_data)
+{
+    ChimeConnectionViewer *viewer = user_data;
+    ChimeMeeting *meeting;
+    GError *error = NULL;
+
+    meeting = chime_connection_join_meeting_finish(CHIME_CONNECTION(source), result, &error);
+    if (meeting == NULL) {
+        g_warning("Could not join the meeting: %s", error->message);
+        g_error_free(error);
+        /* FIXME: emit a signal */
+        return;
+    }
+
+    g_message("Joined meeting: %s", chime_meeting_get_name(meeting));
+
+    chime_meeting_view_set_meeting(viewer->meeting_view, meeting);
+    g_object_unref(meeting);
+
+    gtk_spinner_stop(viewer->join_meeting_spinner);
+    gtk_stack_set_visible_child(viewer->connected_stack, GTK_WIDGET(viewer->meeting_view));
+}
+
+static void
 on_join_meeting(ChimeMeetingListView  *view,
                 ChimeMeeting          *meeting,
                 ChimeConnectionViewer *viewer)
@@ -347,6 +376,9 @@ on_join_meeting(ChimeMeetingListView  *view,
     g_message("on join meeting");
     gtk_spinner_start(viewer->join_meeting_spinner);
     gtk_stack_set_visible_child(viewer->connected_stack, GTK_WIDGET(viewer->join_meeting_spinner_frame));
+
+    chime_connection_join_meeting_async(viewer->connection, meeting, FALSE,
+                                        NULL, join_meeting_ready, viewer);
 }
 
 static void

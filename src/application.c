@@ -17,6 +17,7 @@
 #include "window.h"
 #include "connectionviewer.h"
 #include "meetinglistview.h"
+#include "meetingview.h"
 
 #include <stdlib.h>
 #include <glib/gi18n.h>
@@ -278,6 +279,7 @@ chime_application_init(ChimeApplication *app)
 
     g_type_ensure(CHIME_TYPE_CONNECTION_VIEWER);
     g_type_ensure(CHIME_TYPE_MEETING_LIST_VIEW);
+    g_type_ensure(CHIME_TYPE_MEETING_VIEW);
 
     /* NOTE: workaround the case where the themed icon is not registered when creating the window */
     g_type_ensure(G_TYPE_THEMED_ICON);

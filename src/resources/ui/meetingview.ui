@@ -15,6 +15,7 @@
             <property name="halign">start</property>
             <property name="valign">start</property>
             <property name="row-spacing">32</property>
+            <property name="column-spacing">12</property>
             <property name="orientation">vertical</property>
             <child>
               <object class="GtkLabel" id="meeting_name_label">
@@ -27,6 +28,45 @@
                   <attribute name="scale" value="3"/>
                 </attributes>
               </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">0</property>
+                <property name="width">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="hexpand">False</property>
+                <property name="ellipsize">end</property>
+                <property name="xalign">0</property>
+                <property name="label" translatable="yes">Organiser:</property>
+                <attributes>
+                  <attribute name="scale" value="1.5"/>
+                </attributes>
+                <style>
+                  <class name="dim-label"/>
+                </style>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="meeting_organiser_label">
+                <property name="visible">True</property>
+                <property name="hexpand">True</property>
+                <property name="ellipsize">end</property>
+                <property name="xalign">0</property>
+                <attributes>
+                  <attribute name="scale" value="1.5"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">1</property>
+              </packing>
             </child>
           </object>
         </child>

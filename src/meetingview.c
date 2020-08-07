@@ -25,6 +25,7 @@ struct _ChimeMeetingView
     GtkLabel *meeting_name_label;
     GtkLabel *meeting_organiser_label;
     GtkListBox *user_list_box;
+    GListStore *user_list_store;
 
     ChimeConnection  *connection;
     ChimeMeeting *meeting;
@@ -132,16 +133,46 @@ chime_meeting_view_class_init(ChimeMeetingViewClass *klass)
     gtk_widget_class_bind_template_child(widget_class, ChimeMeetingView, user_list_box);
 }
 
+static GtkWidget *
+create_row(gpointer item,
+           gpointer user_data)
+{
+    ChimeContact *contact = item;
+
+    return gtk_label_new(chime_contact_get_display_name(contact));
+}
+
 static void
 chime_meeting_view_init(ChimeMeetingView *self)
 {
     gtk_widget_init_template(GTK_WIDGET(self));
+
+    self->user_list_store = g_list_store_new(CHIME_TYPE_CONTACT);
+    gtk_list_box_bind_model(self->user_list_box, G_LIST_MODEL(self->user_list_store), create_row, self, NULL);
 }
 
 GtkWidget *
 chime_meeting_view_new(void)
 {
     return g_object_new(CHIME_TYPE_MEETING_VIEW, NULL);
+}
+
+static void
+on_room_membership(ChimeRoom        *room,
+                   ChimeRoomMember  *member,
+                   ChimeMeetingView *self)
+{
+    guint n_items, i;
+
+    n_items = g_list_model_get_n_items(G_LIST_MODEL(self->user_list_store));
+    for (i = 0; i < n_items; i++) {
+        /* If it exists we can avoid adding the new item */
+        if (g_list_model_get_item(G_LIST_MODEL(self->user_list_store), i) == member->contact) {
+            return;
+        }
+    }
+
+    g_list_store_append(self->user_list_store, member->contact);
 }
 
 void
@@ -157,8 +188,15 @@ chime_meeting_view_set_meeting(ChimeMeetingView *self,
 
     if (meeting != NULL) {
         ChimeContact *contact;
+        ChimeRoom *room;
 
         contact = chime_meeting_get_organiser(meeting);
+        room = chime_meeting_get_chat_room(meeting);
+
+        g_signal_connect(room, "membership",
+                         G_CALLBACK(on_room_membership), self);
+
+        chime_connection_open_room(connection, room);
 
         g_object_bind_property(meeting,
                                "name",

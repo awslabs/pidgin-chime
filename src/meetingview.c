@@ -22,6 +22,10 @@ struct _ChimeMeetingView
 
     gboolean muted;
 
+    GtkLabel *meeting_name_label;
+    GtkListBox *user_list_box;
+
+    ChimeConnection  *connection;
     ChimeMeeting *meeting;
 };
 
@@ -122,6 +126,8 @@ chime_meeting_view_class_init(ChimeMeetingViewClass *klass)
     /* Bind class to template */
     gtk_widget_class_set_template_from_resource(widget_class,
                                                 "/org/gnome/Chime/ui/meetingview.ui");
+    gtk_widget_class_bind_template_child(widget_class, ChimeMeetingView, meeting_name_label);
+    gtk_widget_class_bind_template_child(widget_class, ChimeMeetingView, user_list_box);
 }
 
 static void
@@ -138,12 +144,22 @@ chime_meeting_view_new(void)
 
 void
 chime_meeting_view_set_meeting(ChimeMeetingView *self,
+                               ChimeConnection  *connection,
                                ChimeMeeting     *meeting)
 {
     g_return_if_fail(CHIME_IS_MEETING_VIEW(self));
     g_return_if_fail(CHIME_IS_MEETING(meeting));
 
+    (void)g_set_object(&self->connection, connection);
     (void)g_set_object(&self->meeting, meeting);
+
+    if (meeting != NULL) {
+        g_object_bind_property(meeting,
+                               "name",
+                               self->meeting_name_label,
+                               "label",
+                               G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+    }
 }
 
 /* ex:set ts=4 et: */

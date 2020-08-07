@@ -348,10 +348,11 @@ join_meeting_ready(GObject      *source,
                    gpointer      user_data)
 {
     ChimeConnectionViewer *viewer = user_data;
+    ChimeConnection *connection = CHIME_CONNECTION(source);
     ChimeMeeting *meeting;
     GError *error = NULL;
 
-    meeting = chime_connection_join_meeting_finish(CHIME_CONNECTION(source), result, &error);
+    meeting = chime_connection_join_meeting_finish(connection, result, &error);
     if (meeting == NULL) {
         g_warning("Could not join the meeting: %s", error->message);
         g_error_free(error);
@@ -361,7 +362,7 @@ join_meeting_ready(GObject      *source,
 
     g_message("Joined meeting: %s", chime_meeting_get_name(meeting));
 
-    chime_meeting_view_set_meeting(viewer->meeting_view, meeting);
+    chime_meeting_view_set_meeting(viewer->meeting_view, connection, meeting);
     g_object_unref(meeting);
 
     gtk_spinner_stop(viewer->join_meeting_spinner);

@@ -31,6 +31,7 @@ G_DECLARE_FINAL_TYPE(ChimeMeetingView, chime_meeting_view, CHIME, MEETING_VIEW, 
 GtkWidget *chime_meeting_view_new            (void);
 
 void       chime_meeting_view_set_meeting    (ChimeMeetingView *self,
+                                              ChimeConnection  *connection,
                                               ChimeMeeting     *meeting);
 
 G_END_DECLS

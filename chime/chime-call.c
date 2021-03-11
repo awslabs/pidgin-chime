@@ -346,7 +346,7 @@ static void free_participant(void *_p)
 static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNode *p,
 				  ChimeCallParticipant **presenter)
 {
-	const gchar *participant_id, *full_name, *participant_type;
+	const gchar *participant_id, *full_name, *participant_type, *video_present;
 	gboolean pots, speaker;
 	ChimeCallParticipationStatus status;
 
@@ -355,7 +355,8 @@ static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNod
 	    !parse_string(p, "participant_type", &participant_type) ||
 	    !parse_call_participation_status(p, "status", &status) ||
 	    !parse_boolean(p, "pots?", &pots) ||
-	    !parse_boolean(p, "speaker?", &speaker))
+	    !parse_boolean(p, "speaker?", &speaker) ||
+	    !parse_string(p, "video_indicator", &video_present))
 		return FALSE;
 
 	const gchar *email = NULL;
@@ -379,6 +380,11 @@ static gboolean parse_participant(ChimeConnection *cxn, ChimeCall *call, JsonNod
 	cp->speaker = speaker;
 	cp->status = status;
 	cp->shared_screen = screen;
+
+	if(!strcmp(video_present, "none"))
+		cp->video_present = FALSE;
+	else
+		cp->video_present = TRUE;
 
 	if (screen == CHIME_SHARED_SCREEN_PRESENTING)
 		*presenter = cp;

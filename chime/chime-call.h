@@ -87,6 +87,7 @@ typedef struct {
 	gboolean admin;
 	gboolean speaker;
 	gboolean pots;
+	gboolean video_present;
 	int volume;
 	int signal_strength;
 	char *passcode;
@@ -99,6 +100,7 @@ typedef struct _ChimeCallAudio ChimeCallAudio;
 
 struct _ChimeCallScreen;
 typedef struct _ChimeCallScreen ChimeCallScreen;
+typedef struct _ChimeWebcamScreen ChimeWebcamScreen;
 
 
 void chime_call_emit_participants(ChimeCall *call);

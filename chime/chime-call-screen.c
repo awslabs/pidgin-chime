@@ -160,6 +160,10 @@ static void on_screenws_message(SoupWebsocketConnection *ws, gint type,
 		screen_send_packet(screen, SCREEN_PKT_TYPE_HEARTBEAT_RESPONSE, NULL, 0);
 		break;
 
+	case SCREEN_PKT_TYPE_PING_REQUEST:
+		screen_send_packet(screen, SCREEN_PKT_TYPE_PING_RESPONSE, NULL, 0);
+		break;
+
 	case SCREEN_PKT_TYPE_KEY_REQUEST:
 		if (screen->screen_sink) {
 			screen->viewer_present = 1;

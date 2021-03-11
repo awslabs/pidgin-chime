@@ -71,6 +71,7 @@ struct chime_chat {
 
 	void *share_select_ui;
 	PurpleMedia *share_media;
+	PurpleMedia *webcam_media;
 };
 
 /*
@@ -262,6 +263,8 @@ static PurpleNotifySearchResults *generate_sr_participants(GHashTable *participa
 	purple_notify_searchresults_column_add(results, column);
 	column = purple_notify_searchresults_column_new("🔊");
 	purple_notify_searchresults_column_add(results, column);
+	column = purple_notify_searchresults_column_new("📞/🎥");
+	purple_notify_searchresults_column_add(results, column);
 
 	purple_notify_searchresults_button_add(results, PURPLE_NOTIFY_BUTTON_IM, open_participant_im);
 
@@ -297,6 +300,15 @@ static PurpleNotifySearchResults *generate_sr_participants(GHashTable *participa
 		else
 			vol_icon = "🔊";
 		row = g_list_append(row, g_strdup(vol_icon));
+
+		const gchar *video_or_phone_icon;
+		if (p->video_present == TRUE)
+			video_or_phone_icon = "🎥";
+		else if (p->pots == TRUE)
+			video_or_phone_icon = "📞";
+		else
+			video_or_phone_icon = "";
+		row = g_list_append(row, g_strdup(video_or_phone_icon));
 
 		purple_notify_searchresults_row_add(results, row);
 

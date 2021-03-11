@@ -20,6 +20,8 @@
 #include <glib/gi18n.h>
 #include <glib/glist.h>
 
+#include <json-glib/json-glib.h>
+
 #include "chime-connection-private.h"
 
 #include <libsoup/soup.h>

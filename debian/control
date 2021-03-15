@@ -2,7 +2,9 @@ Source: pidgin-chime
 Section: net
 Priority: optional
 Maintainer: David Woodhouse <dwmw@amazon.co.uk>
-Homepage: https://github.com/awslabs/PRIVATE-purple-chime
+Homepage: https://github.com/awslabs/pidgin-chime
+Vcs-Git: https://github.com/awslabs/pidgin-chime.git
+Vcs-Browser: https://github.com/awslabs/pidgin-chime
 Standards-Version: 3.9.7
 Build-Depends: debhelper (>= 9),
 	       autoconf,

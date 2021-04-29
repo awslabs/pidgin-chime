@@ -11,7 +11,10 @@ endif
 
 AM_CPPFLAGS = @WFLAGS@
 
-bin_SCRIPTS = chime-joinable.py
+bin_SCRIPTS = chime-joinable.py chime-auth.py
+
+applicationsdir = $(datadir)/applications
+applications_DATA = chime-auth.desktop
 
 certs_DATA = certs/Amazon.com_InfoSec_CA_G3.pem \
 	       certs/Amazon.com_Internal_Root_Certificate_Authority.pem \

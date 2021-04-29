@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Pidgin Chime authentication handler
+Exec=chime-auth.py %u
+Type=Application
+Terminal=false
+MimeType=x-scheme-handler/chime;

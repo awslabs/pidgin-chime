@@ -67,6 +67,7 @@ BuildRequires:  gettext
 BuildRequires:  libtool
 BuildRequires:  autoconf
 BuildRequires:  automake
+BuildRequires:  desktop-file-utils
 
 Requires:       purple-chime%{?_isa} = %{version}-%{release}
 Requires:       evolution-chime
@@ -120,6 +121,7 @@ make %{?_smp_mflags}
 
 %install
 %make_install
+desktop-file-validate %{buildroot}/%{_datadir}/applications/chime-auth.desktop
 find %{buildroot} -type f -name "*.la" -delete -print
 %find_lang %{name}
 
@@ -130,6 +132,8 @@ make %{?_smp_mflags} check
 %{_datadir}/pixmaps/pidgin/protocols/*/chime*
 %{_libdir}/pidgin/chimeseen.so
 %{_bindir}/chime-joinable.py
+%{_bindir}/chime-auth.py
+%{_datadir}/applications/*.desktop
 
 %files -n purple-chime -f %{name}.lang
 %{_libdir}/purple-2/libchimeprpl.so

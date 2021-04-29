@@ -4,4 +4,4 @@ usr/lib/*-linux-gnu/farstream-0.2/* usr/lib/x86_64-linux-gnu/farstream-0.2
 usr/lib/*-linux-gnu/gstreamer-1.0/*.so usr/lib/x86_64-linux-gnu/gstreamer-1.0
 usr/lib/evolution/modules/* usr/lib/evolution/modules
 usr/lib/pidgin/*.so usr/lib/pidgin
-usr/bin/chime-joinable.py usr/bin
+usr/bin/chime-*.py usr/bin

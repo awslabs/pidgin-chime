@@ -11,6 +11,8 @@ endif
 
 AM_CPPFLAGS = @WFLAGS@
 
+bin_SCRIPTS = chime-joinable.py
+
 certs_DATA = certs/Amazon.com_InfoSec_CA_G3.pem \
 	       certs/Amazon.com_Internal_Root_Certificate_Authority.pem \
 	       certs/Amazon_Root_CA_1.pem \

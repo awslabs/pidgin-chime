@@ -129,6 +129,7 @@ make %{?_smp_mflags} check
 %files
 %{_datadir}/pixmaps/pidgin/protocols/*/chime*
 %{_libdir}/pidgin/chimeseen.so
+%{_bindir}/chime-joinable.py
 
 %files -n purple-chime -f %{name}.lang
 %{_libdir}/purple-2/libchimeprpl.so

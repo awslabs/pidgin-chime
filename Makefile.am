@@ -84,13 +84,13 @@ chime/chime-call-transport.c chime/chime-call-audio.c chime/chime-call.c: chime/
 
 EXTRA_DIST = LICENSE README.md pidgin-chime.spec pidgin-chime.spec.in $(certs_DATA)
 
+MAINTAINERCLEANFILES=debian/changelog debian/control
+
+debian/changelog:
+	debian/rules.maint debian/changelog
+
 deb-%: debian/changelog
 	fakeroot debian/rules $(patsubst deb-%,%,$@)
-
-debian/changelog: debian/changelog.in configure.ac Makefile.am
-	@COMMITDESC=$$(git describe --tags | sed  -e 's/$$/-0/' -e 's/v\([^-]\+-[^-]\+\)\(-g[0-9a-f-]\+\|\)/\1/') \
-	 COMMITDATE=$$(git show -s --format=%cD); \
-	 sed -e "s/%COMMITDESC%/$$COMMITDESC/" -e "s/%COMMITDATE%/$$COMMITDATE/" $< > $@
 
 tmp-dist: uncommitted-check
 	$(MAKE) $(AM_MAKEFLAGS) VERSION=$(patsubst v%,%,$(shell git describe --tags)) DISTHOOK=0 dist

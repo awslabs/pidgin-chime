@@ -1,4 +1,4 @@
-pidgin-chime (%COMMITDESC%) xenial; urgency=low
+pidgin-chime (%COMMITDESC%) %DIST%; urgency=low
 
   * Build from git snapshot
 

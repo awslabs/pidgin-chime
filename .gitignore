@@ -26,3 +26,5 @@ missing
 protobuf/*.pb-c.c
 protobuf/*.pb-c.h
 /m4/
+debian/changelog
+debian/control

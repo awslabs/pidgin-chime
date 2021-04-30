@@ -2,7 +2,9 @@
 # git and lsb_release are required, and these rules must be run from within a git working copy
 
 
-export DISTRIB_CODENAME=$(shell lsb_release -cs)
+DISTRIB_CODENAME=$(shell lsb_release -cs)
+COMMITDESC=$(shell git describe --tags | sed  -e 's/$$/-0/' -e 's/v\([^-]\+-[^-]\+\)\(-g[0-9a-f-]\+\|\)/\1/')
+COMMITDATE=$(shell git show -s --format=%cD)
 
 ifeq ($(DISTRIB_CODENAME),)
 	DISTRIB_CODENAME=$(error Unable to identify distribution)
@@ -16,14 +18,16 @@ else
 	PKGVERSIONSUFFIX=~${DISTRIB_CODENAME}+1
 endif
 
+all: debian/control debian/changelog
+
 debian/control: debian/control.in debian/deps/build-$(DISTRIB_CODENAME) debian/deps/bin-$(DISTRIB_CODENAME)
 	@BUILDDEPS=$$(egrep -v '^\s*(#|$$$$)' debian/deps/build-$(DISTRIB_CODENAME) | tr '\n' ' '); \
 	 BINDEPS=$$(egrep -v '^\s*(#|$$$$)' debian/deps/bin-$(DISTRIB_CODENAME) | tr '\n' ' '); \
 	 sed -e "s/%BUILDDEPS%/$$BUILDDEPS/" -e "s/%BINDEPS%/$$BINDEPS/" $< > $@
 
 debian/changelog: debian/changelog.in debian/control
-	@COMMITDESC=$$(git describe --tags | sed  -e 's/$$/-0/' -e 's/v\([^-]\+-[^-]\+\)\(-g[0-9a-f-]\+\|\)/\1/') \
-	 COMMITDATE=$$(git show -s --format=%cD) && \
+	@COMMITDESC="${COMMITDESC}" \
+	 COMMITDATE="${COMMITDATE}" && \
 	 sed -e "s/%COMMITDESC%/$$COMMITDESC${PKGVERSIONSUFFIX}/" -e "s/%COMMITDATE%/$$COMMITDATE/" \
 	     -e "s/%DIST%/$$DISTRIB_CODENAME/" $< > $@
 

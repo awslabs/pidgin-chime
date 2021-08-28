@@ -394,11 +394,19 @@ static void count_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _count)
 	(*count)++;
 }
 
-static void on_joinable_changed(ChimeMeeting *mtg, GParamSpec *ignored, PurpleConnection *conn)
+static void on_meeting_changed(ChimeMeeting *mtg, GParamSpec *ignored, PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 
-	if (pc->joinable_handle) {
+	if (pc && pc->joinable_handle && !pc->joinable_refresh_id)
+		pc->joinable_refresh_id = g_idle_add(update_joinable, conn);
+}
+
+static void on_meeting_ended(ChimeMeeting *mtg, PurpleConnection *conn)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+
+	if (pc && pc->joinable_handle) {
 		int count = 0;
 
 		chime_connection_foreach_meeting(PURPLE_CHIME_CXN(conn), count_mtg, &count);
@@ -416,7 +424,9 @@ static void on_joinable_changed(ChimeMeeting *mtg, GParamSpec *ignored, PurpleCo
 static void unsub_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _conn)
 {
 	g_signal_handlers_disconnect_matched(mtg, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
-					     0, 0, NULL, on_joinable_changed, _conn);
+					     0, 0, NULL, on_meeting_changed, _conn);
+	g_signal_handlers_disconnect_matched(mtg, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
+					     0, 0, NULL, on_meeting_ended, _conn);
 }
 
 static void joinable_closed_cb(gpointer _conn)
@@ -441,11 +451,11 @@ static void sub_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _conn)
 	PurpleConnection *conn = _conn;
 
 	g_signal_connect(mtg, "notify::passcode",
-			 G_CALLBACK(on_joinable_changed), conn);
+			 G_CALLBACK(on_meeting_changed), conn);
 	g_signal_connect(mtg, "notify::name",
-			 G_CALLBACK(on_joinable_changed), conn);
+			 G_CALLBACK(on_meeting_changed), conn);
 	g_signal_connect(mtg, "ended",
-			 G_CALLBACK(on_joinable_changed), conn);
+			 G_CALLBACK(on_meeting_ended), conn);
 }
 
 void on_chime_new_meeting(ChimeConnection *cxn, ChimeMeeting *mtg, PurpleConnection *conn)

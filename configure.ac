@@ -5,7 +5,7 @@ AC_LANG_C
 AC_CANONICAL_HOST
 AC_DISABLE_STATIC
 AM_MAINTAINER_MODE([enable])
-AM_INIT_AUTOMAKE([foreign tar-ustar subdir-objects])
+AM_INIT_AUTOMAKE([foreign tar-pax subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 LT_INIT
 

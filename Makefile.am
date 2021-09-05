@@ -87,7 +87,7 @@ chime/chime-call-transport.c chime/chime-call-audio.c chime/chime-call.c: chime/
 %.pb-c.c %.pb-c.h: %.proto
 	$(PROTOC) $< --c_out .
 
-EXTRA_DIST = LICENSE README.md pidgin-chime.spec pidgin-chime.spec.in $(certs_DATA) $(bin_SCRIPTS)
+EXTRA_DIST = LICENSE README.md pidgin-chime.spec pidgin-chime.spec.in $(certs_DATA) $(bin_SCRIPTS) $(applications_DATA)
 
 MAINTAINERCLEANFILES=debian/changelog debian/control
 

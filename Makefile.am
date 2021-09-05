@@ -32,7 +32,7 @@ PROTOBUF_SRCS = protobuf/auth_message.pb-c.c protobuf/auth_message.pb-c.h \
 
 PRPL_SRCS =	prpl/chime.h prpl/chime.c prpl/buddy.c prpl/rooms.c prpl/chat.c \
 		prpl/messages.c prpl/conversations.c prpl/meeting.c prpl/attachments.c \
-		prpl/authenticate.c prpl/markdown.c prpl/dbus.h prpl/dbus.c
+		prpl/authenticate.c prpl/markdown.c prpl/markdown.h prpl/dbus.h prpl/dbus.c
 
 WEBSOCKET_SRCS = chime/chime-websocket-connection.c chime/chime-websocket-connection.h \
 		chime/chime-websocket.c

@@ -927,6 +927,12 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 		handler = amazon_signin_cb;
 	} else if (!g_strcmp0(type, "wd")) {
 		handler = wd_signin_cb;
+	} else if (   !g_strcmp0(type, "federate")
+	           || !g_strcmp0(type, "okta")
+	           || !g_strcmp0(type, "sso")) {
+		chime_debug("Sign-in provider %s is not yet supported\n", type);
+		fail_bad_response(state, _("Sign-in provider %s is known but not yet supported"), type);
+		goto out;
 	} else {
 		chime_debug("Unrecognized sign-in provider %s\n", type);
 		fail_bad_response(state, _("Unknown sign-in provider %s"), type);

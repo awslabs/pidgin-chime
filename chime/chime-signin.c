@@ -19,7 +19,7 @@
  * The sign-in process in the official clients is handled by a web view widget,
  * just as if the user was signin into a web application.  We don't have a fully
  * blown embedded web browser to delegate on, therefore we need to implement
- * some web scrapping.
+ * some web scraping.
  *
  * OVERVIEW OF THE SIGN-IN PROCESS
  *
@@ -29,7 +29,7 @@
  * different providers are recognized here: "amazon" and "wd" (WarpDrive).
  *
  * The Amazon provider is purely web based.  So by following HTTP re-directions,
- * tracking cookies and scrapping HTML forms (with hidden inputs) is enough.
+ * tracking cookies and scraping HTML forms (with hidden inputs) is enough.
  *
  * The WarpDrive provider implements ActiveDirectory based authentication over
  * the web.  Unfortunately, the final password submission is sent over GWT-RPC.
@@ -69,7 +69,7 @@ struct dom {
 	xmlXPathContext *context;
 };
 
-/* A scrapped form */
+/* A scraped form */
 struct form {
 	gchar *referer;
 	gchar *method;
@@ -262,10 +262,10 @@ static gchar *xpath_string(struct dom *dom, const gchar *fmt, ...)
 }
 
 /*
- * Convenience helper to scrap an HTML form with the necessary information for
+ * Convenience helper to scrape an HTML form with the necessary information for
  * later submission.  This is something we are going to need repeatedly.
  */
-static struct form *scrap_form(struct dom *dom, SoupURI *action_base, const gchar *form_xpath)
+static struct form *scrape_form(struct dom *dom, SoupURI *action_base, const gchar *form_xpath)
 {
 	gchar *action;
 	guint i, n;
@@ -605,7 +605,7 @@ static void amazon_prepare_signin_form(struct signin *state, struct dom *dom, So
 		state->form = NULL;
 	}
 
-	state->form = scrap_form(dom, soup_message_get_uri(msg), "//form[@name='signIn']");
+	state->form = scrape_form(dom, soup_message_get_uri(msg), "//form[@name='signIn']");
 	if (state->form && state->form->email_name)
 		g_hash_table_insert(state->form->params,
 				    g_strdup(state->form->email_name),
@@ -648,7 +648,7 @@ static void amazon_signin_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 	fail_on_response_error(msg, state);
 
 	dom = parse_html(msg);
-	form = scrap_form(dom, soup_message_get_uri(msg), "//form[@name='consent-form']");
+	form = scrape_form(dom, soup_message_get_uri(msg), "//form[@name='consent-form']");
 	if (form) {
 		SoupMessage *next;
 
@@ -840,7 +840,7 @@ static void gwt_entry_point_cb(SoupSession *session, SoupMessage *msg, gpointer 
 }
 
 /*
- * Initial WD sign in page scrapping.
+ * Initial WD sign in page scraping.
  *
  * Ironically, most of the relevant data coming from this response is placed in
  * the GET parameters (both from the initial URL and the redirection).  From the
@@ -962,7 +962,7 @@ static void signin_page_cb(SoupSession *session, SoupMessage *msg, gpointer data
 
 	dom = parse_html(msg);
 	csrf = xpath_string(dom, "//meta[@name='csrf-token']/@content");
-	form = scrap_form(dom, soup_message_get_uri(msg), "//form[@id='picker_email']");
+	form = scrape_form(dom, soup_message_get_uri(msg), "//form[@id='picker_email']");
 	if (!(csrf && *csrf && form && form->email_name)) {
 		fail_bad_response(state, _("Error initiating sign in"));
 		goto out;

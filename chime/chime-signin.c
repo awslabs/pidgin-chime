@@ -929,7 +929,7 @@ static void signin_search_result_cb(SoupSession *session, SoupMessage *msg, gpoi
 		handler = wd_signin_cb;
 	} else {
 		chime_debug("Unrecognized sign-in provider %s\n", type);
-		fail_bad_response(state, _("Unknown sign-in provider"));
+		fail_bad_response(state, _("Unknown sign-in provider %s"), type);
 		goto out;
 	}
 

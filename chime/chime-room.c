@@ -392,7 +392,7 @@ static gboolean parse_room_type(JsonNode *node, const gchar *member, ChimeRoomTy
 static ChimeRoom *chime_connection_parse_room(ChimeConnection *cxn, JsonNode *node,
 					      GError **error)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(cxn);
 	const gchar *id, *name;
 	gboolean privacy, visibility;
 	ChimeRoomType type;
@@ -483,7 +483,7 @@ static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token);
 static void rooms_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 			gpointer _unused)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	/* If it got invalidated while in transit, refetch */
 	if (priv->rooms_sync != CHIME_SYNC_FETCHING) {
@@ -535,7 +535,7 @@ static void rooms_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 
 static void fetch_rooms(ChimeConnection *cxn, const gchar *next_token)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	if (!next_token) {
 		/* Actually we could listen for the 'starting' flag on the message,
@@ -655,7 +655,7 @@ static gboolean room_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *d
 
 void chime_init_rooms(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_object_collection_init(cxn, &priv->rooms);
 
@@ -672,7 +672,7 @@ void chime_init_rooms(ChimeConnection *cxn)
 
 void chime_destroy_rooms(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_jugg_unsubscribe(cxn, priv->profile_channel, "VisibleRooms",
 			       visible_rooms_jugg_cb, NULL);
@@ -695,7 +695,7 @@ ChimeRoom *chime_connection_room_by_name(ChimeConnection *cxn,
 	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	g_return_val_if_fail(name, NULL);
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	return g_hash_table_lookup(priv->rooms.by_name, name);
 }
@@ -706,7 +706,7 @@ ChimeRoom *chime_connection_room_by_id(ChimeConnection *cxn,
 	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	g_return_val_if_fail(id, NULL);
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	return g_hash_table_lookup(priv->rooms.by_id, id);
 }
@@ -715,7 +715,7 @@ void chime_connection_foreach_room(ChimeConnection *cxn, ChimeRoomCB cb,
 				   gpointer cbdata)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(cxn);
 
 	chime_object_collection_foreach_object(cxn, &priv->rooms, (ChimeObjectCB)cb, cbdata);
 }
@@ -864,7 +864,7 @@ static void fetch_members_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *n
 
 void fetch_room_memberships(ChimeConnection *cxn, ChimeRoom *room, gboolean active, const gchar *next_token)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s/memberships",
 					   chime_object_get_id(CHIME_OBJECT(room)));
@@ -929,7 +929,7 @@ void chime_connection_add_room_member_async(ChimeConnection *cxn,
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	g_return_if_fail(CHIME_IS_ROOM(room));
 	g_return_if_fail(CHIME_IS_CONTACT(contact));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	g_task_set_task_data(task, g_object_ref(room), g_object_unref);
@@ -991,7 +991,7 @@ void chime_connection_remove_room_member_async(ChimeConnection *cxn,
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	g_return_if_fail(CHIME_IS_ROOM(room));
 	g_return_if_fail(CHIME_IS_CONTACT(contact));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	g_task_set_task_data(task, g_object_ref(room), g_object_unref);
@@ -1040,7 +1040,7 @@ void chime_connection_fetch_room_async(ChimeConnection *cxn, const gchar *room_i
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 
 	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/rooms/%s", room_id);

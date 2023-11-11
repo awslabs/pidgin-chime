@@ -476,7 +476,7 @@ static gboolean call_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *d
 ChimeCall *chime_connection_parse_call(ChimeConnection *cxn, JsonNode *node,
 				       GError **error)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(cxn);
 	const gchar *uuid, *alert_body;
 	CHIME_PROPS_PARSE_VARS
 
@@ -515,14 +515,14 @@ ChimeCall *chime_connection_parse_call(ChimeConnection *cxn, JsonNode *node,
 
 void chime_init_calls(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_object_collection_init(cxn, &priv->calls);
 }
 
 void chime_destroy_calls(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	if (priv->calls.by_id)
 		g_hash_table_foreach(priv->calls.by_id, unsub_call, NULL);

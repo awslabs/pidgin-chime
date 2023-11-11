@@ -276,7 +276,7 @@ gboolean chime_contact_get_contacts_list(ChimeContact *contact)
 static void
 subscribe_contact(ChimeConnection *cxn, ChimeContact *contact)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(cxn);
 
 	contact->cxn = cxn;
 
@@ -300,7 +300,7 @@ static ChimeContact *find_or_create_contact(ChimeConnection *cxn, const gchar *i
 					    gboolean is_contact,
 					    GError **error)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(cxn);
 	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_id, id);
 
 	if (!contact) {
@@ -417,7 +417,7 @@ ChimeContact *chime_connection_parse_conversation_contact(ChimeConnection *cxn,
 static gboolean set_contact_presence(ChimeConnection *cxn, JsonNode *node,
 				     GError **error)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	gint64 availability, revision;
 	const gchar *id;
 
@@ -491,7 +491,7 @@ static void presence_cb(ChimeConnection *cxn, SoupMessage *msg,
 static gboolean fetch_presences(gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	GPtrArray *ids = g_ptr_array_new();
 
 	while (priv->contacts_needed) {
@@ -526,7 +526,7 @@ static void fetch_contacts(ChimeConnection *cxn, const gchar *next_token);
 static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 			gpointer _unused)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	/* If it got invalidated while in transit, refetch */
 	if (priv->contacts_sync != CHIME_SYNC_FETCHING) {
@@ -571,7 +571,7 @@ static void contacts_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 
 static void fetch_contacts(ChimeConnection *cxn, const gchar *next_token)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	if (!next_token) {
 		/* Actually we could listen for the 'starting' flag on the message,
@@ -600,7 +600,7 @@ static void fetch_contacts(ChimeConnection *cxn, const gchar *next_token)
 void chime_init_contacts(ChimeConnection *cxn)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_object_collection_init(cxn, &priv->contacts);
 
@@ -611,7 +611,7 @@ static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
 {
 	ChimeContact *contact = CHIME_CONTACT (val);
 	if (contact->cxn) {
-		ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (contact->cxn);
+		ChimeConnectionPrivate *priv = chime_connection_get_private (contact->cxn);
 
 		priv->contacts_needed = g_slist_remove(priv->contacts_needed,
 						       contact);
@@ -627,7 +627,7 @@ static void unsubscribe_contact(gpointer key, gpointer val, gpointer data)
 void chime_destroy_contacts(ChimeConnection *cxn)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	if (priv->contacts_src_id) {
 		g_source_remove(priv->contacts_src_id);
@@ -648,7 +648,7 @@ ChimeContact *chime_connection_contact_by_email(ChimeConnection *cxn,
 {
 	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	g_return_val_if_fail(email != NULL, NULL);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	return g_hash_table_lookup(priv->contacts.by_name, email);
 }
@@ -658,7 +658,7 @@ ChimeContact *chime_connection_contact_by_id(ChimeConnection *cxn,
 {
 	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	g_return_val_if_fail(id != NULL, NULL);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	return g_hash_table_lookup(priv->contacts.by_id, id);
 }
@@ -672,7 +672,7 @@ struct foreach_contact_st {
 void chime_connection_foreach_contact(ChimeConnection *cxn, ChimeContactCB cb,
 				      gpointer cbdata)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	chime_object_collection_foreach_object(cxn, &priv->contacts, (ChimeObjectCB)cb, cbdata);
 }
 
@@ -711,7 +711,7 @@ void chime_connection_invite_contact_async(ChimeConnection *cxn,
 					   gpointer user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	JsonBuilder *builder = json_builder_new();
@@ -773,7 +773,7 @@ void chime_connection_remove_contact_async(ChimeConnection *cxn,
 					   gpointer user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	ChimeContact *contact = g_hash_table_lookup(priv->contacts.by_name,
 						    email);
@@ -849,7 +849,7 @@ void chime_connection_autocomplete_contact_async(ChimeConnection *cxn,
 {
 
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 

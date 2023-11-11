@@ -304,7 +304,7 @@ static gboolean parse_meeting_type(JsonNode *node, const gchar *member, ChimeMee
 static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNode *node,
 						    GError **error)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(cxn);
 	const gchar *id, *name, *chat_room_id;
 	ChimeMeetingType type;
 	JsonObject *obj = json_node_get_object(node);
@@ -414,7 +414,7 @@ static ChimeMeeting *chime_connection_parse_meeting(ChimeConnection *cxn, JsonNo
 static void meetings_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 			gpointer _unused)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
 		JsonArray *arr = json_node_get_array(node);
@@ -445,7 +445,7 @@ static void meetings_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 
 static void fetch_meetings(ChimeConnection *cxn, const gchar *next_token)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	SoupURI *uri = soup_uri_new_printf(priv->conference_url, "/joinable_meetings");
 	chime_connection_queue_http_request(cxn, NULL, uri, "GET", meetings_cb,
@@ -464,7 +464,7 @@ static gboolean meeting_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode
 
 static gboolean joinable_meetings_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	priv->meetings.generation++;
 
 	JsonObject *obj = json_node_get_object(data_node);
@@ -489,7 +489,7 @@ static gboolean joinable_meetings_jugg_cb(ChimeConnection *cxn, gpointer _unused
 
 void chime_init_meetings(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_object_collection_init(cxn, &priv->meetings);
 
@@ -508,7 +508,7 @@ void chime_init_meetings(ChimeConnection *cxn)
 
 void chime_destroy_meetings(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "JoinableMeetings",
 			     joinable_meetings_jugg_cb, NULL);
@@ -539,7 +539,7 @@ ChimeMeeting *chime_connection_meeting_by_name(ChimeConnection *cxn,
 	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	g_return_val_if_fail(name, NULL);
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	return g_hash_table_lookup(priv->meetings.by_name, name);
 }
@@ -550,7 +550,7 @@ ChimeMeeting *chime_connection_meeting_by_id(ChimeConnection *cxn,
 	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	g_return_val_if_fail(id, NULL);
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	return g_hash_table_lookup(priv->meetings.by_id, id);
 }
@@ -559,7 +559,7 @@ void chime_connection_foreach_meeting(ChimeConnection *cxn, ChimeMeetingCB cb,
 				   gpointer cbdata)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(cxn);
 
 	chime_object_collection_foreach_object(cxn, &priv->meetings, (ChimeObjectCB)cb, cbdata);
 }
@@ -688,7 +688,7 @@ void chime_connection_meeting_schedule_info_async(ChimeConnection *cxn,
 						  gpointer user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 
@@ -750,7 +750,7 @@ void chime_connection_lookup_meeting_by_pin_async(ChimeConnection *cxn,
 						  gpointer user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 
@@ -885,7 +885,7 @@ void chime_connection_create_meeting_async(ChimeConnection *cxn,
 					   gpointer user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	JsonBuilder *jb = json_builder_new();
@@ -950,7 +950,7 @@ void chime_connection_end_meeting_async(ChimeConnection *cxn,
 {
         g_return_if_fail(CHIME_IS_CONNECTION(cxn));
         g_return_if_fail(CHIME_IS_MEETING(meeting));
-        ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+        ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
         GTask *task = g_task_new(cxn, cancellable, callback, user_data);
         SoupURI *uri = soup_uri_new_printf(priv->conference_url, "/v2/meetings/%s",

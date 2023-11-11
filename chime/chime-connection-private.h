@@ -165,9 +165,9 @@ typedef struct {
 	ChimeObjectCollection calls;
 } ChimeConnectionPrivate;
 
-#define CHIME_CONNECTION_GET_PRIVATE(o) \
-	(G_TYPE_INSTANCE_GET_PRIVATE ((o), CHIME_TYPE_CONNECTION, \
-				      ChimeConnectionPrivate))
+/* This is not quite as private as its name implies. */
+ChimeConnectionPrivate *
+chime_connection_get_private(ChimeConnection *cxn);
 
 #define chime_debug(...) do { if (getenv("CHIME_DEBUG")) printf(__VA_ARGS__); } while (0)
 

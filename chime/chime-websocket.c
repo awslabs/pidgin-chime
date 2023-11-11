@@ -42,7 +42,7 @@ websocket_connect_async_stop (SoupMessage *msg, gpointer user_data)
 {
 	GTask *task = G_TASK(user_data);
 	ChimeConnection *cxn = CHIME_CONNECTION(g_task_get_task_data (task));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	GError *error = NULL;
 
 	/* Disconnect websocket_connect_async_stop() handler. */
@@ -111,7 +111,7 @@ chime_connection_websocket_connect_async (ChimeConnection      *cxn,
 	g_return_if_fail (CHIME_IS_CONNECTION (cxn));
 	g_return_if_fail (SOUP_IS_MESSAGE (msg));
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	soup_websocket_client_prepare_handshake (msg, origin, protocols);
 

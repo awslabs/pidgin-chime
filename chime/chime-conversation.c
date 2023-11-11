@@ -284,7 +284,7 @@ const gchar *chime_conversation_get_created_on(ChimeConversation *self)
 
 static gboolean conv_typing_jugg_cb(ChimeConnection *cxn, gpointer _conv, JsonNode *data_node)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	ChimeConversation *conv = CHIME_CONVERSATION(_conv);
 
 	gint64 state;
@@ -389,7 +389,7 @@ static ChimeConversation *chime_connection_parse_conversation(ChimeConnection *c
 							      JsonNode *node,
 						       GError **error)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(cxn);
 	const gchar *id, *name;
 	gboolean visibility;
 	ChimeNotifyPref desktop, mobile;
@@ -475,7 +475,7 @@ static void fetch_conversations(ChimeConnection *cxn, const gchar *next_token);
 static void conversations_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 			gpointer _unused)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	/* If it got invalidated while in transit, refetch */
 	if (priv->conversations_sync != CHIME_SYNC_FETCHING) {
@@ -527,7 +527,7 @@ static void conversations_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *n
 
 static void fetch_conversations(ChimeConnection *cxn, const gchar *next_token)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	if (!next_token) {
 		/* Actually we could listen for the 'starting' flag on the message,
@@ -561,7 +561,7 @@ struct deferred_conv_jugg {
 static void fetch_new_conv_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node,
 			      gpointer _defer)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	struct deferred_conv_jugg *defer = _defer;
 
 	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code)) {
@@ -596,7 +596,7 @@ static void fetch_new_conv_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *
 
 static gboolean conv_msg_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *data_node)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	JsonObject *obj = json_node_get_object(data_node);
 	JsonNode *record = json_object_get_member(obj, "record");
 	if (!record)
@@ -645,7 +645,7 @@ static gboolean conv_jugg_cb(ChimeConnection *cxn, gpointer _unused, JsonNode *d
 
 void chime_init_conversations(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_object_collection_init(cxn, &priv->conversations);
 
@@ -672,7 +672,7 @@ static void unsubscribe_conversation(gpointer key, gpointer val, gpointer data)
 
 void chime_destroy_conversations(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_jugg_unsubscribe(cxn, priv->device_channel, "Conversation",
 			       conv_jugg_cb, NULL);
@@ -691,7 +691,7 @@ ChimeConversation *chime_connection_conversation_by_name(ChimeConnection *cxn,
 	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	g_return_val_if_fail(name, NULL);
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	return g_hash_table_lookup(priv->conversations.by_name, name);
 }
@@ -702,7 +702,7 @@ ChimeConversation *chime_connection_conversation_by_id(ChimeConnection *cxn,
 	g_return_val_if_fail(CHIME_IS_CONNECTION(cxn), NULL);
 	g_return_val_if_fail(id, NULL);
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	return g_hash_table_lookup(priv->conversations.by_id, id);
 }
@@ -712,7 +712,7 @@ void chime_connection_foreach_conversation(ChimeConnection *cxn, ChimeConversati
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(cxn);
 
 	chime_object_collection_foreach_object(cxn, &priv->conversations, (ChimeObjectCB)cb, cbdata);
 }
@@ -720,7 +720,7 @@ void chime_connection_foreach_conversation(ChimeConnection *cxn, ChimeConversati
 void chime_conversation_send_typing(ChimeConnection *cxn, ChimeConversation *conv,
 				    gboolean typing)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	JsonBuilder *jb = json_builder_new();
 
 	jb = json_builder_begin_object(jb);
@@ -803,7 +803,7 @@ void chime_connection_create_conversation_async(ChimeConnection *cxn,
 						gpointer user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
 	JsonBuilder *jb = json_builder_new();
@@ -875,7 +875,7 @@ void chime_connection_find_conversation_async(ChimeConnection *cxn,
 					      gpointer user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	int i, len = g_slist_length(contacts);
 	const gchar **contact_ids = g_new0(const gchar *, len + 1);
 

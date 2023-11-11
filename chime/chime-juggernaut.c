@@ -49,7 +49,7 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 				gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_connection_log(cxn, CHIME_LOGLVL_INFO, "WebSocket closed (%d: '%s')\n",
 			     soup_websocket_connection_get_close_code(ws),
@@ -66,7 +66,7 @@ static void on_websocket_closed(SoupWebsocketConnection *ws,
 
 static void handle_callback(ChimeConnection *cxn, const gchar *msg)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	JsonParser *parser = json_parser_new();
 	gboolean handled = FALSE;
 	GError *error = NULL;
@@ -112,7 +112,7 @@ static void handle_callback(ChimeConnection *cxn, const gchar *msg)
 
 static void jugg_send(ChimeConnection *cxn, const gchar *fmt, ...)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	va_list args;
 	gchar *str;
 
@@ -134,7 +134,7 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 				 GBytes *message, gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	gchar **parms;
 	gconstpointer data;
 
@@ -182,7 +182,7 @@ static void on_websocket_message(SoupWebsocketConnection *ws, gint type,
 static gboolean pong_timeout(gpointer _cxn)
 {
 	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_connection_log(cxn, CHIME_LOGLVL_MISC, "WebSocket keepalive timeout\n");
 	priv->keepalive_timer = 0;
@@ -202,7 +202,7 @@ static void on_websocket_pong(SoupWebsocketConnection *ws,
 			      GBytes *data, gpointer _cxn)
 {
 	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	chime_connection_log(cxn, CHIME_LOGLVL_MISC, "WebSocket pong received (%s)\n",
 			     g_bytes_get_data(data, NULL));
@@ -220,7 +220,7 @@ static void each_chan(gpointer _chan, gpointer _sub, gpointer _builder)
 
 static void send_resubscribe_message(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	JsonBuilder *builder = json_builder_new();
 	builder = json_builder_begin_object(builder);
 	builder = json_builder_set_member_name(builder, "type");
@@ -241,7 +241,7 @@ static void send_resubscribe_message(ChimeConnection *cxn)
 static void jugg_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 {
 	ChimeConnection *cxn = CHIME_CONNECTION(obj);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	GError *error = NULL;
 
 	priv->ws_conn = chime_connection_websocket_connect_finish(cxn, res, &error);
@@ -271,7 +271,7 @@ static void jugg_ws_connect_cb(GObject *obj, GAsyncResult *res, gpointer _cxn)
 
 static void ws_key_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gpointer _unused)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	gchar **ws_opts = NULL;
 
 	if (msg->status_code != 200) {
@@ -312,7 +312,7 @@ static void ws_key_cb(ChimeConnection *cxn, SoupMessage *msg, JsonNode *node, gp
 static gboolean chime_sublist_destroy(gpointer k, gpointer v, gpointer _cxn)
 {
 	ChimeConnection *cxn = _cxn;
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	if (priv->ws_conn)
 		send_subscription_message(_cxn, "unsubscribe", k);
@@ -329,7 +329,7 @@ static void on_final_ws_close(SoupWebsocketConnection *ws, gpointer _unused)
 
 void chime_destroy_juggernaut(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	if (priv->subscriptions) {
 		g_hash_table_foreach_remove(priv->subscriptions, chime_sublist_destroy, cxn);
@@ -363,7 +363,7 @@ void chime_destroy_juggernaut(ChimeConnection *cxn)
 
 static void connect_jugg(ChimeConnection *cxn)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	SoupURI *uri = soup_uri_new_printf(priv->websocket_url, "/1");
 
 	priv->jugg_connected = FALSE;
@@ -387,7 +387,7 @@ void chime_init_juggernaut(ChimeConnection *cxn)
 
 gboolean chime_connection_jugg_send(ChimeConnection *cxn, JsonNode *node)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	if (!priv->ws_conn)
 		return FALSE;
@@ -424,7 +424,7 @@ static gboolean compare_sub(gconstpointer _a, gconstpointer _b)
 void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass,
 			  JuggernautCallback cb, gpointer cb_data)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	struct jugg_subscription *sub = g_new0(struct jugg_subscription, 1);
 	GList *l;
 
@@ -452,7 +452,7 @@ void chime_jugg_subscribe(ChimeConnection *cxn, const gchar *channel, const gcha
 void chime_jugg_unsubscribe(ChimeConnection *cxn, const gchar *channel, const gchar *klass,
 			    JuggernautCallback cb, gpointer cb_data)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	struct jugg_subscription sub;
 	GList *l, *item;
 

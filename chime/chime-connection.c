@@ -52,15 +52,21 @@ enum {
 static guint signals[LAST_SIGNAL];
 
 G_DEFINE_QUARK(chime-error-quark, chime_error)
-G_DEFINE_TYPE(ChimeConnection, chime_connection, G_TYPE_OBJECT)
+G_DEFINE_TYPE_WITH_PRIVATE(ChimeConnection, chime_connection, G_TYPE_OBJECT)
 
 static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg);
+
+ChimeConnectionPrivate *
+chime_connection_get_private(ChimeConnection *cxn)
+{
+	return chime_connection_get_instance_private(cxn);
+}
 
 static void
 chime_connection_finalize(GObject *object)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (object);
 	ChimeConnection *self = CHIME_CONNECTION(object);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(self);
 
 	g_free(priv->session_token);
 	g_free(priv->device_token);
@@ -82,7 +88,7 @@ cmsg_free(struct chime_msg *cmsg)
 void
 chime_connection_disconnect(ChimeConnection    *self)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	chime_connection_log(self, CHIME_LOGLVL_MISC, "Disconnecting connection: %p\n", self);
 
@@ -118,7 +124,7 @@ static void
 chime_connection_dispose(GObject *object)
 {
 	ChimeConnection *self = CHIME_CONNECTION(object);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	if (priv->state != CHIME_STATE_DISCONNECTED)
 		chime_connection_disconnect(self);
@@ -137,7 +143,7 @@ chime_connection_get_property(GObject    *object,
                               GParamSpec *pspec)
 {
 	ChimeConnection *self = CHIME_CONNECTION(object);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	switch (prop_id) {
 	case PROP_SESSION_TOKEN:
@@ -165,7 +171,7 @@ chime_connection_set_property(GObject      *object,
                               GParamSpec   *pspec)
 {
 	ChimeConnection *self = CHIME_CONNECTION(object);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(self);
 
 	switch (prop_id) {
 	case PROP_SESSION_TOKEN:
@@ -190,8 +196,6 @@ static void
 chime_connection_class_init(ChimeConnectionClass *klass)
 {
 	GObjectClass *object_class = G_OBJECT_CLASS(klass);
-
-        g_type_class_add_private (klass, sizeof (ChimeConnectionPrivate));
 
 	object_class->finalize = chime_connection_finalize;
 	object_class->dispose = chime_connection_dispose;
@@ -289,7 +293,7 @@ chime_connection_class_init(ChimeConnectionClass *klass)
 
 void chime_connection_fail_error(ChimeConnection *cxn, GError *error)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	priv->state = CHIME_STATE_DISCONNECTED;
 	g_signal_emit(cxn, signals[DISCONNECTED], 0, error);
@@ -315,7 +319,7 @@ static void
 req_started_cb(SoupSession *sess, SoupMessage *msg, SoupSocket *sock, gpointer _cxn)
 {
 	ChimeConnection *cxn = CHIME_CONNECTION(_cxn);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 
 	if (!soup_socket_is_ssl(sock))
 		return;
@@ -358,7 +362,7 @@ req_started_cb(SoupSession *sess, SoupMessage *msg, SoupSocket *sock, gpointer _
 static void
 chime_connection_init(ChimeConnection *self)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 	priv->soup_sess = soup_session_new();
 	priv->amazon_cas = chime_cert_list();
 
@@ -398,7 +402,7 @@ chime_connection_new(const gchar *email, const gchar *server,
 
 static gboolean parse_regnode(ChimeConnection *self, JsonNode *regnode)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 	JsonObject *obj = json_node_get_object(priv->reg_node);
 	JsonNode *node, *sess_node = json_object_get_member(obj, "Session");
 	const gchar *sess_tok;
@@ -511,7 +515,7 @@ chime_device_register_req(const gchar *devtoken)
 static void register_cb(ChimeConnection *self, SoupMessage *msg,
 			JsonNode *node, gpointer user_data)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	if (!node) {
 		chime_connection_fail(self, CHIME_ERROR_NETWORK,
@@ -541,7 +545,7 @@ static void register_cb(ChimeConnection *self, SoupMessage *msg,
 
 void chime_connection_calculate_online(ChimeConnection *self)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	if (priv->contacts_online && priv->rooms_online &&
 	    priv->convs_online && priv->jugg_online && priv->meetings_online) {
@@ -553,7 +557,7 @@ void chime_connection_calculate_online(ChimeConnection *self)
 void
 chime_connection_connect(ChimeConnection    *self)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	if (priv->state != CHIME_STATE_DISCONNECTED)
 		return;
@@ -595,7 +599,7 @@ chime_connection_set_device_status_async(ChimeConnection    *self,
 					 gpointer            user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	GTask *task = g_task_new(self, cancellable, callback, user_data);
 	JsonBuilder *builder = json_builder_new();
@@ -641,7 +645,7 @@ chime_connection_set_presence_async(ChimeConnection    *self,
 				    gpointer            user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	GTask *task = g_task_new(self, cancellable, callback, user_data);
 	JsonBuilder *builder = json_builder_new();
@@ -678,7 +682,7 @@ chime_connection_set_presence_finish(ChimeConnection  *self,
 const gchar *
 chime_connection_get_session_token(ChimeConnection *self)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
 
 	return priv->session_token;
@@ -688,7 +692,7 @@ void
 chime_connection_set_session_token(ChimeConnection *self,
 				   const gchar *sess_tok)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
 
 	if (g_strcmp0(priv->session_token, sess_tok)) {
@@ -703,7 +707,7 @@ chime_connection_set_session_token(ChimeConnection *self,
 static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 		     JsonNode *node, gpointer _unused)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 	struct chime_msg *cmsg = NULL;
 	const gchar *sess_tok;
 	gchar *cookie_hdr;
@@ -739,7 +743,7 @@ static void renew_cb(ChimeConnection *self, SoupMessage *msg,
 
 static void chime_renew_token(ChimeConnection *self)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 	SoupURI *uri;
 	JsonBuilder *builder;
 	JsonNode *node;
@@ -766,7 +770,7 @@ static void soup_msg_cb(SoupSession *soup_sess, SoupMessage *msg, gpointer _cmsg
 {
 	struct chime_msg *cmsg = _cmsg;
 	ChimeConnection *cxn = cmsg->cxn;
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
 	JsonParser *parser = NULL;
 	JsonNode *node = NULL;
 
@@ -825,7 +829,7 @@ chime_connection_queue_http_request(ChimeConnection *self, JsonNode *node,
 	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
 	g_return_val_if_fail(SOUP_URI_IS_VALID(uri), NULL);
 
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 	struct chime_msg *cmsg = g_new0(struct chime_msg, 1);
 
 	cmsg->cxn = self;
@@ -1063,7 +1067,7 @@ chime_connection_send_message_async(ChimeConnection *self,
 				    JsonObject *additional_json)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	GTask *task = g_task_new(self, cancellable, callback, user_data);
 	g_task_set_task_data(task, g_object_ref(obj), g_object_unref);
@@ -1124,7 +1128,7 @@ chime_connection_send_message_finish(ChimeConnection *self, GAsyncResult *result
 const gchar *chime_connection_get_profile_id(ChimeConnection *self)
 {
 	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	return priv->profile_id;
 }
@@ -1132,7 +1136,7 @@ const gchar *chime_connection_get_profile_id(ChimeConnection *self)
 const gchar *chime_connection_get_display_name(ChimeConnection *self)
 {
 	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	return priv->display_name;
 }
@@ -1140,7 +1144,7 @@ const gchar *chime_connection_get_display_name(ChimeConnection *self)
 const gchar *chime_connection_get_email(ChimeConnection *self)
 {
 	g_return_val_if_fail(CHIME_IS_CONNECTION(self), NULL);
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	return priv->email;
 }
@@ -1202,7 +1206,7 @@ static void fetch_messages_cb(ChimeConnection *self, SoupMessage *msg,
 
 static void fetch_messages_req(ChimeConnection *self, GTask *task)
 {
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 	struct fetch_msg_data *fmd = g_task_get_task_data(task);
 
 	SoupURI *uri = soup_uri_new_printf(priv->messaging_url, "/%ss/%s/messages",
@@ -1275,7 +1279,7 @@ void chime_connection_update_last_read_async (ChimeConnection    *self,
 					      gpointer            user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	GTask *task = g_task_new(self, cancellable, callback, user_data);
 
@@ -1329,7 +1333,7 @@ void chime_connection_log_out_async (ChimeConnection    *self,
 				     gpointer            user_data)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(self));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE (self);
+	ChimeConnectionPrivate *priv = chime_connection_get_private (self);
 
 	GTask *task = g_task_new(self, cancellable, callback, user_data);
 

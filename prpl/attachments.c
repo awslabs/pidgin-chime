@@ -555,7 +555,7 @@ static void chime_send_init(PurpleXfer *xfer)
 	xfer->data = NULL;
 
 	g_return_if_fail(CHIME_IS_CONNECTION(pc->cxn));
-	ChimeConnectionPrivate *priv = CHIME_CONNECTION_GET_PRIVATE(pc->cxn);
+	ChimeConnectionPrivate *priv = chime_connection_get_private(pc->cxn);
 
 	char *file_contents;
 	gsize length;

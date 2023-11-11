@@ -210,7 +210,7 @@ static void join_mtg_done(GObject *source, GAsyncResult *result, gpointer _conn)
 }
 
 struct pin_join_data {
-	gboolean muted;
+	gboolean audio;
 	gchar *query;
 	PurpleConnection *conn;
 };
@@ -228,7 +228,9 @@ static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _pjd)
 				    _("Unable to lookup meeting"),
 				    error->message);
 	} else {
-		chime_connection_join_meeting_async(cxn, mtg, pjd->muted, NULL, join_mtg_done, pjd->conn);
+		chime_connection_join_meeting_async(cxn, mtg, !pjd->audio,
+						    NULL, join_mtg_done,
+						    pjd->conn);
 		g_object_unref(mtg);
 	}
 
@@ -237,13 +239,14 @@ static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _pjd)
 	free(pjd);
 }
 
-static void pin_join_begin(PurpleConnection *conn, const char *query, gboolean muted)
+static void pin_join_begin(PurpleConnection *conn, const char *query,
+			   gboolean audio)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	struct pin_join_data *pjd = g_new0(struct pin_join_data, 1);
 
-	pjd->muted = muted;
+	pjd->audio = audio;
 	pjd->conn = conn;
 	pjd->query = g_strdup(query);
 	pc->pin_joins = g_slist_prepend(pc->pin_joins, pjd->query);
@@ -252,17 +255,17 @@ static void pin_join_begin(PurpleConnection *conn, const char *query, gboolean m
 						     pin_join_done, pjd);
 }
 
-static void pin_join_muted(PurpleConnection *conn, const char *query)
+static void pin_join_noaudio(PurpleConnection *conn, const char *query)
 {
-	pin_join_begin(conn, query, TRUE);
+	pin_join_begin(conn, query, FALSE);
 }
 
 static void pin_join_fields(PurpleConnection *conn, PurpleRequestFields *fields)
 {
-	const char *query =  purple_request_fields_get_string(fields, "pin");
-	gboolean muted = !purple_request_fields_get_bool(fields, "audio");
+	const char *query = purple_request_fields_get_string(fields, "pin");
+	gboolean audio = purple_request_fields_get_bool(fields, "audio");
 
-	pin_join_begin(conn, query, muted);
+	pin_join_begin(conn, query, audio);
 }
 
 void chime_purple_pin_join(PurplePluginAction *action)
@@ -295,13 +298,13 @@ void chime_purple_pin_join(PurplePluginAction *action)
 		purple_request_input(conn, _("Chime PIN join meeting"),
 				     _("Enter the meeting PIN"), NULL, NULL,
 				     FALSE, FALSE, NULL,
-				     _("Join"), PURPLE_CALLBACK(pin_join_muted),
+				     _("Join"), PURPLE_CALLBACK(pin_join_noaudio),
 				     _("Cancel"), NULL, conn->account,
 				     NULL, NULL, conn);
 	}
 }
 
-static void do_join_joinable(PurpleConnection *conn, GList *row, gboolean muted)
+static void do_join_joinable(PurpleConnection *conn, GList *row, gboolean audio)
 {
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	if (!row)
@@ -313,7 +316,7 @@ static void do_join_joinable(PurpleConnection *conn, GList *row, gboolean muted)
 	ChimeMeeting *mtg = chime_connection_meeting_by_name(cxn, name);
 
 	if (mtg) {
-		if (!muted) {
+		if (audio) {
 			/* If asked for audio and the meeting is already open, just start audio */
 			struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 			ChimeRoom *room = chime_meeting_get_chat_room(mtg);
@@ -326,18 +329,19 @@ static void do_join_joinable(PurpleConnection *conn, GList *row, gboolean muted)
 				}
 			}
 		}
-		chime_connection_join_meeting_async(cxn, mtg, muted, NULL, join_mtg_done, conn);
+		chime_connection_join_meeting_async(cxn, mtg, !audio, NULL,
+						    join_mtg_done, conn);
 	}
 }
 
 static void join_joinable_audio(PurpleConnection *conn, GList *row, gpointer _unused)
 {
-	do_join_joinable(conn, row, FALSE);
+	do_join_joinable(conn, row, TRUE);
 }
 
 static void join_joinable(PurpleConnection *conn, GList *row, gpointer _unused)
 {
-	do_join_joinable(conn, row, TRUE);
+	do_join_joinable(conn, row, FALSE);
 }
 
 static void append_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _results)

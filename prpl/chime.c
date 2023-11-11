@@ -23,6 +23,7 @@
 #include <status.h>
 #include <debug.h>
 #include <request.h>
+#include <core.h>
 
 #include <glib/gi18n.h>
 #include <glib/gstrfuncs.h>
@@ -91,9 +92,19 @@ static void chime_purple_set_idle(PurpleConnection *conn, int idle_time)
 						 NULL);
 }
 
-static void on_chime_authenticate(ChimeConnection *cxn, gboolean user_required, PurpleConnection *conn)
+static void on_chime_authenticate(ChimeConnection *cxn, const gchar *uri, PurpleConnection *conn)
 {
-	purple_request_credentials(conn, cxn, user_required);
+	const gchar *devtoken = purple_account_get_string(conn->account, "devtoken", NULL);
+	gchar *cb_uri = g_strdup_printf("chime://prpl?devtoken=%s&prpl_ui=%s",
+					devtoken, purple_core_get_ui());
+	gchar *cb_uri_escaped = soup_uri_encode(cb_uri, "&?");
+	gchar *auth_uri = g_strdup_printf("%s?callback_url=%s",
+					  uri, cb_uri_escaped);
+
+	purple_notify_uri(NULL, auth_uri);
+	g_free(cb_uri_escaped);
+	g_free(cb_uri);
+	g_free(auth_uri);
 }
 
 static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, PurpleConnection *conn)
@@ -130,8 +141,14 @@ static void on_chime_connected(ChimeConnection *cxn, const gchar *display_name, 
 
 static void on_chime_disconnected(ChimeConnection *cxn, GError *error, PurpleConnection *conn)
 {
-	if (error)
-		purple_connection_error_reason(conn, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, error->message);
+	if (error) {
+		PurpleConnectionError reason;
+		if (g_error_matches(error, CHIME_ERROR, CHIME_ERROR_NETWORK))
+			reason = PURPLE_CONNECTION_ERROR_NETWORK_ERROR;
+		else
+			reason = PURPLE_CONNECTION_ERROR_OTHER_ERROR;
+		purple_connection_error_reason(conn, reason, error->message);
+	}
 
 	g_signal_handlers_disconnect_matched(cxn, G_SIGNAL_MATCH_FUNC|G_SIGNAL_MATCH_DATA,
 					     0, 0, NULL, on_chime_new_contact, conn);

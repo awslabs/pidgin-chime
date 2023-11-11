@@ -328,16 +328,15 @@ const gchar *chime_room_get_created_on(ChimeRoom *self)
 
 static gboolean cmp_time(const char *ev, const char *last_read)
 {
-	GTimeVal ev_time, read_time;
+	gint64 ev_ms, read_ms;
 
-	if (!ev || !g_time_val_from_iso8601(ev, &ev_time))
+	if (!ev || !iso8601_to_ms(ev, &ev_ms))
 		return FALSE;
 
-	if (!last_read || !g_time_val_from_iso8601(last_read, &read_time))
+	if (!last_read || !iso8601_to_ms(last_read, &read_ms))
 		return TRUE;
 
-	return (ev_time.tv_sec > read_time.tv_sec ||
-		(ev_time.tv_sec == read_time.tv_sec && ev_time.tv_usec > read_time.tv_usec));
+	return ev_ms > read_ms;
 }
 
 gboolean chime_room_has_mention(ChimeRoom *self)

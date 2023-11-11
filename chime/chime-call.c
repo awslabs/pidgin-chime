@@ -560,7 +560,7 @@ void chime_connection_close_call(ChimeConnection *cxn, ChimeCall *call)
 
 
 
-void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean muted)
+void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean silent)
 {
 	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
 	g_return_if_fail(CHIME_IS_CALL(call));
@@ -569,7 +569,7 @@ void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean 
 		call->presenter = NULL;
 		chime_jugg_subscribe(cxn, call->channel, "Call", call_jugg_cb, NULL);
 		chime_jugg_subscribe(cxn, call->roster_channel, "Roster", call_roster_cb, call);
-		call->audio = chime_call_audio_open(cxn, call, muted);
+		call->audio = chime_call_audio_open(cxn, call, silent);
 	}
 }
 

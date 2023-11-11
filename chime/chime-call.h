@@ -71,7 +71,7 @@ const gchar *chime_call_get_mobile_bithub_url(ChimeCall *self);
 const gchar *chime_call_get_stun_server_url(ChimeCall *self);
 
 /* Is this an audio-less call, where we are just "checked in"? */
-void chime_call_set_silent(ChimeCall *call, gboolean muted);
+void chime_call_set_silent(ChimeCall *call, gboolean silent);
 gboolean chime_call_get_silent(ChimeCall *call);
 
 /* Audio call, but we want to be quiet now. */

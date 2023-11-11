@@ -37,7 +37,7 @@ struct conv_data {
 };
 
 struct msg_mark {
-	GTimeVal created;
+	gint64 created;
 	GtkTextMark *mark;
 };
 
@@ -67,14 +67,31 @@ static gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **
         return TRUE;
 }
 
+gboolean iso8601_to_ms(const gchar *str, gint64 *ms)
+{
+	/* I *believe* this doesn't leak a new one every time! */
+	GTimeZone *utc = g_time_zone_new_utc();
+	GDateTime *dt;
+
+	dt = g_date_time_new_from_iso8601(str, utc);
+	if (!dt)
+		return FALSE;
+
+	*ms = (g_date_time_to_unix(dt) * 1000) +
+		(g_date_time_get_microsecond(dt) / 1000000);
+
+	g_date_time_unref(dt);
+	return TRUE;
+}
 
 static void
 conv_seen_cb(PurpleConversation *conv, JsonNode *member)
 {
 	const gchar *lastread;
-	GTimeVal tv;
+	gint64 ms;
+
 	if (!parse_string(member, "LastRead", &lastread) ||
-	    !g_time_val_from_iso8601(lastread, &tv))
+	    !iso8601_to_ms(lastread, &ms))
 		return;
 
 	struct conv_data *cd = purple_conversation_get_data(conv, "chime-seen");
@@ -84,11 +101,8 @@ conv_seen_cb(PurpleConversation *conv, JsonNode *member)
 	while (cd->l) {
 		struct msg_mark *m = cd->l->data;
 
-		if (tv.tv_sec < m->created.tv_sec ||
-		    (tv.tv_sec == m->created.tv_sec &&
-		     tv.tv_usec < m->created.tv_usec)) {
+		if (ms < m->created)
 			break;
-		}
 
 		cd->l = g_list_remove(cd->l, m);
 
@@ -114,7 +128,7 @@ got_convmsg_cb(PurpleConversation *conv, gboolean outbound, JsonNode *msgnode)
 
 	struct msg_mark *m = g_new0(struct msg_mark, 1);
 
-	if (!g_time_val_from_iso8601(created_on, &m->created)) {
+	if (!iso8601_to_ms(created_on, &m->created)) {
 		g_free(m);
 		return;
 	}

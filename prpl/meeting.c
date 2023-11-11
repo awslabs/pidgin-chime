@@ -211,53 +211,96 @@ static void join_mtg_done(GObject *source, GAsyncResult *result, gpointer _conn)
 
 struct pin_join_data {
 	gboolean audio;
+	gboolean join;
 	gchar *query;
+	gchar *id;
+	gchar *authz;
 	PurpleConnection *conn;
 };
+
+static void free_pjd(struct pin_join_data *pjd)
+{
+	struct purple_chime *pc = purple_connection_get_protocol_data(pjd->conn);
+
+	if (pjd->join && pc)
+		pc->pin_joins = g_slist_remove(pc->pin_joins, pjd);
+	free(pjd->query);
+	free(pjd->id);
+	free(pjd->authz);
+	free(pjd);
+}
 
 static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _pjd)
 {
 	struct pin_join_data *pjd = _pjd;
-	struct purple_chime *pc = purple_connection_get_protocol_data(pjd->conn);
 	ChimeConnection *cxn = CHIME_CONNECTION(source);
 	GError *error = NULL;
-	ChimeMeeting *mtg = chime_connection_lookup_meeting_by_pin_finish(cxn, result, &error);
+	char *id = chime_connection_join_meeting_v3_finish(cxn, result, &error);
 
-	if (!mtg) {
+	if (!id) {
 		purple_notify_error(pjd->conn, NULL,
-				    _("Unable to lookup meeting"),
+				    _("Unable to join meeting"),
 				    error->message);
 	} else {
-		chime_connection_join_meeting_async(cxn, mtg, pjd->audio,
-						    NULL, join_mtg_done,
-						    pjd->conn);
-		g_object_unref(mtg);
+		if (pjd->join) {
+			ChimeMeeting *mtg = chime_connection_meeting_by_id(cxn, id);
+			if (mtg) {
+				chime_connection_join_meeting_async(cxn, mtg, pjd->audio,
+								    NULL, join_mtg_done,
+								    pjd->conn);
+			} else {
+				/* We need to wait for the juggernaut notification,
+				 * because the response didn't give us everything
+				 * we need to create the ChimeMeeting object */
+				pjd->id = g_strdup(id);
+				return;
+			}
+		}
 	}
 
-	pc->pin_joins = g_slist_remove(pc->pin_joins, pjd->query);
-	free(pjd->query);
-	free(pjd);
+	free_pjd(pjd);
+}
+
+static void authz_joinable_done(GObject *source, GAsyncResult *result,
+				gpointer _pjd)
+{
+	struct pin_join_data *pjd = _pjd;
+	ChimeConnection *cxn = CHIME_CONNECTION(source);
+	GError *error = NULL;
+
+	pjd->authz = chime_connection_meeting_authz_by_pin_finish(cxn, result, &error);
+	if (!pjd->authz) {
+		purple_notify_error(pjd->conn, NULL,
+				    _("Unable to authorize meeting join"),
+				    error->message);
+		free_pjd(pjd);
+	} else {
+		chime_connection_join_meeting_v3_async(cxn, pjd->query, pjd->authz,
+						       NULL, pin_join_done, pjd);
+	}
 }
 
 static void pin_join_begin(PurpleConnection *conn, const char *query,
-			   gboolean audio)
+			   gboolean join, gboolean audio)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
 	ChimeConnection *cxn = PURPLE_CHIME_CXN(conn);
 	struct pin_join_data *pjd = g_new0(struct pin_join_data, 1);
 
 	pjd->audio = audio;
+	pjd->join = join;
 	pjd->conn = conn;
 	pjd->query = g_strdup(query);
-	pc->pin_joins = g_slist_prepend(pc->pin_joins, pjd->query);
+	if (join)
+		pc->pin_joins = g_slist_prepend(pc->pin_joins, pjd);
 
-	chime_connection_lookup_meeting_by_pin_async(cxn, query, NULL,
-						     pin_join_done, pjd);
+	chime_connection_meeting_authz_by_pin_async(cxn, query, NULL,
+						    authz_joinable_done, pjd);
 }
 
 static void pin_join_noaudio(PurpleConnection *conn, const char *query)
 {
-	pin_join_begin(conn, query, FALSE);
+	pin_join_begin(conn, query, TRUE, FALSE);
 }
 
 static void pin_join_fields(PurpleConnection *conn, PurpleRequestFields *fields)
@@ -265,7 +308,7 @@ static void pin_join_fields(PurpleConnection *conn, PurpleRequestFields *fields)
 	const char *query = purple_request_fields_get_string(fields, "pin");
 	gboolean audio = purple_request_fields_get_bool(fields, "audio");
 
-	pin_join_begin(conn, query, audio);
+	pin_join_begin(conn, query, TRUE, audio);
 }
 
 void chime_purple_pin_join(PurplePluginAction *action)
@@ -465,6 +508,22 @@ static void sub_mtg(ChimeConnection *cxn, ChimeMeeting *mtg, gpointer _conn)
 void on_chime_new_meeting(ChimeConnection *cxn, ChimeMeeting *mtg, PurpleConnection *conn)
 {
 	struct purple_chime *pc = purple_connection_get_protocol_data(conn);
+	gboolean joined = FALSE;
+
+	if (mtg) {
+		const char *mtg_id = chime_meeting_get_id(mtg);
+		GSList *l;
+		for (l = pc->pin_joins; l; l = l->next) {
+			struct pin_join_data *pjd = l->data;
+			if (!g_strcmp0(mtg_id, pjd->id)) {
+				joined = TRUE;
+				chime_connection_join_meeting_async(cxn, mtg, pjd->audio,
+								    NULL, join_mtg_done, pjd->conn);
+				free_pjd(pjd);
+				break;
+			}
+		}
+	}
 
 	if (pc->joinable_handle) {
 		if (mtg)
@@ -475,15 +534,12 @@ void on_chime_new_meeting(ChimeConnection *cxn, ChimeMeeting *mtg, PurpleConnect
 		return;
 	}
 
-	/* Don't pop up the 'Joinable Meetings' dialog if this is was triggered by a PIN join.
-	   We're about to join it directly anyway. */
-	if (mtg) {
-		GSList *l;
-		for (l = pc->pin_joins; l; l = l->next) {
-			if (chime_meeting_match_pin(mtg, l->data))
-				return;
-		}
-	}
+	/*
+	 * Don't pop up a new 'Joinable Meetings' dialog if we joined this
+	 * meeting already.
+	 */
+	if (joined)
+		return;
 
 	PurpleNotifySearchResults *results = generate_joinable_results(conn);
 	pc->joinable_handle = purple_notify_searchresults(conn, _("Joinable Chime Meetings"), _("Joinable Meetings:"),
@@ -515,6 +571,8 @@ void purple_chime_destroy_meetings(PurpleConnection *conn)
 
 	if (pc->joinable_handle)
 		joinable_closed_cb(conn);
+	while (pc->pin_joins)
+		free_pjd(pc->pin_joins->data);
 }
 
 static void media_initiated_cb(GObject *source, GAsyncResult *result, gpointer _conn)
@@ -558,30 +616,10 @@ gboolean chime_purple_initiate_media(PurpleAccount *account, const char *who,
 	return TRUE;
 }
 
-static void add_joinable_done(GObject *source, GAsyncResult *result, gpointer _gc)
-{
-	PurpleConnection *gc = _gc;
-	ChimeConnection *cxn = CHIME_CONNECTION(source);
-	GError *error = NULL;
-	ChimeMeeting *mtg = chime_connection_lookup_meeting_by_pin_finish(cxn, result, &error);
-
-	if (!mtg) {
-		purple_notify_error(gc, NULL,
-				    _("Unable to lookup meeting"),
-				    error->message);
-	} else {
-		g_object_unref(mtg);
-	}
-}
-
 void chime_add_joinable_meeting(PurpleAccount *account, const char *pin)
 {
-	ChimeConnection *cxn = PURPLE_CHIME_CXN(account->gc);
-
 	if (pin && g_str_has_prefix(pin, "https://chime.aws/"))
 		pin += strlen("https://chime.aws/");
 
-	chime_connection_lookup_meeting_by_pin_async(cxn, pin, NULL,
-						     add_joinable_done, account->gc);
-
+	pin_join_begin(account->gc, pin, FALSE, FALSE);
 }

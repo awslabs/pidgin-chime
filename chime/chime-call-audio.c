@@ -616,7 +616,6 @@ ChimeCallAudio *chime_call_audio_open(ChimeConnection *cxn, ChimeCall *call, gbo
 /* Reopen the transport with/without audio enabled at all. */
 void chime_call_audio_reopen(ChimeCallAudio *audio, gboolean silent)
 {
-	chime_call_audio_local_mute(audio, silent);
 	if (silent != audio->silent) {
 		chime_call_transport_disconnect(audio, TRUE);
 		chime_call_transport_connect(audio, silent);

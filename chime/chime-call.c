@@ -609,6 +609,8 @@ void chime_connection_open_call(ChimeConnection *cxn, ChimeCall *call, gboolean 
 		chime_jugg_subscribe(cxn, call->channel, "Call", call_jugg_cb, NULL);
 		chime_jugg_subscribe(cxn, call->roster_channel, "Roster", call_roster_cb, call);
 		call->audio = chime_call_audio_open(cxn, call, silent);
+		if (call->mute_on_join)
+			chime_call_set_local_mute(call, TRUE);
 	}
 }
 

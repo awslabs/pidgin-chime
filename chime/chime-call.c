@@ -48,6 +48,7 @@ enum
 
 	CHIME_PROPS_ENUM
 
+	PROP_MUTE_ON_JOIN,
 	LAST_PROP,
 };
 
@@ -69,6 +70,7 @@ struct _ChimeCall {
 
 	CHIME_PROPS_VARS
 
+	ChimeContact *mute_on_join;
 	GHashTable *participants;
 	ChimeCallParticipant *presenter;
 
@@ -139,6 +141,10 @@ static void chime_call_get_property(GObject *object, guint prop_id,
 
 	CHIME_PROPS_GET
 
+	case PROP_MUTE_ON_JOIN:
+		g_value_set_object(value, self->mute_on_join);
+		break;
+
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
 		break;
@@ -153,6 +159,11 @@ static void chime_call_set_property(GObject *object, guint prop_id,
 	switch (prop_id) {
 
 	CHIME_PROPS_SET
+
+	case PROP_MUTE_ON_JOIN:
+		g_return_if_fail(self->mute_on_join == NULL);
+		self->mute_on_join = g_value_dup_object(value);
+		break;
 
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -170,6 +181,15 @@ static void chime_call_class_init(ChimeCallClass *klass)
 	object_class->set_property = chime_call_set_property;
 
 	CHIME_PROPS_REG
+
+	props[PROP_MUTE_ON_JOIN] =
+		g_param_spec_object("mute-on-join",
+				    "mute-on-join",
+				    "mute-on-join",
+				    CHIME_TYPE_CONTACT,
+				    G_PARAM_READWRITE |
+				    G_PARAM_CONSTRUCT_ONLY |
+				    G_PARAM_STATIC_STRINGS);
 
 	g_object_class_install_properties(object_class, LAST_PROP, props);
 
@@ -477,17 +497,27 @@ ChimeCall *chime_connection_parse_call(ChimeConnection *cxn, JsonNode *node,
 				       GError **error)
 {
 	ChimeConnectionPrivate *priv = chime_connection_get_private(cxn);
+	ChimeContact *mute_on_join = NULL;
 	const gchar *uuid, *alert_body;
 	CHIME_PROPS_PARSE_VARS
 
 	if (!parse_string(node, "uuid", &uuid) ||
 	    !parse_string(node, "alert_body", &alert_body) ||
 	    CHIME_PROPS_PARSE) {
+	eparse:
 		g_set_error(error, CHIME_ERROR,
 			    CHIME_ERROR_BAD_RESPONSE,
 			    _("Failed to parse Call node"));
 		return NULL;
 	}
+
+	JsonObject *obj = json_node_get_object(node);
+	JsonNode *mute_node = NULL;
+	if (obj)
+		mute_node = json_object_get_member(obj, "mute_on_join_by");
+	if (mute_node && !json_node_is_null(mute_node))
+		mute_on_join = chime_connection_parse_contact(cxn, FALSE,
+							      mute_node, NULL);
 
 	ChimeCall *call = g_hash_table_lookup(priv->calls.by_id, uuid);
 	if (!call) {
@@ -495,8 +525,11 @@ ChimeCall *chime_connection_parse_call(ChimeConnection *cxn, JsonNode *node,
 				       "id", uuid,
 				       "name", alert_body,
 				       CHIME_PROPS_NEWOBJ
+				       "mute-on-join", mute_on_join,
 				       NULL);
 
+		if (mute_on_join)
+			g_object_unref(mute_on_join);
 		g_object_ref(call);
 		chime_object_collection_hash_object(&priv->calls, CHIME_OBJECT(call), FALSE);
 
@@ -510,6 +543,12 @@ ChimeCall *chime_connection_parse_call(ChimeConnection *cxn, JsonNode *node,
 
 	CHIME_PROPS_UPDATE
 
+	if (mute_on_join != call->mute_on_join) {
+		if (call->mute_on_join)
+			g_object_unref(call->mute_on_join);
+		call->mute_on_join = mute_on_join;
+		g_object_notify(G_OBJECT(call), "mute-on-join");
+	}
 	return g_object_ref(call);
 }
 

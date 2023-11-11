@@ -1012,17 +1012,20 @@ gboolean parse_string(JsonNode *parent, const gchar *name, const gchar **res)
 	return TRUE;
 }
 
-gboolean parse_time(JsonNode *parent, const gchar *name, const gchar **time_str, GTimeVal *tv)
+gboolean iso8601_to_ms(const gchar *str, gint64 *ms)
 {
-	const gchar *msg_time;
+	/* I *believe* this doesn't leak a new one every time! */
+	GTimeZone *utc = g_time_zone_new_utc();
+	GDateTime *dt;
 
-	if (!parse_string(parent, name, &msg_time) ||
-	    !g_time_val_from_iso8601(msg_time, tv))
+	dt = g_date_time_new_from_iso8601(str, utc);
+	if (!dt)
 		return FALSE;
 
-	if (time_str)
-		*time_str = msg_time;
+	*ms = (g_date_time_to_unix(dt) * 1000) +
+		(g_date_time_get_microsecond(dt) / 1000000);
 
+	g_date_time_unref(dt);
 	return TRUE;
 }
 

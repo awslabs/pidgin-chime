@@ -177,16 +177,19 @@ static void on_message_received(ChimeObject *obj, JsonNode *node, struct chime_m
 		g_hash_table_insert(msgs->msg_gather, (gchar *)id, json_node_ref(node));
 		return;
 	}
-	GTimeVal tv;
 	const gchar *created;
-	if (!parse_time(node, "CreatedOn", &created, &tv))
+	if (!parse_string(node, "CreatedOn", &created))
+		return;
+
+	gint64 created_ms;
+	if (!iso8601_to_ms(created, &created_ms))
 		return;
 
 	if (!msgs->msgs_failed)
 		chime_update_last_msg(cxn, msgs, created, id);
 
 	if (is_msg_unseen(msgs->seen_msgs, id))
-		msgs->cb(cxn, msgs, node, tv.tv_sec, TRUE);
+		msgs->cb(cxn, msgs, node, created_ms / 1000, TRUE);
 }
 
 /* Once the message fetching is complete, we can play the fetched messages in order */

@@ -130,6 +130,7 @@ struct chime_msgs {
 	PurpleConnection *conn;
 	ChimeObject *obj;
 	gchar *last_seen;
+	GDateTime *fetch_until_dt;
 	gchar *fetch_until;
 	GQueue *seen_msgs;
 	gboolean unseen;

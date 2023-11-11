@@ -47,7 +47,7 @@ static gboolean is_msg_unseen(GQueue *q, const gchar *id)
 }
 
 struct msg_sort {
-	GTimeVal tm;
+	gint64 tm;
 	const gchar *id;
 	JsonNode *node;
 };
@@ -57,12 +57,7 @@ static gint compare_ms(gconstpointer _a, gconstpointer _b)
 	const struct msg_sort *a = _a;
 	const struct msg_sort *b = _b;
 
-	if (a->tm.tv_sec > b->tm.tv_sec)
-		return 1;
-	if (a->tm.tv_sec == b->tm.tv_sec &&
-	    a->tm.tv_usec > b->tm.tv_usec)
-		return 1;
-	return 0;
+	return a->tm > b->tm;
 }
 
 static int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
@@ -72,7 +67,7 @@ static int insert_queued_msg(gpointer _id, gpointer _node, gpointer _list)
 
 	if (parse_string(_node, "CreatedOn", &str)) {
 		struct msg_sort *ms = g_new0(struct msg_sort, 1);
-		if (!g_time_val_from_iso8601(str, &ms->tm)) {
+		if (!iso8601_to_ms(str, &ms->tm)) {
 			g_free(ms);
 			return TRUE;
 		}
@@ -102,11 +97,11 @@ void chime_complete_messages(ChimeConnection *cxn, struct chime_msgs *msgs)
 			gboolean new_msg = FALSE;
 			/* Only treat it as a new message if it is the last one,
 			 * and it was sent within the last day */
-			if (!l && !msgs->fetch_until && ms->tm.tv_sec + 86400 < time(NULL))
+			if (!l && !msgs->fetch_until && (ms->tm / 1000) + 86400 < time(NULL))
 				new_msg = TRUE;
 
 			seen_one = TRUE;
-			msgs->cb(cxn, msgs, node, ms->tm.tv_sec, new_msg);
+			msgs->cb(cxn, msgs, node, ms->tm / 1000, new_msg);
 		}
 		g_free(ms);
 
@@ -131,16 +126,12 @@ static gboolean msg_newer_than(JsonNode *new, const gchar *old_date)
 	if (!parse_string(new, "UpdatedOn", &new_updated))
 		return FALSE;
 
-	GTimeVal old_tv, new_tv;
-	if (!g_time_val_from_iso8601(new_updated, &new_tv) ||
-	    !g_time_val_from_iso8601(old_date, &old_tv))
+	gint64 old_ms, new_ms;
+	if (!iso8601_to_ms(new_updated, &new_ms) ||
+	    !iso8601_to_ms(old_date, &old_ms))
 		return FALSE;
 
-	if (new_tv.tv_sec > old_tv.tv_sec ||
-	    (new_tv.tv_sec == old_tv.tv_sec && new_tv.tv_usec > old_tv.tv_usec))
-		return TRUE;
-
-	return FALSE;
+	return new_ms > old_ms;
 }
 
 static gboolean msg_newer(JsonNode *new, JsonNode *old)
@@ -221,14 +212,18 @@ static void fetch_msgs_cb(GObject *source, GAsyncResult *result, gpointer _msgs)
 	if (msgs->fetch_until) {
 		/* Fetch the next batch */
 		gchar *next_after = msgs->fetch_until;
-		GTimeVal before_tv;
 
-		g_time_val_from_iso8601(msgs->fetch_until, &before_tv);
-		before_tv.tv_sec += FETCH_TIME_CHUNK;
-		if (before_tv.tv_sec < time(NULL) - 86400)
-			msgs->fetch_until = g_time_val_to_iso8601(&before_tv);
-		else
+		if (g_date_time_to_unix(msgs->fetch_until_dt) >
+		    time(NULL) - FETCH_TIME_CHUNK) {
+			g_date_time_unref(msgs->fetch_until_dt);
+			msgs->fetch_until_dt = NULL;
 			msgs->fetch_until = NULL;
+		} else {
+			GDateTime *dt = msgs->fetch_until_dt;
+			msgs->fetch_until_dt = g_date_time_add_minutes(dt, FETCH_TIME_CHUNK / 60);
+			g_date_time_unref(dt);
+			msgs->fetch_until = g_date_time_format_iso8601(msgs->fetch_until_dt);
+		}
 		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch more messages from %s until %s\n", next_after, msgs->fetch_until);
 		chime_connection_fetch_messages_async(cxn, msgs->obj, msgs->fetch_until,
 						      next_after, NULL, fetch_msgs_cb, msgs);
@@ -309,8 +304,8 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
 	}
 
 	if (!msgs->msgs_done) {
-		GTimeVal before_tv;
 		const gchar *start_from = last_seen;
+		GDateTime *dt;
 
 		if (!start_from) {
 			if (CHIME_IS_ROOM(obj))
@@ -318,12 +313,21 @@ void init_msgs(PurpleConnection *conn, struct chime_msgs *msgs, ChimeObject *obj
 			else
 				start_from = chime_conversation_get_created_on(CHIME_CONVERSATION(obj));
 		}
-		if (g_time_val_from_iso8601(start_from, &before_tv)) {
-			before_tv.tv_sec += FETCH_TIME_CHUNK;
-			if (before_tv.tv_sec < time(NULL) - 86400)
-				msgs->fetch_until = g_time_val_to_iso8601(&before_tv);
+
+		dt = g_date_time_new_from_iso8601(start_from,
+						  g_time_zone_new_utc());
+		if (dt) {
+			/* The local timezone offset doesn't matter as it's
+			 * only a rough heuristic. */
+			if (g_date_time_to_unix(dt) <
+			    time(NULL) - FETCH_TIME_CHUNK) {
+				msgs->fetch_until_dt = g_date_time_add_minutes(dt,
+									       FETCH_TIME_CHUNK / 60);
+				msgs->fetch_until = g_date_time_format_iso8601(msgs->fetch_until_dt);
+			}
+			g_date_time_unref(dt);
 		}
-		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch messages for %s from %s until %s\n", name, msgs->last_seen, msgs->fetch_until);
+		purple_debug(PURPLE_DEBUG_INFO, "chime", "Fetch messages for %s from %s until %s\n", name, start_from, msgs->fetch_until);
 		chime_connection_fetch_messages_async(PURPLE_CHIME_CXN(conn), obj, msgs->fetch_until,
 						      msgs->last_seen, NULL, fetch_msgs_cb, msgs);
 	}
@@ -347,6 +351,8 @@ void cleanup_msgs(struct chime_msgs *msgs)
 	g_clear_pointer(&msgs->last_seen, g_free);
 	g_clear_object(&msgs->obj);
 	g_free(msgs->fetch_until);
+	if (msgs->fetch_until_dt)
+		g_date_time_unref(msgs->fetch_until_dt);
 	/* If msgs->msgs_done then we can free immediately. This
 	 * actually frees the entire containing chat/im struct, not
 	 * just the msgs. Otherwise, fetch_msgs_cb() is still pending

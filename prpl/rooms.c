@@ -34,7 +34,7 @@ struct room_sort {
 	struct room_sort *next;
 	gboolean unread;
 	gboolean mention;
-	GTimeVal when;
+	gint64 when;
 	ChimeRoom *room;
 };
 
@@ -44,10 +44,7 @@ static gboolean cmp_room(struct room_sort *a, struct room_sort *b)
 		return a->mention;
 	if (a->unread != b->unread)
 		return a->unread;
-	if (a->when.tv_sec > b->when.tv_sec)
-		return TRUE;
-	if (a->when.tv_sec == b->when.tv_sec &&
-	    a->when.tv_usec > b->when.tv_sec)
+	if (a->when > b->when)
 		return TRUE;
 	return FALSE;
 }
@@ -63,10 +60,10 @@ static void sort_room(ChimeConnection *cxn, ChimeRoom *room, gpointer _rs_list)
 	rs->mention = chime_room_has_mention(room);
 
 	tm = chime_room_get_last_sent(room);
-	if (!tm || !g_time_val_from_iso8601(tm, &rs->when)) {
+	if (!tm || !iso8601_to_ms(tm, &rs->when)) {
 		tm = chime_room_get_created_on(room);
 		if (tm)
-			g_time_val_from_iso8601(tm, &rs->when);
+			iso8601_to_ms(tm, &rs->when);
 	}
 	while (*rs_list && cmp_room(*rs_list, rs))
 		rs_list = &((*rs_list)->next);

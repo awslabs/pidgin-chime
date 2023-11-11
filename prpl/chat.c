@@ -1056,25 +1056,24 @@ static void on_chime_room_mentioned(ChimeConnection *cxn, ChimeObject *obj, Json
 static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConnection *conn)
 {
 	const gchar *last_mentioned;
-	GTimeVal mention_tv;
+	gint64 mention_ms;
 
 	/* If no LastMentioned or we can't parse it, nothing to do */
 	last_mentioned = chime_room_get_last_mentioned(room);
-	if (!last_mentioned || !g_time_val_from_iso8601(last_mentioned, &mention_tv))
+	if (!last_mentioned || !iso8601_to_ms(last_mentioned, &mention_ms))
 		return;
 
 	const gchar *msg_time;
-	GTimeVal msg_tv;
+	gint64 msg_ms;
 
 	/* For a new installation which hasn't seen this room at all yet,
 	 * use the server's idea of LastRead instead of the local one. Otherwise
 	 * we end up spending hours fetching *all* old rooms and messages. */
 	if ( (chime_read_last_msg(conn, CHIME_OBJECT(room), &msg_time, NULL) &&
-	      g_time_val_from_iso8601(msg_time, &msg_tv)) ||
+	      iso8601_to_ms(msg_time, &msg_ms)) ||
 	     ((msg_time = chime_room_get_last_read(room)) &&
-	      g_time_val_from_iso8601(msg_time, &msg_tv)) ) {
-		if (mention_tv.tv_sec < msg_tv.tv_sec ||
-		    (mention_tv.tv_sec == msg_tv.tv_sec && mention_tv.tv_usec <= msg_tv.tv_usec)) {
+	      iso8601_to_ms(msg_time, &msg_ms)) ) {
+		if (mention_ms <= msg_ms) {
 			/* LastMentioned is older than we've already seen. Nothing to do. */
 			return;
 		}
@@ -1087,21 +1086,19 @@ static void on_chime_new_room(ChimeConnection *cxn, ChimeRoom *room, PurpleConne
 void on_chime_new_group_conv(ChimeConnection *cxn, ChimeConversation *conv, PurpleConnection *conn)
 {
 	const gchar *last_sent;
-	GTimeVal sent_tv;
+	gint64 sent_ms;
 
 	/* If no LastMentioned or we can't parse it, nothing to do */
 	last_sent = chime_conversation_get_last_sent(conv);
-	if (!last_sent || !g_time_val_from_iso8601(last_sent, &sent_tv) ||
-	    (!sent_tv.tv_sec && !sent_tv.tv_usec))
+	if (!last_sent || !iso8601_to_ms(last_sent, &sent_ms) ||
+	    (!sent_ms))
 		return;
 
 	const gchar *seen_time;
-	GTimeVal seen_tv;
+	gint64 seen_ms;
 
 	if (chime_read_last_msg(conn, CHIME_OBJECT(conv), &seen_time, NULL) &&
-	    g_time_val_from_iso8601(seen_time, &seen_tv) &&
-	    (sent_tv.tv_sec < seen_tv.tv_sec ||
-	     (sent_tv.tv_sec == seen_tv.tv_sec && sent_tv.tv_usec <= seen_tv.tv_usec))) {
+	    iso8601_to_ms(seen_time, &seen_ms) && sent_ms <= seen_ms) {
 		/* LastSent is older than we've already seen. Nothing to do except
 		 * hook up the signal to open the "chat" when a message comes in */
 		g_signal_connect(conv, "message", G_CALLBACK(on_group_conv_msg), conn);

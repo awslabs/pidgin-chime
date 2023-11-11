@@ -130,6 +130,17 @@ ChimeMeeting *chime_connection_lookup_meeting_by_pin_finish(ChimeConnection *sel
 							    GAsyncResult *result,
 							    GError **error);
 
+void chime_connection_join_meeting_v3_async(ChimeConnection *cxn,
+					    const gchar *pin,
+					    const gchar *authz,
+					    GCancellable *cancellable,
+					    GAsyncReadyCallback callback,
+					    gpointer user_data);
+
+char *chime_connection_join_meeting_v3_finish(ChimeConnection *self,
+					      GAsyncResult *result,
+					      GError **error);
+
 void chime_connection_meeting_authz_by_pin_async(ChimeConnection *cxn,
 						  const gchar *pin,
 						  GCancellable *cancellable,

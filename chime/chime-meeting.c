@@ -778,6 +778,80 @@ ChimeMeeting *chime_connection_lookup_meeting_by_pin_finish(ChimeConnection *sel
 	return g_task_propagate_pointer(G_TASK(result), error);
 }
 
+static void join_v3_cb(ChimeConnection *cxn, SoupMessage *msg,
+		       JsonNode *node, gpointer user_data)
+{
+	GTask *task = G_TASK(user_data);
+
+	if (SOUP_STATUS_IS_SUCCESSFUL(msg->status_code) && node) {
+		JsonObject *obj;
+		const gchar *id;
+
+		if (!(obj = json_node_get_object(node)) ||
+		    !(node = json_object_get_member(obj, "Meeting")) ||
+		    !(obj = json_node_get_object(node)) ||
+		    !(node = json_object_get_member(obj, "JoinableMeeting")) |
+		    !parse_string(node, "Id", &id)) {
+			g_task_return_new_error(task, CHIME_ERROR,
+						CHIME_ERROR_BAD_RESPONSE,
+						_("Failed to extract meeting passcode"));
+		} else {
+			g_task_return_pointer(task, g_strdup(id), g_free);
+		}
+	} else {
+		const gchar *reason;
+		reason = msg->reason_phrase;
+
+		if (node)
+			parse_string(node, "Message", &reason);
+
+		g_task_return_new_error(task, CHIME_ERROR,
+					CHIME_ERROR_NETWORK,
+					_("Failed to obtain meeting details: %s"),
+					reason);
+	}
+
+	g_object_unref(task);
+}
+
+void chime_connection_join_meeting_v3_async(ChimeConnection *cxn,
+					    const gchar *pin,
+					    const gchar *authz,
+					    GCancellable *cancellable,
+					    GAsyncReadyCallback callback,
+					    gpointer user_data)
+{
+	g_return_if_fail(CHIME_IS_CONNECTION(cxn));
+	ChimeConnectionPrivate *priv = chime_connection_get_private (cxn);
+
+	GTask *task = g_task_new(cxn, cancellable, callback, user_data);
+
+	JsonBuilder *jb = json_builder_new();
+	jb = json_builder_begin_object(jb);
+	jb = json_builder_set_member_name(jb, "Passcode");
+	jb = json_builder_add_string_value(jb, pin);
+	jb = json_builder_set_member_name(jb, "AccessRequestId");
+	jb = json_builder_add_string_value(jb, authz);
+	jb = json_builder_end_object(jb);
+
+	JsonNode *node = json_builder_get_root(jb);
+	SoupURI *uri = soup_uri_new_printf(priv->express_url, "/meetings/v3/join_meeting");
+	chime_connection_queue_http_request(cxn, node, uri, "POST", join_v3_cb, task);
+	json_node_unref(node);
+	g_object_unref(jb);
+
+}
+
+char *chime_connection_join_meeting_v3_finish(ChimeConnection *self,
+					      GAsyncResult *result,
+					      GError **error)
+{
+	g_return_val_if_fail(CHIME_IS_CONNECTION(self), FALSE);
+	g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+
+	return g_task_propagate_pointer(G_TASK(result), error);
+}
+
 static void meet_authz_cb(ChimeConnection *cxn, SoupMessage *msg,
 			  JsonNode *node, gpointer user_data)
 {

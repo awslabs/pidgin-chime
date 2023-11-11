@@ -132,7 +132,7 @@ ChimeMeeting *chime_connection_lookup_meeting_by_pin_finish(ChimeConnection *sel
 
 void chime_connection_join_meeting_async(ChimeConnection *cxn,
 					 ChimeMeeting *meeting,
-					 gboolean muted,
+					 gboolean audio,
 					 GCancellable *cancellable,
 					 GAsyncReadyCallback callback,
 					 gpointer user_data);

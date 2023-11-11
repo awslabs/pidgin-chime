@@ -228,7 +228,7 @@ static void pin_join_done(GObject *source, GAsyncResult *result, gpointer _pjd)
 				    _("Unable to lookup meeting"),
 				    error->message);
 	} else {
-		chime_connection_join_meeting_async(cxn, mtg, !pjd->audio,
+		chime_connection_join_meeting_async(cxn, mtg, pjd->audio,
 						    NULL, join_mtg_done,
 						    pjd->conn);
 		g_object_unref(mtg);
@@ -329,7 +329,7 @@ static void do_join_joinable(PurpleConnection *conn, GList *row, gboolean audio)
 				}
 			}
 		}
-		chime_connection_join_meeting_async(cxn, mtg, !audio, NULL,
+		chime_connection_join_meeting_async(cxn, mtg, audio, NULL,
 						    join_mtg_done, conn);
 	}
 }
@@ -532,7 +532,7 @@ static void media_initiated_cb(GObject *source, GAsyncResult *result, gpointer _
 		return;
 	}
 
-	chime_connection_join_meeting_async(cxn, mtg, FALSE, NULL, join_mtg_done, conn);
+	chime_connection_join_meeting_async(cxn, mtg, TRUE, NULL, join_mtg_done, conn);
 	g_object_unref(mtg);
 }
 

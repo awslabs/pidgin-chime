@@ -35,14 +35,15 @@ struct chime_im {
 };
 
 /* Called for all deliveries of incoming conversation messages, at startup and later */
-static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
-				    JsonNode *record, time_t msg_time, gboolean new_msg)
+static void do_conv_deliver_msg(ChimeConnection *cxn, struct chime_msgs *m,
+				JsonNode *record, time_t msg_time, gboolean new_msg)
 {
+	struct chime_im *im = (struct chime_im *)m;
 	const gchar *sender, *message;
 	gint64 sys;
 	if (!parse_string(record, "Sender", &sender) ||
 	    !parse_int(record, "IsSystemMessage", &sys))
-		return FALSE;
+		return;
 
 	PurpleMessageFlags flags = 0;
 	if (sys)
@@ -97,7 +98,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 				if (!pconv) {
 					purple_debug_error("chime", "NO CONV FOR %s\n", email);
 					g_free(escaped);
-					return FALSE;
+					return;
 				}
 			}
 			purple_conversation_write(pconv, NULL, escaped,
@@ -122,7 +123,7 @@ static gboolean do_conv_deliver_msg(ChimeConnection *cxn, struct chime_im *im,
 		}
 		g_free(escaped);
 	}
-	return TRUE;
+	return;
 }
 
 static void on_conv_membership(ChimeConversation *conv, JsonNode *member, struct chime_im *im)
@@ -216,8 +217,7 @@ void on_chime_new_conversation(ChimeConnection *cxn, ChimeConversation *conv, Pu
 	purple_debug(PURPLE_DEBUG_INFO, "chime", "New conversation %s with %s\n", chime_object_get_id(CHIME_OBJECT(im->peer)),
 		     chime_contact_get_email(im->peer));
 
-	init_msgs(conn, &im->m, CHIME_OBJECT(conv), (chime_msg_cb)do_conv_deliver_msg, chime_contact_get_email(im->peer), NULL);
-
+	init_msgs(conn, &im->m, CHIME_OBJECT(conv), do_conv_deliver_msg, chime_contact_get_email(im->peer), NULL);
 }
 
 struct im_send_data {

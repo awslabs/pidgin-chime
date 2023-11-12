@@ -870,7 +870,6 @@ static void meet_authz_cb(ChimeConnection *cxn, SoupMessage *msg,
 		}
 	} else {
 		const gchar *reason;
-	eparse:
 		reason = msg->reason_phrase;
 
 		if (node)

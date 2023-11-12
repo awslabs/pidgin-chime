@@ -60,6 +60,11 @@ AC_SEARCH_LIBS([dlopen],[dl dld],
 )
 AC_SUBST([DLOPEN_LIBS])
 
+# Older gtk-2.0 (for chimeseen) GTypeDebugFlags, deprecated in 2.36.
+# EDS code uses GTimeVal, deprecated in 2.62
+AC_DEFINE(GLIB_VERSION_MIN_REQUIRED, GLIB_VERSION_2_34, [Ignore post 2.60 deprecations])
+AC_DEFINE(GLIB_VERSION_MAX_ALLOWED, GLIB_VERSION_2_62, [Prevent post 2.60 APIs])
+
 PKG_CHECK_MODULES(DBUS, [dbus-1])
 PKG_CHECK_MODULES(GNUTLS, [gnutls >= 3.2.0])
 PKG_CHECK_MODULES(FARSTREAM, [farstream-0.2])

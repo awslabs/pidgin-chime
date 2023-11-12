@@ -342,7 +342,8 @@ g_tls_connection_gnutls_pull_timeout_func (gnutls_transport_ptr_t transport_data
 
 		/* Create a timeout source. */
 		timeout_source = g_timeout_source_new (ms);
-		g_source_set_callback (timeout_source, (GSourceFunc) read_timeout_cb,
+		g_source_set_callback (timeout_source,
+				       G_SOURCE_FUNC(read_timeout_cb),
 				       &timed_out, NULL);
 
 		/* Create a read source. We cannot use g_source_set_ready_time() on this
@@ -350,7 +351,8 @@ g_tls_connection_gnutls_pull_timeout_func (gnutls_transport_ptr_t transport_data
 		 * internals of the #GDatagramBased’s #GSource implementation. */
 		read_source = g_datagram_based_create_source (G_DATAGRAM_BASED(audio->dtls_sock),
 							      G_IO_IN, NULL);
-		g_source_set_callback (read_source, (GSourceFunc) read_datagram_based_cb,
+		g_source_set_callback (read_source,
+				       G_SOURCE_FUNC(read_datagram_based_cb),
 				       &read_done, NULL);
 
 		g_source_attach (read_source, ctx);
@@ -388,7 +390,9 @@ static gboolean dtls_src_cb(GDatagramBased *dgram, GIOCondition condition, Chime
 				g_source_remove(audio->timeout_source);
 
 			int timeo = gnutls_dtls_get_timeout(audio->dtls_sess);
-			audio->timeout_source = g_timeout_add(timeo, (GSourceFunc)dtls_timeout, audio);
+			audio->timeout_source = g_timeout_add(timeo,
+							      G_SOURCE_FUNC(dtls_timeout),
+							      audio);
 
 			return G_SOURCE_CONTINUE;
 		}
@@ -467,7 +471,8 @@ static void connect_dtls(ChimeCallAudio *audio, GSocket *s)
 
 	audio->dtls_source = g_datagram_based_create_source(G_DATAGRAM_BASED(s), G_IO_IN, audio->cancel);
 	audio->dtls_sock = s;
-	g_source_set_callback(audio->dtls_source, (GSourceFunc)dtls_src_cb, audio, NULL);
+	g_source_set_callback(audio->dtls_source, G_SOURCE_FUNC(dtls_src_cb),
+			      audio, NULL);
 	g_source_attach(audio->dtls_source, NULL);
 
 	gnutls_init(&audio->dtls_sess, GNUTLS_CLIENT|GNUTLS_DATAGRAM|GNUTLS_NONBLOCK);

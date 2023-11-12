@@ -51,7 +51,7 @@
 #define CHIME_ENUM_VALUE(val, nick) { val, #val, nick },
 #define CHIME_DEFINE_ENUM_TYPE(TypeName, type_name, values)		\
 	GType type_name ## _get_type(void) {				\
-		static volatile gsize chime_define_id__volatile = 0;	\
+		static gsize chime_define_id__volatile = 0;		\
 		if (g_once_init_enter(&chime_define_id__volatile)) {	\
 			static const GEnumValue v[] = {			\
 				values					\

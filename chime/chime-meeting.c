@@ -790,7 +790,7 @@ static void join_v3_cb(ChimeConnection *cxn, SoupMessage *msg,
 		if (!(obj = json_node_get_object(node)) ||
 		    !(node = json_object_get_member(obj, "Meeting")) ||
 		    !(obj = json_node_get_object(node)) ||
-		    !(node = json_object_get_member(obj, "JoinableMeeting")) |
+		    !(node = json_object_get_member(obj, "JoinableMeeting")) ||
 		    !parse_string(node, "Id", &id)) {
 			g_task_return_new_error(task, CHIME_ERROR,
 						CHIME_ERROR_BAD_RESPONSE,

@@ -504,7 +504,6 @@ ChimeCall *chime_connection_parse_call(ChimeConnection *cxn, JsonNode *node,
 	if (!parse_string(node, "uuid", &uuid) ||
 	    !parse_string(node, "alert_body", &alert_body) ||
 	    CHIME_PROPS_PARSE) {
-	eparse:
 		g_set_error(error, CHIME_ERROR,
 			    CHIME_ERROR_BAD_RESPONSE,
 			    _("Failed to parse Call node"));

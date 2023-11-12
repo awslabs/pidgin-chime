@@ -229,8 +229,8 @@ static xmlNode **xpath_nodes(struct dom *dom, guint *count, const char *fmt, ...
 	results = xmlXPathEval(BAD_CAST expression, dom->context);
 	if (results && results->type == XPATH_NODESET && results->nodesetval) {
 		*count = (guint) results->nodesetval->nodeNr;
-		nodes = g_memdup(results->nodesetval->nodeTab,
-				 results->nodesetval->nodeNr * sizeof(xmlNode *));
+		nodes = g_memdup2(results->nodesetval->nodeTab,
+				  results->nodesetval->nodeNr * sizeof(xmlNode *));
 	} else {
 		*count = 0;
 		nodes = NULL;

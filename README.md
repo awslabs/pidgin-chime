@@ -59,7 +59,7 @@ Run from a terminal with the `CHIME_DEBUG` environment variable set to a
 non-empty string.
 
 This repository also includes a command specifically intended to ease debugging
-the sign in web scrapping code.  It's not compiled by default.  In order to
+the sign in web scraping code.  It's not compiled by default.  In order to
 build it and run it, use the following commands:
 
     make chime-get-token

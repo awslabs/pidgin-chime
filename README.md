@@ -8,6 +8,34 @@ Support
 This plugin is not supported by the Amazon Chime team. Do not contact them for
 any assistance with this client.
 
+It supports chat and meetings with audio.
+
+You can join meetings using the [chime-joinable.py][chime-joinable.py]
+script, e.g.:
+
+    chime-joinable.py 123456768
+
+There is a plugin for Evolution which allows Pidgin to spawn a new meeting
+editor with the Chime meeting details prepopulated. Select 'Schedule
+meeting…' from the account menu in Pidgin.
+
+Todo
+----
+
+Video is not yet implemented, although it should actually be simple to
+add since it is mostly just standard SRTP, unlike the audio and legacy
+screenshare protocols which required a lot of extra work on the transport
+stream.
+
+Screen share used to work but the protocol has changed to treating it
+like just another video stream.
+
+We should extend the Evolution plugin so that it spots when meetings are
+starting which contain a Chime link, but to which you weren't invited
+directly so Chime doesn't auto-call. It should make those joinable
+automatically, like the [chime-joinable.py][chime-joinable.py] script
+does.
+
 
 Installation
 ------------
@@ -17,57 +45,24 @@ Installation
     make
     sudo make install
 
-Given the rate of development, you may find it easier to make a symbolic link
-from the installed plugin (e.g. `/usr/lib64/purple-2/libchimeprpl.so`) to
-`.libs/libchimeprpl.so` in your working tree.
-
 
 Authentication
 --------------
 
-This plugin is capable of obtaining the session token by emulating a web browser
-and following the sign in process.  Currently, it is possible to log in with
-your corporate credentials (Active Directory) as well as with your Amazon
-credentials.
-
-During this process, user input may be required (user and password, or just
-password).  Make sure you are using a *libpurple* application that properly
-implements interactive user input.
-
-Passwords will **not** be stored anywhere.  Passwords are only necessary to
-obtain a session token, and new session tokens are obtained with the previous
-one.  If the token gets lost or corrupted, the sign in process will be triggered
-again to obtain a new token.
-
-In case all this stops working, the session token can be obtained with a web
-browser; but first report this situation.  Start from [this link][signin] and
-complete the authentication process until you end up at a URI that the browser
-cannot handle, which looks something like
-
-    chime://sso_sessions?Token=eyJyZ…
-
-The part after `Token=` is your authentication token. Create an account in
-Pidgin, select *Amazon Chime* as the protocol in the *Basic* tab then go to the
-*Advanced* tab and paste the token in the *Token* field.  Leave the *Signin URL*
-field empty.
+This plugin uses your system web browser by asking Pidgin to open a URI
+for the login page. After a successful login, you end up redirected to a
+URI like `chime://prpl?..."`. There is a desktop file which sets `chime:`
+URIs to be handled by a [python script][chime-auth.py] which passes the
+token back to Pidgin via D-Bus.
 
 
 Debugging
 ---------
 
-Run from a terminal with the `CHIME_DEBUG` environment variable set to a
-non-empty string.
+You can set the `CHIME_DEBUG` environment variable to get additional
+debug output on top of the Pidgin debugging enabled with `-d`:
 
-This repository also includes a command specifically intended to ease debugging
-the sign in web scrapping code.  It's not compiled by default.  In order to
-build it and run it, use the following commands:
+    CHIME_DEBUG=2 pidgin -d
 
-    make chime-get-token
-    CHIME_DEBUG=2 ./chime-get-token my-login-address@example.com
-
-This will dump all the HTTP request performed during the authentication and
-token retrieval.  If possible, attach its output when reporting an
-authentication issue.
-
-
-[signin]: https://signin.id.ue1.app.chime.aws/
+[chime-auth.py]: chime-auth.py
+[chime-joinable.py]: chime-joinable.py

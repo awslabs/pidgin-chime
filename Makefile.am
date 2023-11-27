@@ -51,10 +51,14 @@ CHIME_SRCS =	chime/chime-connection.c chime/chime-connection.h \
 		chime/chime-signin.c \
 		chime/chime-meeting.c chime/chime-meeting.h
 
-EXTRA_PROGRAMS = chime-get-token
+EXTRA_PROGRAMS = chime-get-token chime-stream-meeting
 chime_get_token_SOURCES = chime-get-token.c
 chime_get_token_CFLAGS = $(SOUP_CFLAGS) $(JSON_CFLAGS)
 chime_get_token_LDADD = libchime.la
+
+chime_stream_meeting_SOURCES = chime-stream-meeting.c
+chime_stream_meeting_CFLAGS = $(SOUP_CFLAGS) $(JSON_CFLAGS) $(GSTREAMER_CFLAGS) $(GSTRTP_CFLAGS) $(GSTAPP_CFLAGS) $(GSTVIDEO_CFLAGS) -Ichime
+chime_stream_meeting_LDADD = libchime.la
 
 noinst_LTLIBRARIES = libchime.la
 

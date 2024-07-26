@@ -341,6 +341,7 @@ static gboolean idle_send_ack(gpointer _audio)
 static gboolean insert_frag(struct message_buf *m, gint32 start, gint32 end)
 {
 	struct message_frag **f = &m->frags, *nf;
+//	printf("Insert frag %d-%d\n", start, end);
 	while (*f) {
 		if (end < (*f)->start) {
 			/* Insert before *f */
@@ -352,8 +353,8 @@ static gboolean insert_frag(struct message_buf *m, gint32 start, gint32 end)
 			/* ... and merge subsequent frags that we now touch */
 			if (end > (*f)->end) {
 				(*f)->end = end;
-				nf = (*f)->next;
-				while ((*f)->next && nf->start <= (*f)->end) {
+				while ((nf = (*f)->next) &&
+				       nf->start <= (*f)->end) {
 					(*f)->end = nf->end;
 					(*f)->next = nf->next;
 					g_free(nf);
